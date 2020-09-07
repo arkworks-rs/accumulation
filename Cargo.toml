@@ -1,0 +1,19 @@
+[package]
+name = "ark-accumulation"
+version = "0.1.0"
+authors = [
+  "Benedikt Bünz <benedikt@cs.stanford.edu>",
+  "Alessandro Chiesa <alexch@berkeley.edu>",
+  "William Lin <will.lin@berkeley.edu>",
+  "Pratyush Mishra <pratyush@berkeley.edu>",
+  "Nicholas Spooner <nick.spooner@berkeley.edu>",
+]
+edition = "2018"
+
+[dependencies]
+algebra-core = { git = "https://github.com/scipr-lab/zexe/", default-features = false}
+rand_core = { version = "0.5", default-features = false }
+
+[features]
+default = ["std"]
+std = []
