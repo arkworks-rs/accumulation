@@ -1,7 +1,0 @@
-[package]
-name = "ark-accumulation"
-version = "0.1.0"
-authors = [
-  "William Lin <will.lin@berkeley.edu>"
-]
-edition = "2018"
