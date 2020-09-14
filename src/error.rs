@@ -1,3 +1,4 @@
+use crate::std::boxed::Box;
 use crate::std::string::String;
 use ark_std::error::Error;
 

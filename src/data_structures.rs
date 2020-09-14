@@ -1,4 +1,4 @@
-use crate::AidedAccumulationScheme;
+use crate::{AccumulationScheme, AidedAccumulationScheme};
 
 /// The accumulator of an aided accumulation scheme.
 #[derive(Derivative)]
@@ -23,6 +23,28 @@ impl<A: AidedAccumulationScheme> Accumulator<A> {
     }
 }
 
+impl<A: AccumulationScheme> Accumulator<A> {
+    /// Obtain an accumulator from the accumulator instance for accumulation schemes.
+    pub fn from_instance(instance: A::AccumulatorInstance) -> Self {
+        Accumulator {
+            instance,
+            witness: (),
+        }
+    }
+
+    /// Obtain accumulators from the accumulator instances for accumulation schemes.
+    pub fn from_instances(
+        accumulator_instances: impl IntoIterator<Item = A::AccumulatorInstance>,
+    ) -> impl Iterator<Item = Self> {
+        accumulator_instances
+            .into_iter()
+            .map(|instance| Accumulator {
+                instance,
+                witness: (),
+            })
+    }
+}
+
 /// The input of an aided accumulation scheme.
 #[derive(Derivative)]
 #[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
@@ -43,5 +65,25 @@ impl<A: AidedAccumulationScheme> Input<A> {
         A: 'a,
     {
         inputs.into_iter().map(|i| &i.instance)
+    }
+}
+
+impl<A: AccumulationScheme> Input<A> {
+    /// Obtain input from the input instance for accumulation schemes.
+    pub fn from_instance(instance: A::InputInstance) -> Self {
+        Input {
+            instance,
+            witness: (),
+        }
+    }
+
+    /// Obtain inputs from the input instances for accumulation schemes.
+    pub fn from_instances(
+        input_instances: impl IntoIterator<Item = A::InputInstance>,
+    ) -> impl Iterator<Item = Self> {
+        input_instances.into_iter().map(|instance| Input {
+            instance,
+            witness: (),
+        })
     }
 }
