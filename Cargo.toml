@@ -2,7 +2,11 @@
 name = "ark-accumulation"
 version = "0.1.0"
 authors = [
-  "William Lin <will.lin@berkeley.edu>"
+  "Benedikt Bünz <benedikt@cs.stanford.edu>",
+  "Alessandro Chiesa <alexch@berkeley.edu>",
+  "William Lin <will.lin@berkeley.edu>",
+  "Pratyush Mishra <pratyush@berkeley.edu>",
+  "Nicholas Spooner <nick.spooner@berkeley.edu>",
 ]
 edition = "2018"
 
