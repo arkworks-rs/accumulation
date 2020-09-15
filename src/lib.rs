@@ -10,7 +10,8 @@
     trivial_casts,
     trivial_numeric_casts,
     unused,
-    variant_size_differences
+    variant_size_differences,
+    warnings
 )]
 #![forbid(unsafe_code)]
 
