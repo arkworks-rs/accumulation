@@ -1,6 +1,6 @@
 use crate::std::string::String;
 
-/// The basic error of the `AccumulationScheme` trait.
+/// Common errors for the `AccumulationScheme` trait.
 #[derive(Debug)]
 pub enum Error {
     /// The accumulator was corrupted or malformed.
