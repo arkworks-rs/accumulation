@@ -31,50 +31,50 @@ extern crate alloc as std;
 pub mod error;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
-/// accumulates inputs and past accumulators into a new accumulator, which captures the properties
-/// for ensuring every accumulated input satisfies the predicate. The prover additionally outputs a
-/// proof that the accumulation was done correctly. Using the corresponding proof, a verifier can
-/// check that the accumulator was computed properly. At any point, a decider can check an
-/// accumulator to determine if all of the accumulated inputs satisfy the predicate.
+/// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
+/// to ensure each accumulated input satisfies the predicate. The prover also outputs a proof
+/// attesting that the accumulator was computed correctly, which a verifier can check. At any
+/// point, a decider use an accumulator to determine if each accumulated input satisfies the
+/// predicate.
 pub trait AccumulationScheme {
-    /// The public parameters of the predicate.
+    /// The public parameters of the accumulation scheme's predicate.
     type PredicateParams;
 
-    /// The index of the predicate.
+    /// The index of the accumulation scheme's predicate.
     type PredicateIndex;
 
     /// The universal parameters for the accumulation scheme.
     type UniversalParams;
 
     /// The prover key, used to accumulate inputs and past accumulators and to prove that the
-    /// accumulator was computed correctly .
+    /// new accumulator was computed correctly from the inputs and old accumulators.
     type ProverKey;
 
-    /// The verifier key, used to check that the inputs and past accumulators were properly
-    /// accumulated.
+    /// The verifier key, used to check that an accumulator was computed correctly from the inputs
+    /// and old accumulators.
     type VerifierKey;
 
-    /// The decider key, used to establish whether all of the accumulated inputs satisfy the
+    /// The decider key, used to establish whether each of the accumulated inputs satisfes the
     /// predicate.
     type DeciderKey;
 
     /// The input to be accumulated.
     type Input;
 
-    /// The accumulator, which represents accumulated inputs. It captures the essential properties
-    /// for ensuring every accumulated input satisfies the predicate.
+    /// The accumulator, which captures the essential properties of the accumulated inputs for
+    /// ensuring each satisfies the predicate.
     type Accumulator;
 
-    /// The proof, used to prove that the inputs and accumulators were accumulated properly.
+    /// The proof, used to prove that the accumulator was properly computed.
     type Proof;
 
-    /// The error used in the scheme.
+    /// The error type used in the scheme.
     type Error;
 
     /// Outputs the universal parameters of the accumulation scheme.
     fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error>;
 
-    /// Outputs the prover, verifier, and decider keys specialized for a specific index of the
+    /// Outputs the prover, verifier, and decider keys, specialized for a specific index of the
     /// predicate.
     fn index(
         universal_params: &Self::UniversalParams,
@@ -82,8 +82,8 @@ pub trait AccumulationScheme {
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error>;
 
-    /// Accumulates the inputs and past accumulators. Additionally outputs the proof proving
-    /// that the accumulation was computed properly.
+    /// Accumulates the inputs and past accumulators. Additionally outputs the proof attesting
+    /// that that the new accumulator was computed properly from the inputs and old accumulators.
     fn prove<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = &'a Self::Input>,
@@ -94,7 +94,8 @@ pub trait AccumulationScheme {
         Self::Input: 'a,
         Self::Accumulator: 'a;
 
-    /// Verifies using the proof that the inputs and past accumulators were properly accumulated.
+    /// Verifies using a proof that the new accumulator was computed properly from the inputs and
+    /// old accumulators.
     fn verify<'a>(
         verifier_key: &Self::VerifierKey,
         inputs: impl IntoIterator<Item = &'a Self::Input>,
@@ -132,8 +133,8 @@ pub mod tests {
         type InputParams;
 
         /// Sets up the test inputs. Establishes the parameters and index for the predicate. Also
-        /// outputs the parameters to generate accumulators and inputs for the corresponding predicate
-        /// index.
+        /// outputs the parameters to generate accumulators and inputs for the corresponding
+        /// predicate index.
         fn setup(
             test_params: &Self::TestParams,
             rng: &mut impl RngCore,
@@ -161,10 +162,11 @@ pub mod tests {
         num_accumulations: usize,
     }
 
-    /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of proving and
-    /// verifying and starts with `num_starting_accumulators` old accumulators. At the end of the
-    /// iteration, the last accumulator is put through a single decider. The function will return
-    /// whether all of the verifiers and deciders returned true or not from all of the iterations.
+    /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of proving
+    /// and verifying and starts with `num_starting_accumulators` old accumulators.
+    /// At the end of the iteration, the last accumulator is put through a single decider.
+    /// The function will return whether all of the verifiers and deciders returned true
+    /// from all of the iterations.
     pub fn test_template<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
         template_params: &TemplateParams,
         test_params: &I::TestParams,
