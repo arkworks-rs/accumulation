@@ -1,3 +1,5 @@
+use crate::std::string::String;
+
 /// The basic error of the `AccumulationScheme` trait.
 #[derive(Debug)]
 pub enum Error {

@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 //! A crate for accumulation schemes.
 #![deny(
     const_err,
@@ -16,6 +18,14 @@
 #![forbid(unsafe_code)]
 
 use rand_core::RngCore;
+
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate std;
+
+#[cfg(not(feature = "std"))]
+#[macro_use]
+extern crate alloc as std;
 
 /// Common errors for `AccumulationScheme`.
 pub mod error;
@@ -108,8 +118,10 @@ pub trait AccumulationScheme {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::AccumulationScheme;
+    use crate::std::vec::Vec;
     use rand_core::RngCore;
+
+    use crate::AccumulationScheme;
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
     pub trait AccumulationSchemeTestInput<A: AccumulationScheme> {
