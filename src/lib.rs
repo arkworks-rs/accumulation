@@ -17,7 +17,11 @@
 )]
 #![forbid(unsafe_code)]
 
+use crate::data_structures::{Accumulator, Input};
 use rand_core::RngCore;
+
+#[macro_use]
+extern crate derivative;
 
 #[cfg(feature = "std")]
 #[macro_use]
@@ -27,7 +31,10 @@ extern crate std;
 #[macro_use]
 extern crate alloc as std;
 
-/// Common errors for `AccumulationScheme`.
+/// Common data structures used by `AccumulationScheme` and `AidedAccumulationScheme`.
+pub mod data_structures;
+
+/// Common errors for `AccumulationScheme` and `AidedAccumulationScheme`.
 pub mod error;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
@@ -36,40 +43,77 @@ pub mod error;
 /// attesting that the accumulator was computed correctly, which a verifier can check. At any
 /// point, a decider use an accumulator to determine if each accumulated input satisfies the
 /// predicate.
-pub trait AccumulationScheme {
+/// Accumulation schemes are aided accumulation schemes with empty witnesses. So, verifiers receive
+/// entire accumulators and inputs.
+pub trait AccumulationScheme:
+    AidedAccumulationScheme<InputWitness = (), AccumulatorWitness = ()>
+{
+    /// Verifies a proof that the new accumulator was computed properly from the inputs and
+    /// old accumulators.
+    fn verify<'a>(
+        verifier_key: &Self::VerifierKey,
+        input: impl IntoIterator<Item = &'a Input<Self>>,
+        accumulator: impl IntoIterator<Item = &'a Accumulator<Self>>,
+        new_accumulator: &Accumulator<Self>,
+        proof: &Self::Proof,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: Sized + 'a,
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a,
+    {
+        Self::aided_verify(
+            verifier_key,
+            Input::instances(input),
+            Accumulator::instances(accumulator),
+            &new_accumulator.instance,
+            proof,
+        )
+    }
+}
+
+/// An interface for an aided accumulation scheme. In an aided accumulation scheme, accumulators
+/// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
+/// accumulators or inputs but instead receive their respective instances.
+pub trait AidedAccumulationScheme {
     /// The public parameters of the accumulation scheme's predicate.
-    type PredicateParams;
+    type PredicateParams: Clone;
 
     /// The index of the accumulation scheme's predicate.
-    type PredicateIndex;
+    type PredicateIndex: Clone;
 
     /// The universal parameters for the accumulation scheme.
-    type UniversalParams;
+    type UniversalParams: Clone;
 
     /// The prover key, used to accumulate inputs and past accumulators and to prove that the
     /// new accumulator was computed correctly from the inputs and old accumulators.
-    type ProverKey;
+    type ProverKey: Clone;
 
     /// The verifier key, used to check that an accumulator was computed correctly from the inputs
     /// and old accumulators.
-    type VerifierKey;
+    type VerifierKey: Clone;
 
     /// The decider key, used to establish whether each of the accumulated inputs satisfes the
     /// predicate.
-    type DeciderKey;
+    type DeciderKey: Clone;
 
-    /// The input to be accumulated.
-    type Input;
+    /// The instance of the input to be accumulated.
+    type InputInstance: Clone;
 
-    /// The accumulator, which captures the essential properties of the accumulated inputs for
-    /// ensuring each satisfies the predicate.
-    type Accumulator;
+    /// The witness of the input to be accumulated.
+    type InputWitness: Clone;
+
+    /// The instance of the accumulator.
+    type AccumulatorInstance: Clone;
+
+    /// The witness of the accumulator.
+    type AccumulatorWitness: Clone;
 
     /// The proof, used to prove that the accumulator was properly computed.
-    type Proof;
+    type Proof: Clone;
 
     /// The error type used in the scheme.
-    type Error;
+    type Error: ark_std::error::Error;
 
     /// Outputs the universal parameters of the accumulation scheme.
     fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error>;
@@ -86,46 +130,45 @@ pub trait AccumulationScheme {
     /// that that the new accumulator was computed properly from the inputs and old accumulators.
     fn prove<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = &'a Self::Input>,
-        accumulators: impl IntoIterator<Item = &'a Self::Accumulator>,
+        inputs: impl IntoIterator<Item = &'a Input<Self>>,
+        accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
         rng: Option<&mut dyn RngCore>,
-    ) -> Result<(Self::Accumulator, Self::Proof), Self::Error>
+    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
-        Self::Input: 'a,
-        Self::Accumulator: 'a;
+        Self: Sized + 'a;
 
-    /// Verifies using a proof that the new accumulator was computed properly from the inputs and
-    /// old accumulators.
-    fn verify<'a>(
+    /// Verifies using a proof that the new accumulator instance was computed properly from the
+    /// input instances and old accumulator instances.
+    fn aided_verify<'a>(
         verifier_key: &Self::VerifierKey,
-        inputs: impl IntoIterator<Item = &'a Self::Input>,
-        accumulators: impl IntoIterator<Item = &'a Self::Accumulator>,
-        new_accumulator: &Self::Accumulator,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        rng: Option<&mut dyn RngCore>,
     ) -> Result<bool, Self::Error>
     where
-        Self::Input: 'a,
-        Self::Accumulator: 'a;
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a;
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: &Self::Accumulator,
-        rng: Option<&mut dyn RngCore>,
-    ) -> Result<bool, Self::Error>;
+        accumulator: &Accumulator<Self>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: Sized;
 }
 
 #[cfg(test)]
 pub mod tests {
+    use crate::data_structures::{Accumulator, Input};
     use crate::std::vec::Vec;
+    use crate::AidedAccumulationScheme;
     use rand_core::RngCore;
 
-    use crate::AccumulationScheme;
-
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
-    pub trait AccumulationSchemeTestInput<A: AccumulationScheme> {
+    pub trait AccumulationSchemeTestInput<A: AidedAccumulationScheme> {
         /// Parameters for setting up the test
         type TestParams;
 
@@ -145,14 +188,14 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_accumulators: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<A::Accumulator>;
+        ) -> Vec<Accumulator<A>>;
 
         /// Generates `num_inputs` inputs for one accumulation.
         fn generate_inputs(
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<A::Input>;
+        ) -> Vec<Input<A>>;
     }
 
     pub struct TemplateParams {
@@ -167,7 +210,7 @@ pub mod tests {
     /// At the end of the iteration, the last accumulator is put through a single decider.
     /// The function will return whether all of the verifiers and deciders returned true
     /// from all of the iterations.
-    pub fn test_template<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn test_template<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
         template_params: &TemplateParams,
         test_params: &I::TestParams,
     ) -> Result<bool, A::Error> {
@@ -199,13 +242,12 @@ pub mod tests {
 
                 let (accumulator, proof) =
                     A::prove(&pk, &inputs, &old_accumulators, Some(&mut rng))?;
-                if !A::verify(
+                if !A::aided_verify(
                     &vk,
-                    &inputs,
-                    &old_accumulators,
-                    &accumulator,
+                    Input::instances(&inputs),
+                    Accumulator::instances(&old_accumulators),
+                    &accumulator.instance,
                     &proof,
-                    Some(&mut rng),
                 )? {
                     println!("{}", format!("Verify failed on accumulation {}", i));
                     return Ok(false);
@@ -215,7 +257,7 @@ pub mod tests {
             }
 
             assert!(old_accumulators.len() > 0);
-            if !A::decide(&dk, old_accumulators.last().unwrap(), Some(&mut rng))? {
+            if !A::decide(&dk, old_accumulators.last().unwrap())? {
                 println!("Decide failed");
                 return Ok(false);
             }
@@ -225,7 +267,7 @@ pub mod tests {
     }
 
     pub fn no_starting_accumulators_test<
-        A: AccumulationScheme,
+        A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
@@ -240,7 +282,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn no_inputs_test<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn no_inputs_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -253,7 +295,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn base_test<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn base_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -267,7 +309,7 @@ pub mod tests {
     }
 
     pub fn multiple_starting_accumulators_test<
-        A: AccumulationScheme,
+        A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
@@ -282,7 +324,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_inputs_test<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn multiple_inputs_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -295,7 +337,10 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_accumulations_test<A: AccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn multiple_accumulations_test<
+        A: AidedAccumulationScheme,
+        I: AccumulationSchemeTestInput<A>,
+    >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -309,7 +354,7 @@ pub mod tests {
     }
 
     pub fn multiple_starting_accumulators_and_inputs_test<
-        A: AccumulationScheme,
+        A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
@@ -325,7 +370,7 @@ pub mod tests {
     }
 
     pub fn multiple_starting_accumulators_inputs_and_accumulations_test<
-        A: AccumulationScheme,
+        A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
