@@ -173,7 +173,7 @@ pub mod tests {
     ) -> Result<bool, A::Error> {
         assert!(template_params.num_iterations > 0);
 
-        let mut rng = algebra_core::test_rng();
+        let mut rng = ark_ff::test_rng();
         let universal_params = A::generate(&mut rng)?;
         for _ in 0..template_params.num_iterations {
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
