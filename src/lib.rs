@@ -135,7 +135,7 @@ pub trait AidedAccumulationScheme {
         rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
-        Self: Sized + 'a;
+        Self: 'a;
 
     /// Verifies using a proof that the new accumulator instance was computed properly from the
     /// input instances and old accumulator instances.
@@ -155,9 +155,7 @@ pub trait AidedAccumulationScheme {
     fn decide(
         decider_key: &Self::DeciderKey,
         accumulator: &Accumulator<Self>,
-    ) -> Result<bool, Self::Error>
-    where
-        Self: Sized;
+    ) -> Result<bool, Self::Error>;
 }
 
 #[cfg(test)]

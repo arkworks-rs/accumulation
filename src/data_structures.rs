@@ -1,10 +1,9 @@
 use crate::AidedAccumulationScheme;
-use std::vec::Vec;
 
 /// The accumulator of an aided accumulation scheme.
 #[derive(Derivative)]
 #[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
-pub struct Accumulator<A: AidedAccumulationScheme> {
+pub struct Accumulator<A: AidedAccumulationScheme + ?Sized> {
     /// The instance of the accumulator.
     pub instance: A::AccumulatorInstance,
 
@@ -12,26 +11,22 @@ pub struct Accumulator<A: AidedAccumulationScheme> {
     pub witness: A::AccumulatorWitness,
 }
 
-impl<A: AidedAccumulationScheme> Accumulator<A> {
+impl<A: AidedAccumulationScheme + ?Sized> Accumulator<A> {
     /// Extract the accumulator instances out of a list of accumulators.
     pub fn instances<'a>(
         accumulators: impl IntoIterator<Item = &'a Self>,
-    ) -> Vec<&'a A::AccumulatorInstance>
+    ) -> impl Iterator<Item = &'a A::AccumulatorInstance>
     where
         A: 'a,
     {
-        let mut instances = Vec::new();
-        for accumulator in accumulators {
-            instances.push(&accumulator.instance)
-        }
-        instances
+        accumulators.into_iter().map(|a| &a.instance)
     }
 }
 
 /// The input of an aided accumulation scheme.
 #[derive(Derivative)]
 #[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
-pub struct Input<A: AidedAccumulationScheme> {
+pub struct Input<A: AidedAccumulationScheme + ?Sized> {
     /// The instance of the input.
     pub instance: A::InputInstance,
 
@@ -39,16 +34,14 @@ pub struct Input<A: AidedAccumulationScheme> {
     pub witness: A::InputWitness,
 }
 
-impl<A: AidedAccumulationScheme> Input<A> {
+impl<A: AidedAccumulationScheme + ?Sized> Input<A> {
     /// Extract the input instances out of a list of inputs.
-    pub fn instances<'a>(inputs: impl IntoIterator<Item = &'a Self>) -> Vec<&'a A::InputInstance>
+    pub fn instances<'a>(
+        inputs: impl IntoIterator<Item = &'a Self>,
+    ) -> impl Iterator<Item = &'a A::InputInstance>
     where
         A: 'a,
     {
-        let mut instances = Vec::new();
-        for input in inputs {
-            instances.push(&input.instance)
-        }
-        instances
+        inputs.into_iter().map(|i| &i.instance)
     }
 }
