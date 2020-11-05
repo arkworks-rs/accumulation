@@ -20,9 +20,6 @@
 use crate::data_structures::{Accumulator, Input};
 use rand_core::RngCore;
 
-#[macro_use]
-extern crate derivative;
-
 #[cfg(feature = "std")]
 #[macro_use]
 extern crate std;
@@ -48,34 +45,12 @@ pub mod error;
 pub trait AccumulationScheme:
     AidedAccumulationScheme<InputWitness = (), AccumulatorWitness = ()>
 {
-    /// Verifies a proof that the new accumulator was computed properly from the inputs and
-    /// old accumulators.
-    fn verify<'a>(
-        verifier_key: &Self::VerifierKey,
-        input: impl IntoIterator<Item = &'a Input<Self>>,
-        accumulator: impl IntoIterator<Item = &'a Accumulator<Self>>,
-        new_accumulator: &Accumulator<Self>,
-        proof: &Self::Proof,
-    ) -> Result<bool, Self::Error>
-    where
-        Self: Sized + 'a,
-        Self::InputInstance: 'a,
-        Self::AccumulatorInstance: 'a,
-    {
-        Self::aided_verify(
-            verifier_key,
-            Input::instances(input),
-            Accumulator::instances(accumulator),
-            &new_accumulator.instance,
-            proof,
-        )
-    }
 }
 
 /// An interface for an aided accumulation scheme. In an aided accumulation scheme, accumulators
 /// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
 /// accumulators or inputs but instead receive their respective instances.
-pub trait AidedAccumulationScheme {
+pub trait AidedAccumulationScheme: Sized + 'static {
     /// The public parameters of the accumulation scheme's predicate.
     type PredicateParams: Clone;
 
@@ -133,22 +108,17 @@ pub trait AidedAccumulationScheme {
         inputs: impl IntoIterator<Item = &'a Input<Self>>,
         accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
         rng: Option<&mut dyn RngCore>,
-    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
-    where
-        Self: 'a;
+    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>;
 
     /// Verifies using a proof that the new accumulator instance was computed properly from the
     /// input instances and old accumulator instances.
-    fn aided_verify<'a>(
+    fn verify<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-    ) -> Result<bool, Self::Error>
-    where
-        Self::InputInstance: 'a,
-        Self::AccumulatorInstance: 'a;
+    ) -> Result<bool, Self::Error>;
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
@@ -240,7 +210,7 @@ pub mod tests {
 
                 let (accumulator, proof) =
                     A::prove(&pk, &inputs, &old_accumulators, Some(&mut rng))?;
-                if !A::aided_verify(
+                if !A::verify(
                     &vk,
                     Input::instances(&inputs),
                     Accumulator::instances(&old_accumulators),
