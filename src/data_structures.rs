@@ -1,7 +1,8 @@
 use crate::AidedAccumulationScheme;
 
 /// The accumulator of an aided accumulation scheme.
-#[derive(Clone)]
+#[derive(Derivative)]
+#[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
 pub struct Accumulator<A: AidedAccumulationScheme> {
     /// The instance of the accumulator.
     pub instance: A::AccumulatorInstance,
@@ -20,7 +21,8 @@ impl<A: AidedAccumulationScheme + ?Sized> Accumulator<A> {
 }
 
 /// The input of an aided accumulation scheme.
-#[derive(Clone)]
+#[derive(Derivative)]
+#[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
 pub struct Input<A: AidedAccumulationScheme> {
     /// The instance of the input.
     pub instance: A::InputInstance,

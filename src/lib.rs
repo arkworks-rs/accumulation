@@ -20,6 +20,9 @@
 use crate::data_structures::{Accumulator, Input};
 use rand_core::RngCore;
 
+#[macro_use]
+extern crate derivative;
+
 #[cfg(feature = "std")]
 #[macro_use]
 extern crate std;
