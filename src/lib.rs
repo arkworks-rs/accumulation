@@ -53,7 +53,7 @@ pub trait AccumulationScheme:
 /// An interface for an aided accumulation scheme. In an aided accumulation scheme, accumulators
 /// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
 /// accumulators or inputs but instead receive their respective instances.
-pub trait AidedAccumulationScheme: Sized + 'static {
+pub trait AidedAccumulationScheme: Sized {
     /// The public parameters of the accumulation scheme's predicate.
     type PredicateParams: Clone;
 
@@ -111,7 +111,9 @@ pub trait AidedAccumulationScheme: Sized + 'static {
         inputs: impl IntoIterator<Item = &'a Input<Self>>,
         accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
         rng: Option<&mut dyn RngCore>,
-    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>;
+    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
+    where
+        Self: 'a;
 
     /// Verifies using a proof that the new accumulator instance was computed properly from the
     /// input instances and old accumulator instances.
@@ -121,7 +123,9 @@ pub trait AidedAccumulationScheme: Sized + 'static {
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a;
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.

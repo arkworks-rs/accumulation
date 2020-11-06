@@ -11,11 +11,14 @@ pub struct Accumulator<A: AidedAccumulationScheme> {
     pub witness: A::AccumulatorWitness,
 }
 
-impl<A: AidedAccumulationScheme + ?Sized> Accumulator<A> {
+impl<A: AidedAccumulationScheme> Accumulator<A> {
     /// Extract the accumulator instances out of a list of accumulators.
     pub fn instances<'a>(
         accumulators: impl IntoIterator<Item = &'a Self>,
-    ) -> impl Iterator<Item = &'a A::AccumulatorInstance> {
+    ) -> impl Iterator<Item = &'a A::AccumulatorInstance>
+    where
+        A: 'a,
+    {
         accumulators.into_iter().map(|a| &a.instance)
     }
 }
@@ -35,7 +38,10 @@ impl<A: AidedAccumulationScheme> Input<A> {
     /// Extract the input instances out of a list of inputs.
     pub fn instances<'a>(
         inputs: impl IntoIterator<Item = &'a Self>,
-    ) -> impl Iterator<Item = &'a A::InputInstance> {
+    ) -> impl Iterator<Item = &'a A::InputInstance>
+    where
+        A: 'a,
+    {
         inputs.into_iter().map(|i| &i.instance)
     }
 }
