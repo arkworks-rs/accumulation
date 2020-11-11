@@ -158,13 +158,6 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (Self::InputParams, A::PredicateParams, A::PredicateIndex);
 
-        /// Generates `num_accumulators` starting accumulators.
-        fn generate_starting_accumulators(
-            input_params: &Self::InputParams,
-            num_accumulators: usize,
-            rng: &mut impl RngCore,
-        ) -> Vec<Accumulator<A>>;
-
         /// Generates `num_inputs` inputs for one accumulation.
         fn generate_inputs(
             input_params: &Self::InputParams,
@@ -175,13 +168,11 @@ pub mod tests {
 
     pub struct TemplateParams {
         num_iterations: usize,
-        num_starting_accumulators: usize,
-        num_inputs_per_accumulation: usize,
-        num_accumulations: usize,
+        num_inputs_per_iteration: Vec<usize>,
     }
 
     /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of proving
-    /// and verifying and starts with `num_starting_accumulators` old accumulators.
+    /// and verifying.
     /// At the end of the iteration, the last accumulator is put through a single decider.
     /// The function will return whether all of the verifiers and deciders returned true
     /// from all of the iterations.
@@ -190,6 +181,7 @@ pub mod tests {
         test_params: &I::TestParams,
     ) -> Result<bool, A::Error> {
         assert!(template_params.num_iterations > 0);
+        let num_inputs_per_iteration = &template_params.num_inputs_per_iteration;
 
         let mut rng = ark_ff::test_rng();
         let universal_params = A::generate(&mut rng)?;
@@ -197,23 +189,14 @@ pub mod tests {
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
             let (pk, vk, dk) = A::index(&universal_params, &predicate_params, &predicate_index)?;
 
-            let mut old_accumulators = I::generate_starting_accumulators(
-                &input_params,
-                template_params.num_starting_accumulators,
-                &mut rng,
-            );
-            assert_eq!(
-                old_accumulators.len(),
-                template_params.num_starting_accumulators
-            );
-
-            for i in 0..template_params.num_accumulations {
+            let mut old_accumulators = Vec::with_capacity(num_inputs_per_iteration.len());
+            for num_inputs in num_inputs_per_iteration {
                 let inputs = I::generate_inputs(
                     &input_params,
-                    template_params.num_inputs_per_accumulation,
+                    *num_inputs,
                     &mut rng,
                 );
-                assert_eq!(inputs.len(), template_params.num_inputs_per_accumulation);
+                assert_eq!(inputs.len(), *num_inputs);
 
                 let (accumulator, proof) =
                     A::prove(&pk, &inputs, &old_accumulators, Some(&mut rng))?;
@@ -224,7 +207,7 @@ pub mod tests {
                     &accumulator.instance,
                     &proof,
                 )? {
-                    println!("{}", format!("Verify failed on accumulation {}", i));
+                    println!("{}", format!("Verify failed"));
                     return Ok(false);
                 }
 
@@ -241,7 +224,7 @@ pub mod tests {
         Ok(true)
     }
 
-    pub fn no_starting_accumulators_test<
+    pub fn single_input_test<
         A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
@@ -249,41 +232,13 @@ pub mod tests {
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
             num_iterations: 50,
-            num_starting_accumulators: 0,
-            num_inputs_per_accumulation: 1,
-            num_accumulations: 1,
+            num_inputs_per_iteration: vec![1]
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())
     }
 
-    pub fn no_inputs_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
-        test_params: &I::TestParams,
-    ) -> Result<(), A::Error> {
-        let template_params = TemplateParams {
-            num_iterations: 50,
-            num_starting_accumulators: 1,
-            num_inputs_per_accumulation: 0,
-            num_accumulations: 1,
-        };
-        assert!(test_template::<A, I>(&template_params, test_params)?);
-        Ok(())
-    }
-
-    pub fn base_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
-        test_params: &I::TestParams,
-    ) -> Result<(), A::Error> {
-        let template_params = TemplateParams {
-            num_iterations: 50,
-            num_starting_accumulators: 1,
-            num_inputs_per_accumulation: 1,
-            num_accumulations: 1,
-        };
-        assert!(test_template::<A, I>(&template_params, test_params)?);
-        Ok(())
-    }
-
-    pub fn multiple_starting_accumulators_test<
+    pub fn multiple_inputs_test<
         A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
@@ -291,22 +246,7 @@ pub mod tests {
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
             num_iterations: 50,
-            num_starting_accumulators: 10,
-            num_inputs_per_accumulation: 1,
-            num_accumulations: 1,
-        };
-        assert!(test_template::<A, I>(&template_params, test_params)?);
-        Ok(())
-    }
-
-    pub fn multiple_inputs_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
-        test_params: &I::TestParams,
-    ) -> Result<(), A::Error> {
-        let template_params = TemplateParams {
-            num_iterations: 50,
-            num_starting_accumulators: 1,
-            num_inputs_per_accumulation: 10,
-            num_accumulations: 1,
+            num_inputs_per_iteration: vec![5]
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())
@@ -320,15 +260,13 @@ pub mod tests {
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
             num_iterations: 50,
-            num_starting_accumulators: 1,
-            num_inputs_per_accumulation: 1,
-            num_accumulations: 10,
+            num_inputs_per_iteration: vec![1; 10]
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())
     }
 
-    pub fn multiple_starting_accumulators_and_inputs_test<
+    pub fn multiple_accumulations_multiple_inputs_test<
         A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
@@ -336,15 +274,32 @@ pub mod tests {
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
             num_iterations: 50,
-            num_starting_accumulators: 10,
-            num_inputs_per_accumulation: 10,
-            num_accumulations: 1,
+            num_inputs_per_iteration: vec![5; 10]
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())
     }
 
-    pub fn multiple_starting_accumulators_inputs_and_accumulations_test<
+    // Only add this test if scheme is intended to support cases with accumulators and no inputs
+    pub fn accumulators_only_test<
+        A: AidedAccumulationScheme,
+        I: AccumulationSchemeTestInput<A>,
+    >(
+        test_params: &I::TestParams,
+    ) -> Result<(), A::Error> {
+        let mut num_inputs_per_iteration = vec![0usize; 10];
+        num_inputs_per_iteration[0] = 1;
+
+        let template_params = TemplateParams {
+            num_iterations: 50,
+            num_inputs_per_iteration,
+        };
+        assert!(test_template::<A, I>(&template_params, test_params)?);
+        Ok(())
+    }
+
+    // Only add this test if scheme is intended to support cases with no accumulators or inputs
+    pub fn no_accumulators_or_inputs_test<
         A: AidedAccumulationScheme,
         I: AccumulationSchemeTestInput<A>,
     >(
@@ -352,9 +307,7 @@ pub mod tests {
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
             num_iterations: 50,
-            num_starting_accumulators: 10,
-            num_inputs_per_accumulation: 10,
-            num_accumulations: 10,
+            num_inputs_per_iteration: vec![0; 10],
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())
