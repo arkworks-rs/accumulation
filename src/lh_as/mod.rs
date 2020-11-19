@@ -1,15 +1,17 @@
 use crate::data_structures::{Accumulator, Input};
-use crate::error::BoxedError;
+use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
+use crate::std::string::ToString;
+use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
-use ark_ff::{PrimeField, Zero};
-use ark_poly_commit::lh_pc::linear_hash::pedersen::data_structures::UniversalParams;
+use ark_ff::{to_bytes, PrimeField};
+use ark_poly_commit::lh_pc::error::LHPCError;
 use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
-    lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitment, PCCommitterKey, Polynomial,
-    PolynomialCommitment, PolynomialLabel, UVPolynomial,
+    lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, Polynomial, PolynomialCommitment,
+    PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge};
 use rand_core::RngCore;
@@ -43,25 +45,21 @@ where
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &lh_pc::CommitterKey<F, LH>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<F, LH>>,
-        input_witnesses: impl IntoIterator<Item = &'a P>,
+        input_witnesses: impl IntoIterator<Item = &'a LabeledPolynomial<F, P>>,
         rng: &mut dyn RngCore,
 
         // Outputs
-        witness_polynomials_output: &mut Vec<P>,
+        witness_polynomials_output: &mut Vec<LabeledPolynomial<F, P>>,
         witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<F, LH>>>,
-    ) -> Result<(), BoxedError>
+    ) -> Result<(), LHPCError>
     where
         Self: 'a,
     {
         for (instance, witness) in input_instances.into_iter().zip(input_witnesses) {
-            if witness.degree() > ck.supported_degree() || witness.degree() <= 1 {
-                // TODO: Error
-            }
-
             let point = instance.point;
             let eval = instance.eval;
 
-            let numerator: P = (&P::from_coefficients_vec(vec![-eval])).add(witness);
+            let numerator: P = (&P::from_coefficients_vec(vec![-eval])).add(witness.polynomial());
             let denominator = P::from_coefficients_vec(vec![-point, F::one()]);
             let witness_polynomial = (&numerator).div(&denominator);
 
@@ -73,13 +71,11 @@ where
             );
 
             let mut witness_commitments =
-                LinearHashPC::commit(ck, vec![&labeled_witness_polynomial], Some(rng))
-                    .map_err(|e| BoxedError::new(e))?
-                    .0;
+                LinearHashPC::commit(ck, vec![&labeled_witness_polynomial], Some(rng))?.0;
 
             let witness_commitment = witness_commitments.pop().unwrap();
 
-            witness_polynomials_output.push(witness_polynomial);
+            witness_polynomials_output.push(labeled_witness_polynomial);
             witness_commitments_output.push(witness_commitment);
         }
 
@@ -91,7 +87,13 @@ where
         inputs: &[&'a Input<Self>],
         accumulators: &[&'a Accumulator<Self>],
         rng: &mut dyn RngCore,
-    ) -> Result<(Vec<P>, Vec<LabeledCommitment<lh_pc::Commitment<F, LH>>>), BoxedError>
+    ) -> Result<
+        (
+            Vec<LabeledPolynomial<F, P>>,
+            Vec<LabeledCommitment<lh_pc::Commitment<F, LH>>>,
+        ),
+        LHPCError,
+    >
     where
         Self: 'a,
     {
@@ -129,14 +131,17 @@ where
         Ok((witness_polynomials, witness_commitments))
     }
 
-    fn combine_polynomials<'a>(polynomials: impl IntoIterator<Item = &'a P>, challenge: F) -> P
+    fn combine_polynomials<'a>(
+        labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<F, P>>,
+        challenge: F,
+    ) -> P
     where
         P: 'a,
     {
         let mut combined_polynomial = Polynomial::zero();
         let mut cur_challenge = F::one();
-        for p in polynomials {
-            combined_polynomial += (cur_challenge, p);
+        for p in labeled_polynomials {
+            combined_polynomial += (cur_challenge, p.polynomial());
             cur_challenge *= challenge;
         }
 
@@ -188,10 +193,10 @@ where
     type DeciderKey = lh_pc::VerifierKey<F, LH>;
 
     type InputInstance = InputInstance<F, LH>;
-    type InputWitness = P;
+    type InputWitness = LabeledPolynomial<F, P>;
 
     type AccumulatorInstance = InputInstance<F, LH>;
-    type AccumulatorWitness = P;
+    type AccumulatorWitness = LabeledPolynomial<F, P>;
 
     type Proof = Proof<F, LH>;
 
@@ -218,7 +223,7 @@ where
             .unwrap();
 
         let prover_key = ProverKey {
-            lh_ck: ck.clone(),
+            lh_ck: ck,
             degree_challenge,
         };
 
@@ -239,13 +244,49 @@ where
         let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
         let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();
 
-        let all_input_instances: Vec<&InputInstance<F, LH>> = inputs
+        for (instance, witness, is_accumulator) in inputs
+            .iter()
+            .map(|input| (&input.instance, &input.witness, false))
+            .chain(
+                accumulators
+                    .iter()
+                    .map(|accumulator| (&accumulator.instance, &accumulator.witness, true)),
+            )
+        {
+            if instance.commitment.degree_bound().is_some() || witness.degree_bound().is_some() {
+                if is_accumulator {
+                    return Err(BoxedError::new(ASError::MalformedAccumulator(
+                        "Degree bounds on accumulators unsupported".to_string(),
+                    )));
+                }
+
+                return Err(BoxedError::new(ASError::MalformedInput(
+                    "Degree bounds on inputs unsupported".to_string(),
+                )));
+            }
+
+            if witness.degree() < 1 || witness.degree() > prover_key.lh_ck.supported_degree() {
+                if is_accumulator {
+                    return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
+                        "An accumulator witness of degree {} is unsupported for this prover key",
+                        witness.degree()
+                    ))));
+                }
+
+                return Err(BoxedError::new(ASError::MalformedInput(format!(
+                    "An input witness of degree {} is unsupported for this prover key",
+                    witness.degree()
+                ))));
+            }
+        }
+
+        let input_instances: Vec<&InputInstance<F, LH>> = inputs
             .iter()
             .map(|input| &input.instance)
             .chain(accumulators.iter().map(|accumulator| &accumulator.instance))
             .collect();
 
-        let all_input_witnesses: Vec<&Self::InputWitness> = inputs
+        let input_witnesses: Vec<&Self::InputWitness> = inputs
             .iter()
             .map(|input| &input.witness)
             .chain(accumulators.iter().map(|accumulator| &accumulator.witness))
@@ -257,15 +298,21 @@ where
                 inputs.as_slice(),
                 accumulators.as_slice(),
                 rng,
-            )?;
+            )
+            .map_err(|e| BoxedError::new(e))?;
 
-        assert_eq!(all_input_witnesses.len(), witness_polynomials.len());
-        assert_eq!(all_input_witnesses.len(), witness_commitments.len());
+        assert_eq!(input_witnesses.len(), witness_polynomials.len());
+        assert_eq!(input_witnesses.len(), witness_commitments.len());
 
         let mut challenge_point_sponge = S::new();
-        //challenge_point_sponge.absorb(&prover_key.degree_challenge);
-        for (instance, witness_commitment) in all_input_instances.iter().zip(&witness_commitments) {
-            //absorb![&mut sponge, &input_instance, witness_commitment];
+        challenge_point_sponge.absorb(&prover_key.degree_challenge);
+
+        for (instance, witness_commitment) in input_instances.iter().zip(&witness_commitments) {
+            absorb![
+                &mut challenge_point_sponge,
+                instance,
+                &to_bytes!(witness_commitment.commitment()).unwrap()
+            ];
         }
 
         let challenge_point = challenge_point_sponge
@@ -273,18 +320,22 @@ where
             .pop()
             .unwrap();
 
-        let mut sponge = S::new();
-        //sponge.absorb(&challenge_point);
+        let mut linear_combination_challenge_sponge = S::new();
+        linear_combination_challenge_sponge.absorb(&challenge_point);
 
         let mut proof = Vec::new();
-        for ((input_witness, witness_polynomial), witness_commitment) in all_input_witnesses
+        for ((input_witness, witness_polynomial), witness_commitment) in input_witnesses
             .iter()
             .zip(&witness_polynomials)
             .zip(&witness_commitments)
         {
             let input_witness_eval = input_witness.evaluate(&challenge_point);
             let witness_eval = witness_polynomial.evaluate(&challenge_point);
-            //absorb![&mut sponge, &input_witness_eval, &witness_eval];
+
+            absorb![
+                &mut linear_combination_challenge_sponge,
+                &to_bytes!(&input_witness_eval, &witness_eval).unwrap()
+            ];
 
             let single_proof = SingleProof {
                 witness_commitment: witness_commitment.clone(),
@@ -295,16 +346,23 @@ where
             proof.push(single_proof);
         }
 
-        let linear_combination_challenge = sponge.squeeze_field_elements(1).pop().unwrap();
+        let linear_combination_challenge = linear_combination_challenge_sponge
+            .squeeze_field_elements(1)
+            .pop()
+            .unwrap();
+
         let combined_polynomial = Self::combine_polynomials(
-            all_input_witnesses.into_iter().chain(&witness_polynomials),
+            input_witnesses.into_iter().chain(&witness_polynomials),
             linear_combination_challenge,
         );
+
+        let combined_polynomial =
+            LabeledPolynomial::new(PolynomialLabel::new(), combined_polynomial, None, None);
 
         let combined_eval = combined_polynomial.evaluate(&challenge_point);
 
         let combined_commitment = Self::combine_commitments(
-            all_input_instances
+            input_instances
                 .into_iter()
                 .map(|instance| &instance.commitment)
                 .chain(&witness_commitments),
@@ -333,48 +391,75 @@ where
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
-        proofs: &Self::Proof,
+        proof: &Self::Proof,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
     {
-        let mut sponge = S::new();
-        //sponge.absorb(verifier_key);
+        if new_accumulator_instance.commitment.degree_bound().is_some() {
+            return Ok(false);
+        }
+
+        let mut challenge_point_sponge = S::new();
+        challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
-        for (input_instance, proof) in input_instances
+        for (input_instance, p) in input_instances
             .into_iter()
             .chain(accumulator_instances)
-            .zip(proofs)
+            .zip(proof)
         {
-            //absorb![&mut sponge, input_instance, p.witness_commitment];
-            let eval_check_lhs = proof.eval - input_instance.eval;
-            let eval_check_rhs = proof
+            if input_instance.commitment.degree_bound().is_some() {
+                return Ok(false);
+            }
+
+            absorb![
+                &mut challenge_point_sponge,
+                input_instance,
+                &to_bytes!(p.witness_commitment.commitment()).unwrap()
+            ];
+
+            let eval_check_lhs = p.eval - input_instance.eval;
+            let eval_check_rhs = p
                 .witness_eval
                 .mul(new_accumulator_instance.point - &input_instance.point);
+
             if !eval_check_lhs.eq(&eval_check_rhs) {
                 return Ok(false);
             }
+
             commitments.push(&input_instance.commitment);
         }
 
-        let challenge_point = sponge.squeeze_field_elements(1).pop().unwrap();
+        let challenge_point = challenge_point_sponge
+            .squeeze_field_elements(1)
+            .pop()
+            .unwrap();
+
         if !challenge_point.eq(&new_accumulator_instance.point) {
             return Ok(false);
         }
 
-        let mut sponge = S::new();
-        //sponge.absorb(&challenge_point);
-        for proof in proofs {
-            //absorb![&mut sponge, &proof.eval, &proof.witness_eval];
+        let mut linear_combination_challenge_sponge = S::new();
+        linear_combination_challenge_sponge.absorb(&challenge_point);
+
+        for proof in proof {
+            absorb![
+                &mut linear_combination_challenge_sponge,
+                &to_bytes!(&proof.eval, &proof.witness_eval).unwrap()
+            ];
         }
 
-        let linear_combination_challenge = sponge.squeeze_field_elements(1).pop().unwrap();
+        let linear_combination_challenge = linear_combination_challenge_sponge
+            .squeeze_field_elements(1)
+            .pop()
+            .unwrap();
+
         let combined_eval = Self::combine_evaluations(
-            proofs
+            proof
                 .into_iter()
                 .map(|p| &p.eval)
-                .chain(proofs.into_iter().map(|p| &p.witness_eval)),
+                .chain(proof.into_iter().map(|p| &p.witness_eval)),
             linear_combination_challenge,
         );
 
@@ -385,7 +470,7 @@ where
         let combined_commitment = Self::combine_commitments(
             commitments
                 .into_iter()
-                .chain(proofs.into_iter().map(|p| &p.witness_commitment)),
+                .chain(proof.into_iter().map(|p| &p.witness_commitment)),
             linear_combination_challenge,
         );
 
@@ -405,7 +490,7 @@ where
             vec![&accumulator.instance.commitment],
             &accumulator.instance.point,
             vec![accumulator.instance.eval],
-            &lh_pc::Proof(accumulator.witness.clone(), PhantomData),
+            &lh_pc::Proof(accumulator.witness.clone()),
             &|_| F::one(),
             None,
         );
@@ -416,7 +501,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::data_structures::{Accumulator, Input};
+    use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::lh_as::{InputInstance, LHAidedAccumulationScheme};
     use crate::std::ops::Add;
@@ -453,7 +538,7 @@ pub mod tests {
         type InputParams = (lh_pc::CommitterKey<F, LH>, lh_pc::VerifierKey<F, LH>);
 
         fn setup(
-            test_params: &Self::TestParams,
+            _: &Self::TestParams,
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
@@ -485,33 +570,21 @@ pub mod tests {
                     let label = format!("Input{}", i);
 
                     let polynomial = P::rand(degree, rng);
-
                     let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
                 })
                 .collect();
 
-            let (labeled_commitments, randoms) =
+            let (labeled_commitments, _) =
                 LinearHashPC::<F, P, LH>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = labeled_polynomials
                 .into_iter()
                 .zip(labeled_commitments)
-                .zip(&randoms)
-                .map(|((labeled_polynomial, labeled_commitment), randomness)| {
+                .map(|(labeled_polynomial, labeled_commitment)| {
                     let point = F::rand(rng);
                     let eval = labeled_polynomial.evaluate(&point);
-                    let ipa_proof = LinearHashPC::<F, P, LH>::open_individual_opening_challenges(
-                        ck,
-                        vec![&labeled_polynomial],
-                        vec![&labeled_commitment],
-                        &point,
-                        &|_| F::one(),
-                        vec![randomness],
-                        Some(rng),
-                    )
-                    .unwrap();
 
                     let instance = InputInstance {
                         commitment: labeled_commitment,
@@ -521,7 +594,7 @@ pub mod tests {
 
                     Input {
                         instance,
-                        witness: labeled_polynomial.polynomial().clone(),
+                        witness: labeled_polynomial,
                     }
                 })
                 .collect();

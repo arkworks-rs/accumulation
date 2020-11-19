@@ -1,6 +1,7 @@
-use ark_ff::PrimeField;
+use crate::std::vec::Vec;
+use ark_ff::{to_bytes, PrimeField, ToConstraintField};
 use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
-use ark_poly_commit::{lh_pc, LabeledCommitment, Polynomial};
+use ark_poly_commit::{lh_pc, LabeledCommitment};
 use ark_sponge::Absorbable;
 
 #[derive(Derivative)]
@@ -20,11 +21,11 @@ pub struct InputInstance<F: PrimeField, LH: LinearHashFunction<F>> {
 
 impl<F: PrimeField, LH: LinearHashFunction<F>> Absorbable<F> for InputInstance<F, LH> {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        unimplemented!()
+        to_bytes!(&self.commitment, &self.point, &self.eval).unwrap()
     }
 
     fn to_sponge_field_elements(&self) -> Vec<F> {
-        unimplemented!()
+        self.to_sponge_bytes().to_field_elements().unwrap()
     }
 }
 

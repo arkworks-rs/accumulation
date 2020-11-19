@@ -197,8 +197,7 @@ pub mod tests {
         assert_eq!(total_num_inputs, inputs.len());
         let mut inputs_start = 0;
 
-        for i in 0..num_iterations {
-            println!("{}", i);
+        for _ in 0..num_iterations {
             let mut old_accumulators = Vec::with_capacity(num_inputs_per_iteration.len());
             for num_inputs in num_inputs_per_iteration {
                 let inputs = &inputs[inputs_start..(inputs_start + num_inputs)];
