@@ -19,6 +19,8 @@ use rand_core::RngCore;
 mod data_structures;
 pub use data_structures::*;
 
+mod constraints;
+
 pub struct LHAidedAccumulationScheme<F, P, LH, S>
 where
     F: PrimeField + Absorbable<F>,
