@@ -10,7 +10,7 @@ use ark_poly_commit::lh_pc::error::LHPCError;
 use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
-    lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, Polynomial, PolynomialCommitment,
+    lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
     PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge};
@@ -140,7 +140,7 @@ where
     where
         P: 'a,
     {
-        let mut combined_polynomial = Polynomial::zero();
+        let mut combined_polynomial = P::zero();
         let mut cur_challenge = F::one();
         for p in labeled_polynomials {
             combined_polynomial += (cur_challenge, p.polynomial());
@@ -148,6 +148,17 @@ where
         }
 
         combined_polynomial
+    }
+
+    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a F>, challenge: F) -> F {
+        let mut combined_eval = F::zero();
+        let mut cur_challenge = F::one();
+        for eval in evaluations {
+            combined_eval += &eval.mul(cur_challenge);
+            cur_challenge *= challenge;
+        }
+
+        combined_eval
     }
 
     fn combine_commitments<'a>(
@@ -163,17 +174,6 @@ where
 
         let combined_commitment = scalar_commitment_pairs.into_iter().sum();
         lh_pc::Commitment(combined_commitment)
-    }
-
-    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a F>, challenge: F) -> F {
-        let mut combined_eval = F::zero();
-        let mut cur_challenge = F::one();
-        for eval in evaluations {
-            combined_eval += &eval.mul(cur_challenge);
-            cur_challenge *= challenge;
-        }
-
-        combined_eval
     }
 }
 
@@ -336,7 +336,8 @@ where
 
             absorb![
                 &mut linear_combination_challenge_sponge,
-                &to_bytes!(&input_witness_eval, &witness_eval).unwrap()
+                &to_bytes!(&input_witness_eval).unwrap(),
+                &to_bytes!(&witness_eval).unwrap()
             ];
 
             let single_proof = SingleProof {
@@ -445,10 +446,11 @@ where
         let mut linear_combination_challenge_sponge = S::new();
         linear_combination_challenge_sponge.absorb(&challenge_point);
 
-        for proof in proof {
+        for single_proof in proof {
             absorb![
                 &mut linear_combination_challenge_sponge,
-                &to_bytes!(&proof.eval, &proof.witness_eval).unwrap()
+                &to_bytes!(&single_proof.eval).unwrap(),
+                &to_bytes!(&single_proof.witness_eval).unwrap()
             ];
         }
 
@@ -512,7 +514,7 @@ pub mod tests {
     use crate::AidedAccumulationScheme;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
     use ark_ff::PrimeField;
-    use ark_poly::univariate::DensePolynomial;
+    use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
     use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
     use ark_poly_commit::lh_pc::LinearHashPC;

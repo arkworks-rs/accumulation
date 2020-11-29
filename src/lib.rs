@@ -187,7 +187,7 @@ pub mod tests {
         let num_iterations = template_params.num_iterations;
         let total_num_inputs = num_iterations * num_inputs_per_iteration.iter().sum::<usize>();
 
-        let mut rng = ark_ff::test_rng();
+        let mut rng = ark_std::test_rng();
         let universal_params = A::generate(&mut rng)?;
 
         let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
