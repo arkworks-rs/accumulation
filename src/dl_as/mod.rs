@@ -8,21 +8,21 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{to_bytes, One, UniformRand, Zero};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
 use ark_poly_commit::{
-    ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey, Polynomial,
+    ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{Absorbable, CryptographicSponge};
 use ark_std::marker::PhantomData;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
-
 mod data_structures;
 use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
 type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
-type ASSponge<G, S> = SpongeForAccScheme<<G as AffineCurve>::ScalarField, S>;
+
+mod constraints;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
@@ -53,9 +53,6 @@ where
     R: RngCore + SeedableRng,
     S: CryptographicSponge<G::ScalarField>,
 {
-    /// Deterministic seed for commitment to random linear polynomials
-    pub const DETERMINISTIC_SEED: u64 = 2020;
-
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::CommitterKey<G>,
         linear_polynomial: P,
@@ -65,11 +62,8 @@ where
         let labeled_random_linear_polynomial =
             LabeledPolynomial::new(PolynomialLabel::new(), linear_polynomial, None, None);
 
-        let (mut linear_polynomial_commitments, _) = PCDL::<G, P, D, S>::commit(
-            ck,
-            vec![&labeled_random_linear_polynomial],
-            Some(&mut R::seed_from_u64(Self::DETERMINISTIC_SEED)),
-        )?;
+        let (mut linear_polynomial_commitments, _) =
+            PCDL::<G, P, D, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
 
         Ok(linear_polynomial_commitments
             .pop()
@@ -160,7 +154,7 @@ where
     fn combine_succinct_checks_and_proof<'a>(
         ipa_vk: &ipa_pc::VerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
-        proof: &Proof<G, P>,
+        proof: &Proof<G>,
     ) -> Result<
         (
             LabeledCommitment<ipa_pc::Commitment<G>>, // Combined commitment
@@ -172,16 +166,12 @@ where
         let supported_degree = ipa_vk.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        assert!(proof.random_linear_polynomial.degree() <= 1);
-        let mut linear_combination_challenge_sponge = ASSponge::<G, S>::new();
-        let random_coeffs = proof.random_linear_polynomial.coeffs();
-        for i in 0..=1 {
-            if i < random_coeffs.len() {
-                linear_combination_challenge_sponge.absorb(&random_coeffs[i]);
-            } else {
-                linear_combination_challenge_sponge.absorb(&G::ScalarField::zero());
-            }
-        }
+        let mut linear_combination_challenge_sponge =
+            SpongeForAccScheme::<G::ScalarField, S>::new();
+        let random_coeffs = &proof.random_linear_polynomial_coeffs;
+        linear_combination_challenge_sponge.absorb(&random_coeffs[0]);
+        linear_combination_challenge_sponge.absorb(&random_coeffs[1]);
+
         linear_combination_challenge_sponge
             .absorb(&to_bytes!(proof.random_linear_polynomial_commitment).unwrap());
 
@@ -227,7 +217,7 @@ where
             None,
         );
 
-        let mut challenge_point_sponge = ASSponge::<G, S>::new();
+        let mut challenge_point_sponge = SpongeForAccScheme::<G::ScalarField, S>::new();
 
         let combined_commitment = commitments.pop().unwrap();
         challenge_point_sponge.absorb(&to_bytes![&combined_commitment].unwrap());
@@ -258,7 +248,7 @@ where
             Item = (G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>),
         >,
     ) -> P {
-        let mut combined = Polynomial::zero();
+        let mut combined = P::zero();
         for (scalar, check_polynomial) in combined_check_polynomial_addends {
             let polynomial = P::from_coefficients_vec(check_polynomial.compute_coeffs());
             combined += (scalar, &polynomial);
@@ -347,7 +337,7 @@ where
     type AccumulatorInstance = InputInstance<G>;
     type AccumulatorWitness = ();
 
-    type Proof = Proof<G, P>;
+    type Proof = Proof<G>;
     type Error = BoxedError;
 
     fn generate(_rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
@@ -399,8 +389,9 @@ where
         let inputs = Input::instances(inputs);
         let accumulators = Accumulator::instances(accumulators);
 
-        let random_linear_polynomial =
-            P::from_coefficients_slice(&[G::ScalarField::rand(rng), G::ScalarField::rand(rng)]);
+        let random_linear_polynomial_coeffs =
+            [G::ScalarField::rand(rng), G::ScalarField::rand(rng)];
+        let random_linear_polynomial = P::from_coefficients_slice(&random_linear_polynomial_coeffs);
 
         let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
             &prover_key.verifier_key.ipa_ck_linear,
@@ -409,7 +400,7 @@ where
         .map_err(|e| BoxedError::new(e))?;
 
         let proof = Proof {
-            random_linear_polynomial,
+            random_linear_polynomial_coeffs,
             random_linear_polynomial_commitment: linear_polynomial_commitment,
             commitment_randomness: G::ScalarField::rand(rng),
         };
@@ -431,7 +422,8 @@ where
 
         let mut combined_check_polynomial =
             Self::combine_check_polynomials(combined_check_polynomial_addends);
-        combined_check_polynomial += &proof.random_linear_polynomial;
+        combined_check_polynomial +=
+            &P::from_coefficients_slice(&proof.random_linear_polynomial_coeffs);
 
         let accumulator = Self::compute_new_accumulator(
             &prover_key.ipa_ck,
@@ -458,13 +450,11 @@ where
     where
         Self: 'a,
     {
-        if proof.random_linear_polynomial.degree() > 1 {
-            return Ok(false);
-        }
-
+        let random_linear_polynomial =
+            P::from_coefficients_slice(&proof.random_linear_polynomial_coeffs);
         let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
             &verifier_key.ipa_ck_linear,
-            proof.random_linear_polynomial.clone(),
+            random_linear_polynomial.clone(),
         )
         .map_err(|e| BoxedError::new(e))?;
 
@@ -477,6 +467,7 @@ where
             inputs,
             accumulators,
         );
+
         if succinct_check_result.is_err() {
             return Ok(false);
         };
@@ -507,7 +498,7 @@ where
         let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_polynomial_addends, challenge);
 
-        eval += &proof.random_linear_polynomial.evaluate(&challenge);
+        eval += &random_linear_polynomial.evaluate(&challenge);
 
         if !eval.eq(&new_accumulator.evaluation) {
             return Ok(false);
@@ -565,7 +556,7 @@ pub mod tests {
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
-    use ark_sponge::digest_sponge::DigestSponge;
+    use ark_sponge::dummy::DummySponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
     use rand::distributions::Distribution;
@@ -677,7 +668,8 @@ pub mod tests {
         DensePolynomial<Fr>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,
-        DigestSponge<Fr, sha2::Sha512>,
+        //DigestSponge<Fr, sha2::Sha512>,
+        DummySponge,
     >;
     type I = DLAccumulationSchemeTestInput;
 

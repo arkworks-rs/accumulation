@@ -1,7 +1,7 @@
 use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
-use ark_poly_commit::{ipa_pc, LabeledCommitment, UVPolynomial};
+use ark_poly_commit::{ipa_pc, LabeledCommitment};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 
@@ -26,8 +26,8 @@ pub struct InputInstance<G: AffineCurve> {
 
 #[derive(Derivative)]
 #[derivative(Clone)]
-pub struct Proof<G: AffineCurve, P: UVPolynomial<G::ScalarField>> {
-    pub(crate) random_linear_polynomial: P,
+pub struct Proof<G: AffineCurve> {
+    pub(crate) random_linear_polynomial_coeffs: [G::ScalarField; 2],
     pub(crate) random_linear_polynomial_commitment: G,
     pub(crate) commitment_randomness: G::ScalarField,
 }
@@ -101,6 +101,10 @@ impl<F: PrimeField, S: CryptographicSponge<F>, I: IsSpongeForAccSchemeParam> Cry
 
     fn squeeze_field_elements_with_sizes(&mut self, sizes: &[FieldElementSize]) -> Vec<F> {
         self.sponge.squeeze_field_elements_with_sizes(sizes)
+    }
+
+    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<F> {
+        self.sponge.squeeze_field_elements(num_elements)
     }
 }
 
