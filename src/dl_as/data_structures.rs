@@ -8,20 +8,20 @@ use ark_std::marker::PhantomData;
 #[derive(Derivative)]
 #[derivative(Clone)]
 pub struct PredicateIndex {
-    pub(crate) supported_degree_bound: usize,
-    pub(crate) supported_hiding_bound: usize,
+    pub supported_degree_bound: usize,
+    pub supported_hiding_bound: usize,
 }
 
 #[derive(Derivative)]
 #[derivative(Clone)]
 pub struct InputInstance<G: AffineCurve> {
     // ipa_pc instance
-    pub(crate) ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
-    pub(crate) point: G::ScalarField,
-    pub(crate) evaluation: G::ScalarField,
+    pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
+    pub point: G::ScalarField,
+    pub evaluation: G::ScalarField,
 
     // ipa_pc proof
-    pub(crate) ipa_proof: ipa_pc::Proof<G>,
+    pub ipa_proof: ipa_pc::Proof<G>,
 }
 
 #[derive(Derivative)]

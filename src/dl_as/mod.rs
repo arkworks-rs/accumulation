@@ -17,12 +17,12 @@ use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
-use data_structures::*;
+pub use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
-type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
-type ASSponge<G, S> = SpongeForAccScheme<<G as AffineCurve>::ScalarField, S>;
+pub type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
+pub type ASSponge<G, S> = SpongeForAccScheme<<G as AffineCurve>::ScalarField, S>;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
