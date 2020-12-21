@@ -253,7 +253,7 @@ fn dl_input_gen<R: RngCore>(
                 vec![&labeled_commitment],
                 &point,
                 &|_| Fr::one(),
-                vec![randomness],
+                &vec![randomness],
                 Some(rng),
             )
             .unwrap();
