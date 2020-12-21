@@ -105,6 +105,7 @@ where
 
         let (accumulator, proof) =
             AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
+
         // Use the same accumulator as input
         old_accumulators.push(accumulator.clone());
         old_accumulators.push(accumulator);
@@ -236,13 +237,14 @@ fn dl_input_gen<R: RngCore>(
         }];
 
 
-    let (labeled_commitments, _) =
+    let (labeled_commitments, randoms) =
         PCDL::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
         .zip(labeled_commitments)
-        .map(|(labeled_polynomial, labeled_commitment)| {
+        .zip(randoms)
+        .map(|((labeled_polynomial, labeled_commitment), randomness)| {
             let point = Fr::rand(rng);
             let eval = labeled_polynomial.evaluate(&point);
             let ipa_proof = PCDL::open_individual_opening_challenges(
@@ -251,7 +253,7 @@ fn dl_input_gen<R: RngCore>(
                 vec![&labeled_commitment],
                 &point,
                 &|_| Fr::one(),
-                vec![],
+                vec![randomness],
                 Some(rng),
             )
             .unwrap();
