@@ -132,7 +132,7 @@ where
             &accumulator,
         ).unwrap();
         let decider_time = start.elapsed();
-        println!("Decider: {:?}", decider_time.as_millis());
+        println!("Decider: {:?}\n\n", decider_time.as_millis());
 
         assert!(verification_result);
     }
