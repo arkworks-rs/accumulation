@@ -1,3 +1,4 @@
+#![allow(non_camel_case_types)]
 // For randomness (during paramgen and proof generation)
 // PS: thread_rng is *insecure*
 
@@ -8,13 +9,13 @@ use ark_ff::{PrimeField, One};
 use ark_std::UniformRand;
 use ark_bn254::{G1Affine, Fr};
 
-struct ProfileData {
-    size: Vec<usize>,
-    index_setup_times: Vec<f64>,
-    prover_times: Vec<f64>,
-    verifier_times: Vec<f64>,
-    decider_times: Vec<f64>,
-}
+// struct ProfileData {
+//     size: Vec<usize>,
+//     index_setup_times: Vec<f64>,
+//     prover_times: Vec<f64>,
+//     verifier_times: Vec<f64>,
+//     decider_times: Vec<f64>,
+// }
 
 use ark_accumulation::{
     lh_as, dl_as,
@@ -29,11 +30,9 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
-    ipa_pc, lh_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
+    LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
 };
 use ark_sponge::digest_sponge::DigestSponge;
-use ark_sponge::{Absorbable, CryptographicSponge};
-use rand::distributions::Distribution;
 
 type PCLH = LinearHashPC<
     Fr,
@@ -47,12 +46,7 @@ type AS_LH = LHAidedAccumulationScheme<
     DigestSponge<Fr, sha2::Sha512>,
 >;
 
-type PCDL = ipa_pc::InnerProductArgPC<
-    G1Affine,
-    sha2::Sha512,
-    DensePolynomial<Fr>,
-    DigestSponge<Fr, sha2::Sha512>
->;
+type PCDL = dl_as::PCDL::<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
 
 type AS_DL = DLAccumulationScheme<
     G1Affine,
@@ -76,20 +70,16 @@ where
     PC: PolynomialCommitment<F, P>, 
     AS: AidedAccumulationScheme,
     ParamGen: Fn(usize, &mut R) -> ((PC::CommitterKey, PC::VerifierKey), AS::PredicateParams, AS::PredicateIndex),
-    InputGen: Fn(&PC::CommitterKey, usize, &mut R) -> Vec<Input<AS>>,
+    InputGen: Fn(&PC::CommitterKey, &mut R) -> Vec<Input<AS>>,
     R: Rng, 
 {
-
-    let predicate_params = PC::setup(max_degree, None, rng).unwrap();
-
-    let num_inputs = 1;
 
     for degree in min_degree..=max_degree {
         let degree = 1 << degree;
         println!("Degree: {:?}", degree);
         let supported_degree = degree;
 
-        let ((ck, vk), predicate_params, predicate_index) = 
+        let ((ck, _), predicate_params, predicate_index) = 
             sample_parameters_and_index(supported_degree, rng);
         let as_pp = AS::generate(rng).unwrap();
 
@@ -98,12 +88,12 @@ where
         let index_time = start.elapsed();
         println!("Indexer: {:?}", index_time.as_millis());
 
-        let inputs = sample_inputs(&ck, num_inputs, rng);
+        let inputs = sample_inputs(&ck, rng);
 
         // Initially start with empty accumulators
-        let mut old_accumulators = Vec::with_capacity(num_inputs);
+        let mut old_accumulators = Vec::with_capacity(1);
 
-        let (accumulator, proof) =
+        let (accumulator, _) =
             AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
 
         // Use the same accumulator as input
@@ -136,6 +126,7 @@ where
         println!("Decider: {:?}\n\n", decider_time.as_millis());
 
         assert!(verification_result);
+        assert!(decision_result);
     }
 }
 
@@ -159,7 +150,6 @@ fn lh_param_gen<R: RngCore>(
 
 fn lh_input_gen<R: RngCore>(
     ck: &<PCLH as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
-    num_inputs: usize,
     rng: &mut R,
 ) -> Vec<Input<AS_LH>> {
     let labeled_polynomials = vec![{
@@ -216,14 +206,13 @@ fn dl_param_gen<R: RngCore>(
     let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();
     let predicate_index = dl_as::PredicateIndex {
         supported_degree_bound: degree,
-        supported_hiding_bound: degree,
+        supported_hiding_bound: 0,
     };
     ((ck, vk), predicate_params, predicate_index)
 }
 
 fn dl_input_gen<R: RngCore>(
     ck: &<PCDL as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
-    num_inputs: usize,
     rng: &mut R,
 ) -> Vec<Input<AS_DL>> {
     let labeled_polynomials = vec![{
@@ -257,6 +246,17 @@ fn dl_input_gen<R: RngCore>(
                 Some(rng),
             )
             .unwrap();
+            let result = PCDL::check_individual_opening_challenges(
+                ck,
+                vec![&labeled_commitment],
+                &point,
+                vec![eval],
+                &ipa_proof,
+                &|_| Fr::one(),
+                Some(rng),
+            ).unwrap();
+            assert!(result);
+
             let input = dl_as::InputInstance {
                 ipa_commitment: labeled_commitment,
                 point,
@@ -280,7 +280,7 @@ fn main() {
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking AS_LH ================");
-    let as_lh = profile_as::<_, _, PCLH, AS_LH, _, _, _>(
+    profile_as::<_, _, PCLH, AS_LH, _, _, _>(
         min_degree,
         max_degree,
         lh_param_gen,
@@ -288,7 +288,7 @@ fn main() {
         rng,
     );
     println!("\n\n\n================ Benchmarking AS_DL ================");
-    let as_dl = profile_as::<_, _, PCDL, AS_DL, _, _, _>(
+    profile_as::<_, _, PCDL, AS_DL, _, _, _>(
         min_degree,
         max_degree,
         dl_param_gen,
