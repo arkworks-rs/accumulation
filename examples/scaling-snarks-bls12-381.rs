@@ -270,30 +270,25 @@ fn dl_input_gen<R: RngCore>(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 5 || args[1] == "-h" || args[1] == "--help" {
-        println!("\nHelp: Invoke this as <program> <log_min_num_constraints> <log_max_num_constraints> <log_universal_setup_size> <output_figs_directory>\n");
+    if args.len() < 4 || args[1] == "-h" || args[1] == "--help" {
+        println!("\nHelp: Invoke this as <program> <log_min_degree> <log_max_degree>\n");
     }
-    let output_directory = String::from(args[4].clone());
-    let min_num_constraints: usize = String::from(args[1].clone()).parse().expect("<log_min_num_constraints> should be integer");
-    let max_num_constraints: usize = String::from(args[2].clone()).parse().expect("<log_max_num_constraints> should be integer");
-    let universal_setup_size: usize = String::from(args[3].clone()).parse().expect("<log_universal_setup_size> should be integer");
-    let min_num_constraints = 1 << min_num_constraints;
-    let max_num_constraints = 1 << max_num_constraints;
-    let universal_setup_size = 1 << universal_setup_size;
+    let min_degree: usize = String::from(args[1].clone()).parse().expect("<log_min_degree> should be integer");
+    let max_degree: usize = String::from(args[2].clone()).parse().expect("<log_max_degree> should be integer");
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking AS_LH ================");
     let as_lh = profile_as::<_, _, PCLH, AS_LH, _, _, _>(
-        min_num_constraints,
-        max_num_constraints,
+        min_degree,
+        max_degree,
         lh_param_gen,
         lh_input_gen,
         rng,
     );
     println!("\n\n\n================ Benchmarking AS_DL ================");
     let as_dl = profile_as::<_, _, PCDL, AS_DL, _, _, _>(
-        min_num_constraints,
-        max_num_constraints,
+        min_degree,
+        max_degree,
         dl_param_gen,
         dl_input_gen,
         rng,
