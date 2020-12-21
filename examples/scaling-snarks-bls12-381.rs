@@ -6,7 +6,7 @@ use rand::Rng;
 use std::time::Instant;
 use ark_ff::{PrimeField, One};
 use ark_std::UniformRand;
-use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
+use ark_bn254::{G1Affine, Fr};
 
 struct ProfileData {
     size: Vec<usize>,
@@ -38,24 +38,24 @@ use rand::distributions::Distribution;
 type PCLH = LinearHashPC<
     Fr,
     DensePolynomial<Fr>,
-    PedersenCommitment<EdwardsAffine, sha2::Sha512>,
+    PedersenCommitment<G1Affine, sha2::Sha512>,
 >;
 type AS_LH = LHAidedAccumulationScheme<
     Fr,
     DensePolynomial<Fr>,
-    PedersenCommitment<EdwardsAffine, sha2::Sha512>,
+    PedersenCommitment<G1Affine, sha2::Sha512>,
     DigestSponge<Fr, sha2::Sha512>,
 >;
 
 type PCDL = ipa_pc::InnerProductArgPC<
-    EdwardsAffine,
+    G1Affine,
     sha2::Sha512,
     DensePolynomial<Fr>,
     DigestSponge<Fr, sha2::Sha512>
 >;
 
 type AS_DL = DLAccumulationScheme<
-    EdwardsAffine,
+    G1Affine,
     DensePolynomial<Fr>,
     sha2::Sha512,
     rand_chacha::ChaChaRng,
@@ -85,6 +85,7 @@ where
     let num_inputs = 1;
 
     for degree in min_degree..max_degree {
+        let degree = 1 << degree;
         println!("Degree: {:?}", degree);
         let supported_degree = degree;
 
