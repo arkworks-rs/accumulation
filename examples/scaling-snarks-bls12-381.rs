@@ -84,7 +84,7 @@ where
 
     let num_inputs = 1;
 
-    for degree in min_degree..max_degree {
+    for degree in min_degree..=max_degree {
         let degree = 1 << degree;
         println!("Degree: {:?}", degree);
         let supported_degree = degree;
