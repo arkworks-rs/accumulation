@@ -109,11 +109,10 @@ where
 
             if check_polynomial.is_none() {
                 return Err(if inputs_are_accumulators {
-                    ASError::MalformedAccumulator(
-                        "Succinct check failed on accumulator".to_string(),
+                    ASError::MalformedAccumulator(format!("Succinct check failed on accumulator {}", ipa_commitment.label())
                     )
                 } else {
-                    ASError::MalformedInput("Succinct check failed on input".to_string())
+                    ASError::MalformedInput(format!("Succinct check failed on input {}", ipa_commitment.label()))
                 });
             }
 
