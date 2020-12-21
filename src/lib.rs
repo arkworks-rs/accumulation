@@ -37,6 +37,12 @@ pub mod data_structures;
 /// Common errors for `AccumulationScheme` and `AidedAccumulationScheme`.
 pub mod error;
 
+/// An accumulation scheme based on the hardness of the discrete log problem.
+/// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
+///
+/// [pcdas]: https://eprint.iacr.org/2020/499
+pub mod dl_as;
+
 pub mod lh_as;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
@@ -187,7 +193,7 @@ pub mod tests {
         let num_iterations = template_params.num_iterations;
         let total_num_inputs = num_iterations * num_inputs_per_iteration.iter().sum::<usize>();
 
-        let mut rng = ark_ff::test_rng();
+        let mut rng = ark_std::test_rng();
         let universal_params = A::generate(&mut rng)?;
 
         let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
@@ -285,6 +291,7 @@ pub mod tests {
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let mut num_inputs_per_iteration = vec![0usize; 10];
+
         // To initialize the starting accumulator
         num_inputs_per_iteration[0] = 1;
 
