@@ -24,7 +24,7 @@ rayon = { version = "1", optional = true }
 [dev-dependencies]
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-ed-on-bls12-381 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
-ark-bn254 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
+ark-bn254 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
 sha2 = { version = "0.9.1", default_features = false}
 rand = { version = "0.7", default-features = false }
 rand_chacha = { version = "0.2.1", default-features = false }
