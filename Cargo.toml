@@ -33,3 +33,4 @@ rand_chacha = { version = "0.2.1", default-features = false }
 default = ["std", "parallel"]
 std = [ "ark-ff/std", "ark-poly-commit/std", "ark-std/std" ]
 parallel = [ "std", "ark-ec/parallel", "ark-ff/parallel", "ark-poly/parallel", "ark-poly-commit/parallel", "ark-std/parallel", "rayon" ]
+print-trace = [ "ark-poly/print-trace" ]
