@@ -26,7 +26,7 @@ ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = 
 ark-ed-on-bls12-381 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
 sha2 = { version = "0.9.1", default_features = false}
 rand = { version = "0.7", default-features = false }
-rand_chacha = { version = "0.2.1", default-features = false }
+rand_chacha = { version = "0.3.0", default-features = false }
 
 [features]
 default = ["std", "parallel"]
