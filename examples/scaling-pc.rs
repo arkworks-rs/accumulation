@@ -48,6 +48,7 @@ where
     println!("Performing setup!");
     let pc_pp = PC::setup(1 << max_degree, Some(1), rng).unwrap();
     println!("Done with setup!");
+
     for degree in min_degree..=max_degree {
         let degree = 1 << degree;
         println!("Degree: {:?}", degree);
@@ -87,7 +88,7 @@ where
         let start = Instant::now();
         assert!(PC::check(&vk, &comms, &point, values, &proof, opening_challenge, Some(rng)).unwrap());
         let check_time = start.elapsed();
-        println!("Check: {:?}", check_time.as_millis());
+        println!("Check: {:?}\n\n", check_time.as_millis());
     }
 }
 
