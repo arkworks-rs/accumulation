@@ -50,7 +50,7 @@ where
     println!("Done with setup!");
 
     for degree in min_degree..=max_degree {
-        let degree = 1 << degree;
+        let degree = (1 << degree) - 1;
         println!("Degree: {:?}", degree);
         let supported_degree = degree;
 
