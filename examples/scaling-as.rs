@@ -27,7 +27,6 @@ use ark_accumulation::{
 use ark_std::vec::Vec;
 use rand_core::RngCore;
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
     LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
@@ -35,14 +34,12 @@ use ark_poly_commit::{
 use ark_sponge::digest_sponge::DigestSponge;
 
 type PCLH = LinearHashPC<
-    Fr,
+    G1Affine,
     DensePolynomial<Fr>,
-    PedersenCommitment<G1Affine, sha2::Sha512>,
 >;
 type AS_LH = LHAidedAccumulationScheme<
-    Fr,
+    G1Affine,
     DensePolynomial<Fr>,
-    PedersenCommitment<G1Affine, sha2::Sha512>,
     DigestSponge<Fr, sha2::Sha512>,
 >;
 

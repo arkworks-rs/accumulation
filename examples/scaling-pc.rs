@@ -19,7 +19,6 @@ use ark_bn254::{G1Affine, Fr};
 use ark_accumulation::dl_as;
 use ark_std::vec::Vec;
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
     LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
@@ -27,9 +26,8 @@ use ark_poly_commit::{
 use ark_sponge::digest_sponge::DigestSponge;
 
 type PCLH = LinearHashPC<
-    Fr,
+    G1Affine,
     DensePolynomial<Fr>,
-    PedersenCommitment<G1Affine, sha2::Sha512>,
 >;
 
 type PCDL = dl_as::PCDL::<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
@@ -40,9 +38,9 @@ fn profile_pc<F, PC, R>(
     rng: &mut R,
 )
 where
-    F: PrimeField, 
-    PC: PolynomialCommitment<F, DensePolynomial<F>>, 
-    R: Rng, 
+    F: PrimeField,
+    PC: PolynomialCommitment<F, DensePolynomial<F>>,
+    R: Rng,
 {
 
     println!("Performing setup!");
