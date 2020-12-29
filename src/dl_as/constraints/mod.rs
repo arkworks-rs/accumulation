@@ -42,7 +42,15 @@ where
         ck_var: &ipa_pc::constraints::CommitterKeyVar<G, C>,
         linear_polynomial_var: &[NNFieldVar<G>; 2],
     ) -> Result<FinalCommKeyVar<C>, SynthesisError> {
-        CMCommitGadget::<G, C>::commit(ck_var.comm_key_var.as_slice(), linear_polynomial_var, None)
+        let linear_polynomial_bits_var = linear_polynomial_var
+            .into_iter()
+            .map(|f| f.to_bits_le())
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
+        CMCommitGadget::<G, C>::commit(
+            ck_var.comm_key_var.as_slice(),
+            linear_polynomial_bits_var.as_slice(),
+            None,
+        )
     }
 
     fn evaluate_linear_polynomial_var(
@@ -66,42 +74,41 @@ where
     > {
         input_vars
             .into_iter()
-            .map(|input| {
-                let ipa_commitment_var = &input.ipa_commitment_var;
+            .map(|input_var| {
+                let ipa_commitment_var = &input_var.ipa_commitment_var;
                 let (succinct_check_result_var, check_polynomial_var) =
                     InnerProductArgPCGadget::<G, C, S, SpongeVarForPC<G, S, SV>>::succinct_check(
                         cs.clone(),
                         ipa_vk_var,
                         vec![ipa_commitment_var],
-                        &input.point_var,
-                        vec![&input.evaluation_var],
-                        &input.ipa_proof_var,
+                        &input_var.point_var,
+                        vec![&input_var.evaluation_var],
+                        &input_var.ipa_proof_var,
                         &|_| NNFieldVar::<G>::one(),
                     )?;
 
                 Ok((
                     succinct_check_result_var,
                     check_polynomial_var,
-                    &input.ipa_proof_var.final_comm_key_var,
+                    &input_var.ipa_proof_var.final_comm_key_var,
                 ))
             })
             .collect::<Result<Vec<_>, SynthesisError>>()
     }
 
-    // TODO: Optimize?
-    fn absorb_check_polynomial_into_sponge(
-        sponge: &mut SpongeVarForAccScheme<G, S, SV>,
-        check_polynomial: &SuccinctCheckPolynomialVar<G>,
+    fn absorb_check_polynomial_var_into_sponge_var(
+        sponge_var: &mut SpongeVarForAccScheme<G, S, SV>,
+        check_polynomial_var: &SuccinctCheckPolynomialVar<G>,
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
-        assert!(check_polynomial.0.len() <= log_supported_degree);
-        let elems = &check_polynomial.0;
+        assert!(check_polynomial_var.0.len() <= log_supported_degree);
+        let elem_vars = &check_polynomial_var.0;
         for i in 0..(log_supported_degree + 1) {
-            if i < elems.len() {
-                sponge.absorb_bytes(elems[i].to_bytes()?.as_slice())?;
+            if i < elem_vars.len() {
+                sponge_var.absorb_bytes(elem_vars[i].to_bytes()?.as_slice())?;
             } else {
                 // Pad the check polynomial if necessary
-                sponge.absorb_bytes(NNFieldVar::<G>::zero().to_bytes()?.as_slice())?;
+                sponge_var.absorb_bytes(NNFieldVar::<G>::zero().to_bytes()?.as_slice())?;
             }
         }
 
@@ -110,13 +117,13 @@ where
 
     fn combine_succinct_check_vars_and_proof_var<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        ipa_vk: &ipa_pc::constraints::VerifierKeyVar<G, C>,
+        ipa_vk_var: &ipa_pc::constraints::VerifierKeyVar<G, C>,
         succinct_check_vars: &'a Vec<(
             Boolean<ConstraintF<G>>,
             SuccinctCheckPolynomialVar<G>,
             &FinalCommKeyVar<C>,
         )>,
-        proof: &ProofVar<G, C>,
+        proof_var: &ProofVar<G, C>,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -126,81 +133,96 @@ where
         ),
         SynthesisError,
     > {
-        let supported_degree = ipa_vk.supported_degree();
+        let supported_degree = ipa_vk_var.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge =
+        let mut linear_combination_challenge_sponge_var =
             SpongeVarForAccScheme::<G, S, SV>::new(cs.clone());
-        let random_coeffs = &proof.random_linear_polynomial_coeff_vars;
-        linear_combination_challenge_sponge
-            .absorb_bytes(random_coeffs[0].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge
-            .absorb_bytes(random_coeffs[1].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge.absorb_bytes(
-            proof
+        let random_coeff_vars = &proof_var.random_linear_polynomial_coeff_vars;
+        linear_combination_challenge_sponge_var
+            .absorb_bytes(random_coeff_vars[0].to_bytes()?.as_slice())?;
+        linear_combination_challenge_sponge_var
+            .absorb_bytes(random_coeff_vars[1].to_bytes()?.as_slice())?;
+        linear_combination_challenge_sponge_var.absorb_bytes(
+            proof_var
                 .random_linear_polynomial_commitment_var
                 .to_bytes()?
                 .as_slice(),
         )?;
 
-        for (_, check_polynomial, commitment) in succinct_check_vars {
-            if log_supported_degree > check_polynomial.0.len() {
-                // TODO: Error
+        let mut combined_succinct_check_result_var = Boolean::TRUE;
+        for (_, check_polynomial_var, commitment_var) in succinct_check_vars {
+            if log_supported_degree > check_polynomial_var.0.len() {
+                combined_succinct_check_result_var = Boolean::FALSE;
+                continue;
             }
 
-            Self::absorb_check_polynomial_into_sponge(
-                &mut linear_combination_challenge_sponge,
-                check_polynomial,
+            Self::absorb_check_polynomial_var_into_sponge_var(
+                &mut linear_combination_challenge_sponge_var,
+                check_polynomial_var,
                 log_supported_degree,
             )?;
 
-            linear_combination_challenge_sponge.absorb_bytes(commitment.to_bytes()?.as_slice())?;
+            linear_combination_challenge_sponge_var
+                .absorb_bytes(commitment_var.to_bytes()?.as_slice())?;
         }
 
-        let linear_combination_challenge_var = linear_combination_challenge_sponge
+        let linear_combination_challenge_var = linear_combination_challenge_sponge_var
             .squeeze_field_elements(1)?
             .pop()
             .unwrap();
 
-        let mut combined_succinct_check_result_var = Boolean::TRUE;
-        let mut combined_commitment_var = proof.random_linear_polynomial_commitment_var.clone();
-        let mut combined_check_polynomial_addend_vars =
+        let mut combined_commitment_var = proof_var.random_linear_polynomial_commitment_var.clone();
+
+        let mut combined_check_polynomial_and_addend_vars =
             Vec::with_capacity(succinct_check_vars.len());
+        let mut addend_bytes_vars = Vec::with_capacity(succinct_check_vars.len());
 
         let mut cur_challenge_var = linear_combination_challenge_var.clone();
         for (succinct_check_result_var, check_polynomial_var, commitment_var) in succinct_check_vars
         {
             combined_succinct_check_result_var =
                 combined_succinct_check_result_var.and(&succinct_check_result_var)?;
+
+            let cur_challenge_bytes_var = cur_challenge_var.to_bytes()?;
             combined_commitment_var +=
-                &(commitment_var.scalar_mul_le(cur_challenge_var.to_bits_le()?.iter())?);
-            combined_check_polynomial_addend_vars
+                &(commitment_var.scalar_mul_le(cur_challenge_bytes_var.to_bits_le()?.iter())?);
+            combined_check_polynomial_and_addend_vars
                 .push((cur_challenge_var.clone(), check_polynomial_var));
+            addend_bytes_vars.push(cur_challenge_bytes_var);
+
             cur_challenge_var *= &linear_combination_challenge_var;
         }
 
-        let randomized_combined_commitment_var = ipa_vk
+        let randomized_combined_commitment_var = ipa_vk_var
             .s_var
-            .scalar_mul_le(proof.commitment_randomness_var.to_bits_le()?.iter())?
+            .scalar_mul_le(proof_var.commitment_randomness_var.iter())?
             + &combined_commitment_var;
 
-        let mut challenge_point_sponge = SpongeVarForAccScheme::<G, S, SV>::new(cs.clone());
-        challenge_point_sponge.absorb_bytes(combined_commitment_var.to_bytes()?.as_slice())?;
+        let mut challenge_point_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(cs.clone());
+        challenge_point_sponge_var.absorb_bytes(combined_commitment_var.to_bytes()?.as_slice())?;
 
-        for (linear_combination_challenge, check_polynomial) in
-            &combined_check_polynomial_addend_vars
+        for ((_, check_polynomial_var), linear_combination_challenge_bytes_var) in
+            combined_check_polynomial_and_addend_vars
+                .iter()
+                .zip(&addend_bytes_vars)
         {
-            // TODO: Check degree of check poly
-            challenge_point_sponge
-                .absorb_bytes(linear_combination_challenge.to_bytes()?.as_slice())?;
-            Self::absorb_check_polynomial_into_sponge(
-                &mut challenge_point_sponge,
-                *check_polynomial,
+            if log_supported_degree > (*check_polynomial_var).0.len() {
+                combined_succinct_check_result_var = Boolean::FALSE;
+                continue;
+            }
+
+            challenge_point_sponge_var
+                .absorb_bytes(linear_combination_challenge_bytes_var.as_slice())?;
+
+            Self::absorb_check_polynomial_var_into_sponge_var(
+                &mut challenge_point_sponge_var,
+                *check_polynomial_var,
                 log_supported_degree,
             )?;
         }
 
-        let challenge_point_var = challenge_point_sponge
+        let challenge_point_var = challenge_point_sponge_var
             .squeeze_field_elements(1)?
             .pop()
             .unwrap();
@@ -208,7 +230,7 @@ where
         Ok((
             combined_succinct_check_result_var,
             randomized_combined_commitment_var,
-            combined_check_polynomial_addend_vars,
+            combined_check_polynomial_and_addend_vars,
             challenge_point_var,
         ))
     }
@@ -312,8 +334,6 @@ pub mod tests {
     use crate::dl_as::DLAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_ed_on_bls12_381::constraints::EdwardsVar;
-    use ark_ed_on_bls12_381::EdwardsAffine;
     use ark_marlin::fiat_shamir::constraints::{FiatShamirAlgebraicSpongeRngVar, FiatShamirRngVar};
     use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
@@ -326,6 +346,8 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSpongeWrapper;
     use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
+    use ark_ed_on_bls12_381::EdwardsAffine;
+    use ark_ed_on_bls12_381::constraints::EdwardsVar;
 
     type G = EdwardsAffine;
     type C = EdwardsVar;
@@ -337,8 +359,6 @@ pub mod tests {
         DensePolynomial<F>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,
-        //DigestSponge<Fr, sha2::Sha512>,
-        //DummySponge,
         PoseidonSpongeWrapper<F, ConstraintF>,
     >;
 
@@ -360,14 +380,18 @@ pub mod tests {
             <I as AccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let inputs = I::generate_inputs(&input_params, 1, &mut rng);
-        let (accumulator, proof) = AS::prove(&pk, inputs.iter(), vec![], Some(&mut rng)).unwrap();
+        let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
+        let old_input = inputs.pop().unwrap();
+        let new_input = inputs.pop().unwrap();
+
+        let (old_accumulator, _) = AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
+        let (new_accumulator, proof) = AS::prove(&pk, vec![&new_input], vec![&old_accumulator], Some(&mut rng)).unwrap();
 
         assert!(AS::verify(
             &vk,
-            Input::instances(inputs.iter()),
-            vec![],
-            &accumulator.instance,
+            vec![&new_input.instance],
+            vec![&old_accumulator.instance],
+            &new_accumulator.instance,
             &proof
         )
         .unwrap());
@@ -375,12 +399,16 @@ pub mod tests {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let vk_var = VerifierKeyVar::<G, C>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
 
-        let input_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(inputs[0].instance.clone()))
+        let new_input_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(accumulator.instance.clone()))
+        let old_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(old_accumulator.instance.clone()))
+                .unwrap();
+
+        let new_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance.clone()))
                 .unwrap();
 
         let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
@@ -388,33 +416,19 @@ pub mod tests {
         DLAccumulationSchemeGadget::<G, C, Poseidon, PoseidonVar>::verify(
             cs.clone(),
             &vk_var,
-            vec![&input_instance_var],
-            vec![],
-            &accumulator_instance_var,
+            vec![&new_input_instance_var],
+            vec![&old_accumulator_instance_var],
+            &new_accumulator_instance_var,
             &proof_var,
         )
         .unwrap()
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
+        println!("Num constaints: {:}", cs.num_constraints());
+        println!("Num instance: {:}", cs.num_instance_variables());
+        println!("Num witness: {:}", cs.num_witness_variables());
+
         assert!(cs.is_satisfied().unwrap());
-
-        /*
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
-
-        let input = F::rand(&mut rng);
-        let input_var = NNFieldVar::<G>::new_constant(cs.clone(), input).unwrap();
-
-        let mut sp = PoseidonSpongeWrapper::<F, ConstraintF>::new();
-        sp.absorb(&input);
-        let sp_out = sp.squeeze_field_elements(1).pop().unwrap();
-
-        let mut sp_var = Sponge::<G>::new(cs.clone());
-        sp_var.absorb_bytes(input_var.to_bytes().unwrap().as_slice());
-        let sp_out_var = sp_var.squeeze_field_elements(1).unwrap().pop().unwrap();
-
-        assert_eq!(sp_out, sp_out_var.value().unwrap());
-
-         */
     }
 }

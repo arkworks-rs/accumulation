@@ -3,7 +3,7 @@ use crate::dl_as::data_structures::{
     VerifierKey,
 };
 use ark_ec::AffineCurve;
-use ark_ff::Field;
+use ark_ff::{BitIteratorLE, Field, PrimeField};
 use ark_marlin::fiat_shamir::constraints::FiatShamirRngVar;
 use ark_marlin::fiat_shamir::FiatShamirRng;
 use ark_nonnative_field::NonNativeFieldVar;
@@ -133,7 +133,7 @@ where
 {
     pub(crate) random_linear_polynomial_coeff_vars: [NNFieldVar<G>; 2],
     pub(crate) random_linear_polynomial_commitment_var: C,
-    pub(crate) commitment_randomness_var: NNFieldVar<G>,
+    pub(crate) commitment_randomness_var: Vec<Boolean<ConstraintF<G>>>,
 }
 
 impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
@@ -149,8 +149,8 @@ where
         let ns = cs.into();
         let proof = f()?;
 
-        //let a: &P = &proof.borrow().random_linear_polynomial;
         let random_linear_polynomial_coeffs = &proof.borrow().random_linear_polynomial_coeffs;
+
         let random_linear_polynomial_coeff_vars = [
             NNFieldVar::<G>::new_variable(
                 ns.clone(),
@@ -170,11 +170,11 @@ where
             mode,
         )?;
 
-        let commitment_randomness_var = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(proof.borrow().commitment_randomness.clone()),
-            mode,
-        )?;
+        let commitment_randomness_var = BitIteratorLE::without_trailing_zeros(
+            (&proof.borrow().commitment_randomness).into_repr(),
+        )
+        .map(|b| Boolean::new_variable(ns.clone(), || Ok(b), mode))
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
 
         Ok(Self {
             random_linear_polynomial_coeff_vars,
@@ -293,6 +293,11 @@ impl<
         self.sponge_var.squeeze_field_elements(num)
     }
 
+    fn squeeze_bits(&mut self, num: usize) -> Result<Vec<Boolean<ConstraintF<G>>>, SynthesisError> {
+        self.try_absorb_domain_bit()?;
+        self.sponge_var.squeeze_bits(num)
+    }
+
     fn squeeze_field_elements_and_bits(
         &mut self,
         num: usize,
@@ -304,7 +309,7 @@ impl<
         SynthesisError,
     > {
         self.try_absorb_domain_bit()?;
-        self.squeeze_field_elements_and_bits(num)
+        self.sponge_var.squeeze_field_elements_and_bits(num)
     }
 
     fn squeeze_128_bits_field_elements(
@@ -329,7 +334,8 @@ impl<
         SynthesisError,
     > {
         self.try_absorb_domain_bit()?;
-        self.squeeze_128_bits_field_elements_and_bits(num)
+        self.sponge_var
+            .squeeze_128_bits_field_elements_and_bits(num)
     }
 }
 
