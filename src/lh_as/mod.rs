@@ -17,12 +17,13 @@ use ark_poly_commit::{
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge};
 use rand_core::RngCore;
+use ark_ec::AffineCurve;
 
 mod data_structures;
 pub use data_structures::*;
-use ark_ec::AffineCurve;
 
-mod constraints;
+#[cfg(feature = "r1cs")]
+pub mod constraints;
 
 pub struct LHAidedAccumulationScheme<G, P, S>
 where
