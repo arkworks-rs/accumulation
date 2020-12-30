@@ -3,12 +3,12 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
+use ark_bn254::{Fr, G1Affine};
+use ark_ff::{One, PrimeField};
+use ark_serialize::CanonicalSerialize;
+use ark_std::UniformRand;
 use rand::Rng;
 use std::time::Instant;
-use ark_ff::{PrimeField, One};
-use ark_std::UniformRand;
-use ark_bn254::{G1Affine, Fr};
-use ark_serialize::CanonicalSerialize;
 
 // struct ProfileData {
 //     size: Vec<usize>,
@@ -19,32 +19,26 @@ use ark_serialize::CanonicalSerialize;
 // }
 
 use ark_accumulation::{
-    lh_as, dl_as,
-    lh_as::LHAidedAccumulationScheme, 
-    dl_as::DLAccumulationScheme,
-    AidedAccumulationScheme, 
     data_structures::{Accumulator, Input},
+    dl_as,
+    dl_as::DLAccumulationScheme,
+    lh_as,
+    lh_as::LHAidedAccumulationScheme,
+    AidedAccumulationScheme,
 };
-use ark_std::vec::Vec;
-use rand_core::RngCore;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
-use ark_poly_commit::{
-    LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
-};
+use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_sponge::digest_sponge::DigestSponge;
+use ark_std::vec::Vec;
+use rand_core::RngCore;
 
-type PCLH = LinearHashPC<
-    G1Affine,
-    DensePolynomial<Fr>,
->;
-type AS_LH = LHAidedAccumulationScheme<
-    G1Affine,
-    DensePolynomial<Fr>,
-    DigestSponge<Fr, sha2::Sha512>,
->;
+type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
+type AS_LH =
+    LHAidedAccumulationScheme<G1Affine, DensePolynomial<Fr>, DigestSponge<Fr, sha2::Sha512>>;
 
-type PCDL = dl_as::PCDL::<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
+type PCDL =
+    dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
 
 type AS_DL = DLAccumulationScheme<
     G1Affine,
@@ -54,30 +48,34 @@ type AS_DL = DLAccumulationScheme<
     DigestSponge<Fr, sha2::Sha512>,
 >;
 
-
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,
     max_degree: usize,
     sample_parameters_and_index: ParamGen,
     sample_inputs: InputGen,
     rng: &mut R,
-)
-where
-    F: PrimeField, 
-    P: UVPolynomial<F>, 
-    PC: PolynomialCommitment<F, P>, 
+) where
+    F: PrimeField,
+    P: UVPolynomial<F>,
+    PC: PolynomialCommitment<F, P>,
     AS: AidedAccumulationScheme,
-    ParamGen: Fn(usize, &mut R) -> ((PC::CommitterKey, PC::VerifierKey), AS::PredicateParams, AS::PredicateIndex),
+    ParamGen: Fn(
+        usize,
+        &mut R,
+    ) -> (
+        (PC::CommitterKey, PC::VerifierKey),
+        AS::PredicateParams,
+        AS::PredicateIndex,
+    ),
     InputGen: Fn(&PC::CommitterKey, &mut R) -> Vec<Input<AS>>,
-    R: Rng, 
+    R: Rng,
 {
-
     for degree in min_degree..=max_degree {
         let degree = (1 << degree) - 1;
         println!("Degree: {:?}", degree);
         let supported_degree = degree;
 
-        let ((ck, _), predicate_params, predicate_index) = 
+        let ((ck, _), predicate_params, predicate_index) =
             sample_parameters_and_index(supported_degree, rng);
         let as_pp = AS::generate(rng).unwrap();
 
@@ -91,16 +89,14 @@ where
         // Initially start with empty accumulators
         let mut old_accumulators = Vec::with_capacity(1);
 
-        let (accumulator, _) =
-            AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
+        let (accumulator, _) = AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
 
         // Use the same accumulator as input
         old_accumulators.push(accumulator.clone());
         old_accumulators.push(accumulator.clone());
 
         let start = Instant::now();
-        let (accumulator, proof) =
-            AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
+        let (accumulator, proof) = AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
         let prover_time = start.elapsed();
         println!("Prover: {:?}", prover_time.as_millis());
 
@@ -111,20 +107,24 @@ where
             Accumulator::instances(&old_accumulators),
             &accumulator.instance,
             &proof,
-        ).unwrap();
+        )
+        .unwrap();
         let verifier_time = start.elapsed();
         println!("Verifier: {:?}", verifier_time.as_millis());
 
         let start = Instant::now();
-        let decision_result = AS::decide(
-            &dk,
-            &accumulator,
-        ).unwrap();
+        let decision_result = AS::decide(&dk, &accumulator).unwrap();
         let decider_time = start.elapsed();
         println!("Decider: {:?}\n", decider_time.as_millis());
         println!("Accumulator size: {}", accumulator.serialized_size());
-        println!("Accumulator instance size: {}", accumulator.instance.serialized_size());
-        println!("Accumulator witness size: {}", accumulator.witness.serialized_size());
+        println!(
+            "Accumulator instance size: {}",
+            accumulator.instance.serialized_size()
+        );
+        println!(
+            "Accumulator witness size: {}",
+            accumulator.witness.serialized_size()
+        );
 
         println!("\n\n");
 
@@ -156,18 +156,16 @@ fn lh_input_gen<R: RngCore>(
     rng: &mut R,
 ) -> Vec<Input<AS_LH>> {
     let labeled_polynomials = vec![{
-            let degree = ck.supported_degree();
-            let label = format!("Input{}", 1);
+        let degree = ck.supported_degree();
+        let label = format!("Input{}", 1);
 
-            let polynomial = DensePolynomial::rand(degree, rng);
-            let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
+        let polynomial = DensePolynomial::rand(degree, rng);
+        let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
-            labeled_polynomial
-        }];
+        labeled_polynomial
+    }];
 
-
-    let (labeled_commitments, _) =
-        PCLH::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+    let (labeled_commitments, _) = PCLH::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
@@ -219,18 +217,16 @@ fn dl_input_gen<R: RngCore>(
     rng: &mut R,
 ) -> Vec<Input<AS_DL>> {
     let labeled_polynomials = vec![{
-            let degree = ck.supported_degree();
-            let label = format!("Input{}", 1);
+        let degree = ck.supported_degree();
+        let label = format!("Input{}", 1);
 
-            let polynomial = DensePolynomial::rand(degree, rng);
-            let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
+        let polynomial = DensePolynomial::rand(degree, rng);
+        let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
-            labeled_polynomial
-        }];
+        labeled_polynomial
+    }];
 
-
-    let (labeled_commitments, randoms) =
-        PCDL::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+    let (labeled_commitments, randoms) = PCDL::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
@@ -257,7 +253,8 @@ fn dl_input_gen<R: RngCore>(
                 &ipa_proof,
                 &|_| Fr::one(),
                 Some(rng),
-            ).unwrap();
+            )
+            .unwrap();
             assert!(result);
 
             let input = dl_as::InputInstance {
@@ -278,8 +275,12 @@ fn main() {
     if args.len() < 4 || args[1] == "-h" || args[1] == "--help" {
         println!("\nHelp: Invoke this as <program> <log_min_degree> <log_max_degree>\n");
     }
-    let min_degree: usize = String::from(args[1].clone()).parse().expect("<log_min_degree> should be integer");
-    let max_degree: usize = String::from(args[2].clone()).parse().expect("<log_max_degree> should be integer");
+    let min_degree: usize = String::from(args[1].clone())
+        .parse()
+        .expect("<log_min_degree> should be integer");
+    let max_degree: usize = String::from(args[2].clone())
+        .parse()
+        .expect("<log_max_degree> should be integer");
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking AS_LH ================");

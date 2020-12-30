@@ -3,11 +3,13 @@ use crate::dl_as::data_structures::{
     VerifierKey,
 };
 use ark_ec::AffineCurve;
+use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
 use ark_marlin::fiat_shamir::constraints::FiatShamirRngVar;
 use ark_marlin::fiat_shamir::FiatShamirRng;
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_poly_commit::ipa_pc;
+use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
@@ -16,9 +18,7 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
-use ark_ff::Zero;
 use std::marker::PhantomData;
-use ark_poly_commit::UVPolynomial;
 
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
@@ -158,12 +158,24 @@ where
         let random_linear_polynomial_coeff_vars = [
             NNFieldVar::<G>::new_variable(
                 ns.clone(),
-                || Ok(if random_linear_polynomial_coeffs.len() > 0 { random_linear_polynomial_coeffs[0].clone() } else { G::ScalarField::zero() } ),
+                || {
+                    Ok(if random_linear_polynomial_coeffs.len() > 0 {
+                        random_linear_polynomial_coeffs[0].clone()
+                    } else {
+                        G::ScalarField::zero()
+                    })
+                },
                 mode,
             )?,
             NNFieldVar::<G>::new_variable(
                 ns.clone(),
-                || Ok(if random_linear_polynomial_coeffs.len() > 1 { random_linear_polynomial_coeffs[1].clone() } else { G::ScalarField::zero() } ),
+                || {
+                    Ok(if random_linear_polynomial_coeffs.len() > 1 {
+                        random_linear_polynomial_coeffs[1].clone()
+                    } else {
+                        G::ScalarField::zero()
+                    })
+                },
                 mode,
             )?,
         ];

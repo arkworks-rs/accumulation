@@ -18,8 +18,8 @@
 #![forbid(unsafe_code)]
 
 use crate::data_structures::{Accumulator, Input};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rand_core::RngCore;
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 
 #[macro_use]
 extern crate derivative;

@@ -3,10 +3,10 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
+use ark_bn254::{Fr, G1Affine};
+use ark_ff::PrimeField;
 use rand::Rng;
 use std::time::Instant;
-use ark_ff::{PrimeField};
-use ark_bn254::{G1Affine, Fr};
 
 // struct ProfileData {
 //     size: Vec<usize>,
@@ -17,33 +17,24 @@ use ark_bn254::{G1Affine, Fr};
 // }
 
 use ark_accumulation::dl_as;
-use ark_std::vec::Vec;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
-use ark_poly_commit::{
-    LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
-};
-use ark_sponge::digest_sponge::DigestSponge;
+use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_serialize::CanonicalSerialize;
+use ark_sponge::digest_sponge::DigestSponge;
+use ark_std::vec::Vec;
 
-type PCLH = LinearHashPC<
-    G1Affine,
-    DensePolynomial<Fr>,
->;
+type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
 
-type PCDL = dl_as::PCDL::<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
+type PCDL =
+    dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, DigestSponge<Fr, sha2::Sha512>>;
 
-fn profile_pc<F, PC, R>(
-    min_degree: usize,
-    max_degree: usize,
-    rng: &mut R,
-)
+fn profile_pc<F, PC, R>(min_degree: usize, max_degree: usize, rng: &mut R)
 where
     F: PrimeField,
     PC: PolynomialCommitment<F, DensePolynomial<F>>,
     R: Rng,
 {
-
     println!("Performing setup!");
     let pc_pp = PC::setup(1 << max_degree, Some(1), rng).unwrap();
     println!("Done with setup!");
@@ -78,14 +69,30 @@ where
         let opening_challenge = F::one();
 
         let start = Instant::now();
-        let proof = PC::open(&ck, &polynomials, &comms, &point, opening_challenge, &rands, Some(rng)).unwrap();
+        let proof = PC::open(
+            &ck,
+            &polynomials,
+            &comms,
+            &point,
+            opening_challenge,
+            &rands,
+            Some(rng),
+        )
+        .unwrap();
         let open_time = start.elapsed();
         println!("Open: {:?}", open_time.as_millis());
 
-
-
         let start = Instant::now();
-        assert!(PC::check(&vk, &comms, &point, values, &proof, opening_challenge, Some(rng)).unwrap());
+        assert!(PC::check(
+            &vk,
+            &comms,
+            &point,
+            values,
+            &proof,
+            opening_challenge,
+            Some(rng)
+        )
+        .unwrap());
         let check_time = start.elapsed();
         println!("Check: {:?}\n", check_time.as_millis());
 
@@ -99,20 +106,16 @@ fn main() {
     if args.len() < 4 || args[1] == "-h" || args[1] == "--help" {
         println!("\nHelp: Invoke this as <program> <log_min_degree> <log_max_degree>\n");
     }
-    let min_degree: usize = String::from(args[1].clone()).parse().expect("<log_min_degree> should be integer");
-    let max_degree: usize = String::from(args[2].clone()).parse().expect("<log_max_degree> should be integer");
+    let min_degree: usize = String::from(args[1].clone())
+        .parse()
+        .expect("<log_min_degree> should be integer");
+    let max_degree: usize = String::from(args[2].clone())
+        .parse()
+        .expect("<log_max_degree> should be integer");
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking PC_LH ================");
-    profile_pc::<_, PCLH, _>(
-        min_degree,
-        max_degree,
-        rng,
-    );
+    profile_pc::<_, PCLH, _>(min_degree, max_degree, rng);
     println!("\n\n\n================ Benchmarking PC_DL ================");
-    profile_pc::<_, PCDL, _,>(
-        min_degree,
-        max_degree,
-        rng,
-    );
+    profile_pc::<_, PCDL, _>(min_degree, max_degree, rng);
 }

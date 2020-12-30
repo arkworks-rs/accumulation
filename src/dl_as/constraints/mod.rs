@@ -326,7 +326,6 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::data_structures::Input;
     use crate::dl_as::constraints::{
         DLAccumulationSchemeGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
@@ -334,6 +333,8 @@ pub mod tests {
     use crate::dl_as::DLAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
+    use ark_ed_on_bls12_381::constraints::EdwardsVar;
+    use ark_ed_on_bls12_381::EdwardsAffine;
     use ark_marlin::fiat_shamir::constraints::{FiatShamirAlgebraicSpongeRngVar, FiatShamirRngVar};
     use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
@@ -346,8 +347,6 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSpongeWrapper;
     use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
-    use ark_ed_on_bls12_381::EdwardsAffine;
-    use ark_ed_on_bls12_381::constraints::EdwardsVar;
 
     type G = EdwardsAffine;
     type C = EdwardsVar;
@@ -384,8 +383,15 @@ pub mod tests {
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 
-        let (old_accumulator, _) = AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
-        let (new_accumulator, proof) = AS::prove(&pk, vec![&new_input], vec![&old_accumulator], Some(&mut rng)).unwrap();
+        let (old_accumulator, _) =
+            AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
+        let (new_accumulator, proof) = AS::prove(
+            &pk,
+            vec![&new_input],
+            vec![&old_accumulator],
+            Some(&mut rng),
+        )
+        .unwrap();
 
         assert!(AS::verify(
             &vk,
@@ -403,13 +409,15 @@ pub mod tests {
             InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(old_accumulator.instance.clone()))
-                .unwrap();
+        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+            Ok(old_accumulator.instance.clone())
+        })
+        .unwrap();
 
-        let new_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance.clone()))
-                .unwrap();
+        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+            Ok(new_accumulator.instance.clone())
+        })
+        .unwrap();
 
         let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
 

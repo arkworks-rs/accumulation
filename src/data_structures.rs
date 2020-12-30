@@ -1,6 +1,6 @@
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-use ark_std::io::{Read, Write};
 use crate::{AccumulationScheme, AidedAccumulationScheme};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
 /// The accumulator of an aided accumulation scheme.
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]

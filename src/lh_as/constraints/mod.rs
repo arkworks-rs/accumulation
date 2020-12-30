@@ -165,13 +165,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::lh_as::constraints::{InputInstanceVar, LHAccumulationSchemeGadget, SingleProofVar, VerifierKeyVar, ProofVar};
+    use crate::lh_as::constraints::{
+        InputInstanceVar, LHAccumulationSchemeGadget, ProofVar, VerifierKeyVar,
+    };
     use crate::lh_as::tests::LHAidedAccumulationSchemeTestInput;
     use crate::lh_as::LHAidedAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
     use ark_ed_on_bls12_381::constraints::EdwardsVar;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
+    use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
     use ark_marlin::fiat_shamir::constraints::FiatShamirAlgebraicSpongeRngVar;
     use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
@@ -189,11 +191,8 @@ pub mod tests {
     type F = ark_ed_on_bls12_381::Fr;
     type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = LHAidedAccumulationScheme<
-        G,
-        DensePolynomial<Fr>,
-        PoseidonSpongeWrapper<F, ConstraintF>,
-    >;
+    type AS =
+        LHAidedAccumulationScheme<G, DensePolynomial<Fr>, PoseidonSpongeWrapper<F, ConstraintF>>;
 
     type I = LHAidedAccumulationSchemeTestInput;
 
@@ -217,8 +216,15 @@ pub mod tests {
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 
-        let (old_accumulator, _) = AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
-        let (new_accumulator, proof) = AS::prove(&pk, vec![&new_input], vec![&old_accumulator], Some(&mut rng)).unwrap();
+        let (old_accumulator, _) =
+            AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
+        let (new_accumulator, proof) = AS::prove(
+            &pk,
+            vec![&new_input],
+            vec![&old_accumulator],
+            Some(&mut rng),
+        )
+        .unwrap();
 
         assert!(AS::verify(
             &vk,
@@ -227,7 +233,7 @@ pub mod tests {
             &new_accumulator.instance,
             &proof
         )
-            .unwrap());
+        .unwrap());
 
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let vk_var = VerifierKeyVar::<G>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
@@ -236,13 +242,15 @@ pub mod tests {
             InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(old_accumulator.instance.clone()))
-                .unwrap();
+        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+            Ok(old_accumulator.instance.clone())
+        })
+        .unwrap();
 
-        let new_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance.clone()))
-                .unwrap();
+        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+            Ok(new_accumulator.instance.clone())
+        })
+        .unwrap();
 
         let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
 
@@ -254,9 +262,9 @@ pub mod tests {
             &new_accumulator_instance_var,
             &proof_var,
         )
-            .unwrap()
-            .enforce_equal(&Boolean::TRUE)
-            .unwrap();
+        .unwrap()
+        .enforce_equal(&Boolean::TRUE)
+        .unwrap();
 
         println!("Num constaints: {:}", cs.num_constraints());
         println!("Num instance: {:}", cs.num_instance_variables());

@@ -47,8 +47,7 @@ where
     pub _affine: PhantomData<G>,
 }
 
-impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>>
-    for InputInstanceVar<G, C>
+impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
@@ -114,8 +113,7 @@ where
     pub _affine: PhantomData<G>,
 }
 
-impl<G, C> AllocVar<SingleProof<G>, ConstraintF<G>>
-    for SingleProofVar<G, C>
+impl<G, C> AllocVar<SingleProof<G>, ConstraintF<G>> for SingleProofVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,

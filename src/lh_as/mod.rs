@@ -1,13 +1,12 @@
 use crate::data_structures::{Accumulator, Input};
-use std::ops::Mul;
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
-use ark_ff::{One, Zero, to_bytes};
 use ark_ec::AffineCurve;
+use ark_ff::{to_bytes, One, Zero};
 use ark_poly_commit::lh_pc::error::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
@@ -16,6 +15,7 @@ use ark_poly_commit::{
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge};
 use rand_core::RngCore;
+use std::ops::Mul;
 
 mod data_structures;
 pub use data_structures::*;
@@ -152,7 +152,10 @@ where
         combined_polynomial
     }
 
-    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a G::ScalarField>, challenge: G::ScalarField) -> G::ScalarField {
+    fn combine_evaluations<'a>(
+        evaluations: impl IntoIterator<Item = &'a G::ScalarField>,
+        challenge: G::ScalarField,
+    ) -> G::ScalarField {
         let mut combined_eval = G::ScalarField::zero();
         let mut cur_challenge = G::ScalarField::one();
         for eval in evaluations {
@@ -514,9 +517,8 @@ pub mod tests {
     use crate::std::ops::Div;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
-    use ark_std::UniformRand;
+    use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
-    use ark_ff::PrimeField;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{
@@ -524,9 +526,9 @@ pub mod tests {
     };
     use ark_sponge::digest_sponge::DigestSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_std::UniformRand;
     use rand::distributions::Distribution;
     use rand_core::RngCore;
-    use ark_ec::AffineCurve;
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
@@ -556,8 +558,7 @@ pub mod tests {
             let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) =
-                LinearHashPC::<G, P>::trim(&predicate_params, supported_degree, 0, None)
-                    .unwrap();
+                LinearHashPC::<G, P>::trim(&predicate_params, supported_degree, 0, None).unwrap();
 
             ((ck, vk), predicate_params, supported_degree)
         }

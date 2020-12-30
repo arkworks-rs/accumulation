@@ -1,10 +1,9 @@
 use crate::std::vec::Vec;
-use ark_ff::{to_bytes, ToConstraintField};
 use ark_ec::AffineCurve;
-use ark_poly_commit::{LabeledCommitment, lh_pc};
+use ark_ff::{to_bytes, ToConstraintField};
+use ark_poly_commit::{lh_pc, LabeledCommitment};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;
-use ark_poly_commit::lh_pc::{CommitterKey, Commitment};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]

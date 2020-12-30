@@ -21,7 +21,8 @@ pub use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
-type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
+pub type PCDL<G, P, D, S> =
+    InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;
@@ -169,7 +170,8 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         assert!(proof.random_linear_polynomial.degree() <= 1);
-        let mut linear_combination_challenge_sponge = SpongeForAccScheme::<G::ScalarField, S>::new();
+        let mut linear_combination_challenge_sponge =
+            SpongeForAccScheme::<G::ScalarField, S>::new();
         let random_coeffs = proof.random_linear_polynomial.coeffs();
         for i in 0..=1 {
             if i < random_coeffs.len() {
@@ -564,7 +566,6 @@ pub mod tests {
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::digest_sponge::DigestSponge;
-    use ark_sponge::dummy::DummySponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
     use rand::distributions::Distribution;

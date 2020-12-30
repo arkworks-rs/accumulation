@@ -2,10 +2,10 @@ use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_poly_commit::{ipa_pc, LabeledCommitment, UVPolynomial};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
-use ark_std::marker::PhantomData;
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use ark_std::io::{Read, Write};
+use ark_std::marker::PhantomData;
 
 #[derive(Clone)]
 pub struct PredicateIndex {
