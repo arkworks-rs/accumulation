@@ -518,6 +518,7 @@ pub mod tests {
     use ark_sponge::{Absorbable, CryptographicSponge};
     use rand::distributions::Distribution;
     use rand_core::RngCore;
+    use ark_std::UniformRand;
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
@@ -560,7 +561,7 @@ pub mod tests {
         ) -> Vec<Input<LHAidedAccumulationScheme<G, P, S>>> {
             let ck = &input_params.0;
 
-            let labeled_polynomials: Vec<LabeledPolynomial<G, P>> = (0..num_inputs)
+            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
                 .map(|i| {
                     let degree =
                         rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);

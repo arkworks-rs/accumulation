@@ -26,6 +26,7 @@ pub struct InputInstance<G: AffineCurve> {
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve, P: UVPolynomial<G::ScalarField>> {
+    // TODO: Replace with size two tuple or array of coeffs to enforce linear polynomial?
     pub(crate) random_linear_polynomial: P,
     pub(crate) random_linear_polynomial_commitment: G,
     pub(crate) commitment_randomness: G::ScalarField,
@@ -97,6 +98,10 @@ impl<F: PrimeField, S: CryptographicSponge<F>, I: IsSpongeForAccSchemeParam> Cry
 
     fn squeeze_field_elements_with_sizes(&mut self, sizes: &[FieldElementSize]) -> Vec<F> {
         self.sponge.squeeze_field_elements_with_sizes(sizes)
+    }
+
+    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<F> {
+        self.sponge.squeeze_field_elements(num_elements)
     }
 }
 

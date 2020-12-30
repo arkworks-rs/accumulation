@@ -13,25 +13,34 @@ edition = "2018"
 [dependencies]
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-poly-commit = { git = "https://github.com/Will-Lin4/poly-commit", branch = "accumulation-experimental", default-features = false }
 ark-serialize = { git = "https://github.com/arkworks-rs/algebra", default-features = false, features = [ "derive" ] }
-ark-poly-commit = { git = "https://github.com/pratyush/poly-commit", branch = "accumulation-experimental", default-features = false }
 ark-sponge = { git = "https://github.com/arkworks-rs/sponge/", branch = "experimental", default-features = false }
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
-derivative = { version = "2", features = [ "use_core" ] }
+derivative = { version = "2.1.1", features = [ "use_core" ] }
 digest = "0.9.0"
 rand_core = { version = "0.5", default-features = false }
 rayon = { version = "1", optional = true }
 
+# Dependencies for r1cs
+ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives.git", branch = "main", default-features = false, optional = true }
+ark-marlin = { git = "https://github.com/Will-Lin4/marlin", branch = "constraints", default-features = false, features = [ "density-optimized" ], optional = true }
+ark-nonnative-field = { git = "https://github.com/arkworks-rs/nonnative", default-features = false, optional = true }
+ark-relations = { git = "https://github.com/arkworks-rs/snark", default-features = false, optional = true }
+ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std", default-features = false, optional = true }
+
 [dev-dependencies]
-ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-ed-on-bls12-381 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
+ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", features = [ "r1cs" ] }
 ark-bn254 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
+ark-ed-on-bls12-381 = { git = "https://github.com/arkworks-rs/curves", default-features = false, features = [ "r1cs" ] }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 sha2 = { version = "0.9.1", default_features = false}
 rand = { version = "0.7", default-features = false }
 rand_chacha = { version = "0.2.1", default-features = false }
 
 [features]
-default = ["std", "parallel"]
-std = [ "ark-ff/std", "ark-poly-commit/std", "ark-std/std" ]
+default = [ "r1cs", "std" ]
 parallel = [ "std", "ark-ec/parallel", "ark-ff/parallel", "ark-poly/parallel", "ark-poly-commit/parallel", "ark-std/parallel", "rayon" ]
 print-trace = [ "ark-poly-commit/print-trace" ]
+r1cs = [ "ark-crypto-primitives/r1cs", "ark-marlin/density-optimized", "ark-nonnative-field", "ark-poly-commit/r1cs", "ark-relations", "ark-r1cs-std" ]
+std = [ "ark-ff/std", "ark-ec/std", "ark-poly/std", "ark-poly-commit/std", "ark-std/std" ]

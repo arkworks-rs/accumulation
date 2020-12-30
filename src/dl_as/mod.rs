@@ -21,8 +21,10 @@ pub use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
-pub type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
-pub type ASSponge<G, S> = SpongeForAccScheme<<G as AffineCurve>::ScalarField, S>;
+type PCDL<G, P, D, S> = InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
+
+#[cfg(feature = "r1cs")]
+pub mod constraints;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
@@ -53,9 +55,6 @@ where
     R: RngCore + SeedableRng,
     S: CryptographicSponge<G::ScalarField>,
 {
-    /// Deterministic seed for commitment to random linear polynomials
-    pub const DETERMINISTIC_SEED: u64 = 2020;
-
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::CommitterKey<G>,
         linear_polynomial: P,
@@ -65,11 +64,8 @@ where
         let labeled_random_linear_polynomial =
             LabeledPolynomial::new(PolynomialLabel::new(), linear_polynomial, None, None);
 
-        let (mut linear_polynomial_commitments, _) = PCDL::<G, P, D, S>::commit(
-            ck,
-            vec![&labeled_random_linear_polynomial],
-            Some(&mut R::seed_from_u64(Self::DETERMINISTIC_SEED)),
-        )?;
+        let (mut linear_polynomial_commitments, _) =
+            PCDL::<G, P, D, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
 
         Ok(linear_polynomial_commitments
             .pop()
@@ -109,10 +105,11 @@ where
 
             if check_polynomial.is_none() {
                 return Err(if inputs_are_accumulators {
-                    ASError::MalformedAccumulator(format!("Succinct check failed on accumulator {}", ipa_commitment.label())
+                    ASError::MalformedAccumulator(
+                        "Succinct check failed on accumulator".to_string(),
                     )
                 } else {
-                    ASError::MalformedInput(format!("Succinct check failed on input {}", ipa_commitment.label()))
+                    ASError::MalformedInput("Succinct check failed on input".to_string())
                 });
             }
 
@@ -172,7 +169,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         assert!(proof.random_linear_polynomial.degree() <= 1);
-        let mut linear_combination_challenge_sponge = ASSponge::<G, S>::new();
+        let mut linear_combination_challenge_sponge = SpongeForAccScheme::<G::ScalarField, S>::new();
         let random_coeffs = proof.random_linear_polynomial.coeffs();
         for i in 0..=1 {
             if i < random_coeffs.len() {
@@ -181,6 +178,7 @@ where
                 linear_combination_challenge_sponge.absorb(&G::ScalarField::zero());
             }
         }
+
         linear_combination_challenge_sponge
             .absorb(&to_bytes!(proof.random_linear_polynomial_commitment).unwrap());
 
@@ -226,7 +224,7 @@ where
             None,
         );
 
-        let mut challenge_point_sponge = ASSponge::<G, S>::new();
+        let mut challenge_point_sponge = SpongeForAccScheme::<G::ScalarField, S>::new();
 
         let combined_commitment = commitments.pop().unwrap();
         challenge_point_sponge.absorb(&to_bytes![&combined_commitment].unwrap());
@@ -476,6 +474,7 @@ where
             inputs,
             accumulators,
         );
+
         if succinct_check_result.is_err() {
             return Ok(false);
         };
@@ -565,6 +564,7 @@ pub mod tests {
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::digest_sponge::DigestSponge;
+    use ark_sponge::dummy::DummySponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
     use rand::distributions::Distribution;
@@ -677,6 +677,7 @@ pub mod tests {
         sha2::Sha512,
         rand_chacha::ChaChaRng,
         DigestSponge<Fr, sha2::Sha512>,
+        //DummySponge,
     >;
     type I = DLAccumulationSchemeTestInput;
 
