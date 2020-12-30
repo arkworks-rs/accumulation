@@ -1,4 +1,6 @@
 use crate::data_structures::{Accumulator, Input};
+use ark_ff::Zero;
+use std::ops::Mul;
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
@@ -7,8 +9,8 @@ use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
 use ark_ff::{to_bytes, PrimeField};
 use ark_poly_commit::lh_pc::error::LHPCError;
-use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
 use ark_poly_commit::lh_pc::LinearHashPC;
+use ark_ff::One;
 use ark_poly_commit::{
     lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
     PolynomialLabel, UVPolynomial,
@@ -18,41 +20,42 @@ use rand_core::RngCore;
 
 mod data_structures;
 pub use data_structures::*;
+use ark_ec::AffineCurve;
 
 mod constraints;
 
-pub struct LHAidedAccumulationScheme<F, P, LH, S>
+pub struct LHAidedAccumulationScheme<G, P, S>
 where
-    F: PrimeField + Absorbable<F>,
-    P: UVPolynomial<F>,
+    G: AffineCurve,
+    G::ScalarField: Absorbable<G::ScalarField>,
+    P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    LH: LinearHashFunction<F> + 'static,
-    S: CryptographicSponge<F>,
+    S: CryptographicSponge<G::ScalarField>,
 {
-    _field: PhantomData<F>,
+    _curve: PhantomData<G>,
     _polynomial: PhantomData<P>,
-    _linear_hash_function: PhantomData<LH>,
     _sponge: PhantomData<S>,
 }
-impl<F, P, LH, S> LHAidedAccumulationScheme<F, P, LH, S>
+
+impl<G, P, S> LHAidedAccumulationScheme<G, P, S>
 where
-    F: PrimeField + Absorbable<F>,
-    P: UVPolynomial<F>,
+    G: AffineCurve,
+    G::ScalarField : Absorbable<G::ScalarField>,
+    P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    LH: LinearHashFunction<F> + 'static,
-    S: CryptographicSponge<F>,
+    S: CryptographicSponge<G::ScalarField>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
-        ck: &lh_pc::CommitterKey<F, LH>,
-        input_instances: impl IntoIterator<Item = &'a InputInstance<F, LH>>,
-        input_witnesses: impl IntoIterator<Item = &'a LabeledPolynomial<F, P>>,
+        ck: &lh_pc::CommitterKey<G>,
+        input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
+        input_witnesses: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
         rng: &mut dyn RngCore,
 
         // Outputs
-        witness_polynomials_output: &mut Vec<LabeledPolynomial<F, P>>,
-        witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<F, LH>>>,
+        witness_polynomials_output: &mut Vec<LabeledPolynomial<G::ScalarField, P>>,
+        witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
     ) -> Result<(), LHPCError>
     where
         Self: 'a,
@@ -62,7 +65,7 @@ where
             let eval = instance.eval;
 
             let numerator: P = (&P::from_coefficients_vec(vec![-eval])).add(witness.polynomial());
-            let denominator = P::from_coefficients_vec(vec![-point, F::one()]);
+            let denominator = P::from_coefficients_vec(vec![-point, G::ScalarField::one()]);
             let witness_polynomial = (&numerator).div(&denominator);
 
             let labeled_witness_polynomial = LabeledPolynomial::new(
@@ -85,14 +88,14 @@ where
     }
 
     fn compute_witness_polynomials_and_commitments<'a>(
-        ck: &lh_pc::CommitterKey<F, LH>,
+        ck: &lh_pc::CommitterKey<G>,
         inputs: &[&'a Input<Self>],
         accumulators: &[&'a Accumulator<Self>],
         rng: &mut dyn RngCore,
     ) -> Result<
         (
-            Vec<LabeledPolynomial<F, P>>,
-            Vec<LabeledCommitment<lh_pc::Commitment<F, LH>>>,
+            Vec<LabeledPolynomial<G::ScalarField, P>>,
+            Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
         ),
         LHPCError,
     >
@@ -134,42 +137,42 @@ where
     }
 
     fn combine_polynomials<'a>(
-        labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<F, P>>,
-        challenge: F,
+        labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
+        challenge: G::ScalarField,
     ) -> P
     where
         P: 'a,
     {
         let mut combined_polynomial = P::zero();
-        let mut cur_challenge = F::one();
+        let mut cur_challenge = G::ScalarField::one();
         for p in labeled_polynomials {
             combined_polynomial += (cur_challenge, p.polynomial());
-            cur_challenge *= challenge;
+            cur_challenge *= &challenge;
         }
 
         combined_polynomial
     }
 
-    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a F>, challenge: F) -> F {
-        let mut combined_eval = F::zero();
-        let mut cur_challenge = F::one();
+    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a G::ScalarField>, challenge: G::ScalarField) -> G::ScalarField {
+        let mut combined_eval = G::ScalarField::zero();
+        let mut cur_challenge = G::ScalarField::one();
         for eval in evaluations {
-            combined_eval += &eval.mul(cur_challenge);
-            cur_challenge *= challenge;
+            combined_eval += &eval.mul(&cur_challenge);
+            cur_challenge *= &challenge;
         }
 
         combined_eval
     }
 
     fn combine_commitments<'a>(
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<lh_pc::Commitment<F, LH>>>,
-        challenge: F,
-    ) -> lh_pc::Commitment<F, LH> {
+        commitments: impl IntoIterator<Item = &'a LabeledCommitment<lh_pc::Commitment<G>>>,
+        challenge: G::ScalarField,
+    ) -> lh_pc::Commitment<G> {
         let mut scalar_commitment_pairs = Vec::new();
-        let mut cur_challenge = F::one();
+        let mut cur_challenge = G::ScalarField::one();
         for c in commitments {
             scalar_commitment_pairs.push((cur_challenge, &c.commitment().0));
-            cur_challenge *= challenge;
+            cur_challenge *= &challenge;
         }
 
         let combined_commitment = scalar_commitment_pairs.into_iter().sum();
@@ -177,30 +180,30 @@ where
     }
 }
 
-impl<F, P, LH, S> AidedAccumulationScheme for LHAidedAccumulationScheme<F, P, LH, S>
+impl<G, P, S> AidedAccumulationScheme for LHAidedAccumulationScheme<G, P, S>
 where
-    F: PrimeField + Absorbable<F>,
-    P: UVPolynomial<F>,
+    G: AffineCurve,
+    G::ScalarField: Absorbable<G::ScalarField>,
+    P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    LH: LinearHashFunction<F> + 'static,
-    S: CryptographicSponge<F>,
+    S: CryptographicSponge<G::ScalarField>,
 {
-    type PredicateParams = lh_pc::UniversalParameters<F, LH>;
+    type PredicateParams = lh_pc::UniversalParameters<G>;
     type PredicateIndex = usize;
     type UniversalParams = ();
 
-    type ProverKey = ProverKey<F, LH>;
-    type VerifierKey = F;
-    type DeciderKey = lh_pc::VerifierKey<F, LH>;
+    type ProverKey = ProverKey<G>;
+    type VerifierKey = G::ScalarField;
+    type DeciderKey = lh_pc::VerifierKey<G>;
 
-    type InputInstance = InputInstance<F, LH>;
-    type InputWitness = LabeledPolynomial<F, P>;
+    type InputInstance = InputInstance<G>;
+    type InputWitness = LabeledPolynomial<G::ScalarField, P>;
 
-    type AccumulatorInstance = InputInstance<F, LH>;
-    type AccumulatorWitness = LabeledPolynomial<F, P>;
+    type AccumulatorInstance = InputInstance<G>;
+    type AccumulatorWitness = LabeledPolynomial<G::ScalarField, P>;
 
-    type Proof = Proof<F, LH>;
+    type Proof = Proof<G>;
 
     type Error = BoxedError;
 
@@ -213,7 +216,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ck, vk) = LinearHashPC::<F, P, LH>::trim(predicate_params, *predicate_index, 0, None)
+        let (ck, vk) = LinearHashPC::<G, P>::trim(predicate_params, *predicate_index, 0, None)
             .map_err(|e| BoxedError::new(e))?;
 
         let mut degree_challenge_sponge = S::new();
@@ -282,7 +285,7 @@ where
             }
         }
 
-        let input_instances: Vec<&InputInstance<F, LH>> = inputs
+        let input_instances: Vec<&InputInstance<G>> = inputs
             .iter()
             .map(|input| &input.instance)
             .chain(accumulators.iter().map(|accumulator| &accumulator.instance))
@@ -422,10 +425,10 @@ where
                 &to_bytes!(p.witness_commitment.commitment()).unwrap()
             ];
 
-            let eval_check_lhs = p.eval - input_instance.eval;
+            let eval_check_lhs = p.eval - &input_instance.eval;
             let eval_check_rhs = p
                 .witness_eval
-                .mul(new_accumulator_instance.point - &input_instance.point);
+                .mul(&(new_accumulator_instance.point - &input_instance.point));
 
             if !eval_check_lhs.eq(&eval_check_rhs) {
                 return Ok(false);
@@ -495,7 +498,7 @@ where
             &accumulator.instance.point,
             vec![accumulator.instance.eval],
             &lh_pc::Proof(accumulator.witness.clone()),
-            &|_| F::one(),
+            &|_| G::ScalarField::one(),
             None,
         );
 
@@ -512,11 +515,10 @@ pub mod tests {
     use crate::std::ops::Div;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
+    use ark_std::UniformRand;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
     use ark_ff::PrimeField;
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
-    use ark_poly_commit::lh_pc::linear_hash::LinearHashFunction;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{
         lh_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
@@ -525,36 +527,37 @@ pub mod tests {
     use ark_sponge::{Absorbable, CryptographicSponge};
     use rand::distributions::Distribution;
     use rand_core::RngCore;
+    use ark_ec::AffineCurve;
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
-    impl<F, P, LH, S> AccumulationSchemeTestInput<LHAidedAccumulationScheme<F, P, LH, S>>
+    impl<G, P, S> AccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, S>>
         for LHAidedAccumulationSchemeTestInput
     where
-        F: PrimeField + Absorbable<F>,
-        P: UVPolynomial<F>,
+        G: AffineCurve,
+        G::ScalarField: Absorbable<G::ScalarField>,
+        P: UVPolynomial<G::ScalarField>,
         for<'a, 'b> &'a P: Add<&'b P, Output = P>,
         for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-        LH: LinearHashFunction<F> + 'static,
-        S: CryptographicSponge<F>,
+        S: CryptographicSponge<G::ScalarField>,
     {
         type TestParams = ();
-        type InputParams = (lh_pc::CommitterKey<F, LH>, lh_pc::VerifierKey<F, LH>);
+        type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>);
 
         fn setup(
             _: &Self::TestParams,
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <LHAidedAccumulationScheme<F, P, LH, S> as AidedAccumulationScheme>::PredicateParams,
-            <LHAidedAccumulationScheme<F, P, LH, S> as AidedAccumulationScheme>::PredicateIndex,
+            <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateParams,
+            <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             let max_degree = 50;
             let supported_degree = 50;
-            let predicate_params = LinearHashPC::<F, P, LH>::setup(max_degree, None, rng).unwrap();
+            let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) =
-                LinearHashPC::<F, P, LH>::trim(&predicate_params, supported_degree, 0, None)
+                LinearHashPC::<G, P>::trim(&predicate_params, supported_degree, 0, None)
                     .unwrap();
 
             ((ck, vk), predicate_params, supported_degree)
@@ -564,10 +567,10 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<LHAidedAccumulationScheme<F, P, LH, S>>> {
+        ) -> Vec<Input<LHAidedAccumulationScheme<G, P, S>>> {
             let ck = &input_params.0;
 
-            let labeled_polynomials: Vec<LabeledPolynomial<F, P>> = (0..num_inputs)
+            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
                 .map(|i| {
                     let degree =
                         rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
@@ -581,13 +584,13 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, _) =
-                LinearHashPC::<F, P, LH>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                LinearHashPC::<G, P>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = labeled_polynomials
                 .into_iter()
                 .zip(labeled_commitments)
                 .map(|(labeled_polynomial, labeled_commitment)| {
-                    let point = F::rand(rng);
+                    let point = G::ScalarField::rand(rng);
                     let eval = labeled_polynomial.evaluate(&point);
 
                     let instance = InputInstance {
@@ -608,9 +611,8 @@ pub mod tests {
     }
 
     type AS = LHAidedAccumulationScheme<
-        Fr,
+        EdwardsAffine,
         DensePolynomial<Fr>,
-        PedersenCommitment<EdwardsAffine, sha2::Sha512>,
         DigestSponge<Fr, sha2::Sha512>,
     >;
 

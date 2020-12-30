@@ -165,9 +165,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::lh_as::constraints::{
-        InputInstanceVar, LHAccumulationSchemeGadget, SingleProofVar, VerifierKeyVar,
-    };
+    use crate::lh_as::constraints::{InputInstanceVar, LHAccumulationSchemeGadget, SingleProofVar, VerifierKeyVar, ProofVar};
     use crate::lh_as::tests::LHAidedAccumulationSchemeTestInput;
     use crate::lh_as::LHAidedAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
@@ -179,7 +177,6 @@ pub mod tests {
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
     use ark_marlin::fiat_shamir::FiatShamirAlgebraicSpongeRng;
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
@@ -193,9 +190,8 @@ pub mod tests {
     type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type AS = LHAidedAccumulationScheme<
-        Fr,
+        G,
         DensePolynomial<Fr>,
-        PedersenCommitment<EdwardsAffine, sha2::Sha512>,
         PoseidonSpongeWrapper<F, ConstraintF>,
     >;
 
@@ -211,6 +207,64 @@ pub mod tests {
 
     #[test]
     pub fn test() {
+        let mut rng = test_rng();
+
+        let (input_params, predicate_params, predicate_index) =
+            <I as AccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
+        let pp = AS::generate(&mut rng).unwrap();
+        let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
+        let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
+        let old_input = inputs.pop().unwrap();
+        let new_input = inputs.pop().unwrap();
+
+        let (old_accumulator, _) = AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
+        let (new_accumulator, proof) = AS::prove(&pk, vec![&new_input], vec![&old_accumulator], Some(&mut rng)).unwrap();
+
+        assert!(AS::verify(
+            &vk,
+            vec![&new_input.instance],
+            vec![&old_accumulator.instance],
+            &new_accumulator.instance,
+            &proof
+        )
+            .unwrap());
+
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let vk_var = VerifierKeyVar::<G>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
+
+        let new_input_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
+                .unwrap();
+
+        let old_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(old_accumulator.instance.clone()))
+                .unwrap();
+
+        let new_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance.clone()))
+                .unwrap();
+
+        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
+
+        LHAccumulationSchemeGadget::<G, C, Poseidon, PoseidonVar>::verify(
+            cs.clone(),
+            &vk_var,
+            vec![&new_input_instance_var],
+            vec![&old_accumulator_instance_var],
+            &new_accumulator_instance_var,
+            &proof_var,
+        )
+            .unwrap()
+            .enforce_equal(&Boolean::TRUE)
+            .unwrap();
+
+        println!("Num constaints: {:}", cs.num_constraints());
+        println!("Num instance: {:}", cs.num_instance_variables());
+        println!("Num witness: {:}", cs.num_witness_variables());
+
+        assert!(cs.is_satisfied().unwrap());
+
+        /*
         let mut rng = test_rng();
 
         //for _ in 0..30 {
@@ -271,5 +325,7 @@ pub mod tests {
         assert!(cs.is_satisfied().unwrap());
 
         //}
+
+         */
     }
 }

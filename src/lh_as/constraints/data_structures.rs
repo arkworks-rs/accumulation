@@ -4,12 +4,10 @@ use ark_ff::Field;
 use ark_marlin::fiat_shamir::constraints::FiatShamirRngVar;
 use ark_marlin::fiat_shamir::FiatShamirRng;
 use ark_nonnative_field::NonNativeFieldVar;
-use ark_poly_commit::lh_pc::linear_hash::pedersen::PedersenCommitment;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use digest::Digest;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -49,14 +47,13 @@ where
     pub _affine: PhantomData<G>,
 }
 
-impl<G, C, D> AllocVar<InputInstance<G::ScalarField, PedersenCommitment<G, D>>, ConstraintF<G>>
+impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>>
     for InputInstanceVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
-    D: Digest,
 {
-    fn new_variable<T: Borrow<InputInstance<G::ScalarField, PedersenCommitment<G, D>>>>(
+    fn new_variable<T: Borrow<InputInstance<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -117,14 +114,13 @@ where
     pub _affine: PhantomData<G>,
 }
 
-impl<G, C, D> AllocVar<SingleProof<G::ScalarField, PedersenCommitment<G, D>>, ConstraintF<G>>
+impl<G, C> AllocVar<SingleProof<G>, ConstraintF<G>>
     for SingleProofVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
-    D: Digest,
 {
-    fn new_variable<T: Borrow<SingleProof<G::ScalarField, PedersenCommitment<G, D>>>>(
+    fn new_variable<T: Borrow<SingleProof<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
