@@ -266,6 +266,8 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
+        println!("Constraints {:}", cs.num_constraints());
+
         assert!(cs.is_satisfied().unwrap());
 
         //}
