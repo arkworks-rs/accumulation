@@ -24,6 +24,7 @@ use ark_poly_commit::{
     LabeledPolynomial, PolynomialCommitment, UVPolynomial, PCCommitterKey,
 };
 use ark_sponge::digest_sponge::DigestSponge;
+use ark_serialize::CanonicalSerialize;
 
 type PCLH = LinearHashPC<
     G1Affine,
@@ -86,7 +87,10 @@ where
         let start = Instant::now();
         assert!(PC::check(&vk, &comms, &point, values, &proof, opening_challenge, Some(rng)).unwrap());
         let check_time = start.elapsed();
-        println!("Check: {:?}\n\n", check_time.as_millis());
+        println!("Check: {:?}\n", check_time.as_millis());
+
+        println!("Proof size: {}", proof.serialized_size());
+        println!("\n\n");
     }
 }
 

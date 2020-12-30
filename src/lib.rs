@@ -19,6 +19,7 @@
 
 use crate::data_structures::{Accumulator, Input};
 use rand_core::RngCore;
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 
 #[macro_use]
 extern crate derivative;
@@ -84,16 +85,16 @@ pub trait AidedAccumulationScheme: Sized {
     type DeciderKey: Clone;
 
     /// The instance of the input to be accumulated.
-    type InputInstance: Clone;
+    type InputInstance: Clone + CanonicalSerialize + CanonicalDeserialize;
 
     /// The witness of the input to be accumulated.
-    type InputWitness: Clone;
+    type InputWitness: Clone + CanonicalSerialize + CanonicalDeserialize;
 
     /// The instance of the accumulator.
-    type AccumulatorInstance: Clone;
+    type AccumulatorInstance: Clone + CanonicalSerialize + CanonicalDeserialize;
 
     /// The witness of the accumulator.
-    type AccumulatorWitness: Clone;
+    type AccumulatorWitness: Clone + CanonicalSerialize + CanonicalDeserialize;
 
     /// The proof, used to prove that the accumulator was properly computed.
     type Proof: Clone;

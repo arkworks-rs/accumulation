@@ -4,16 +4,16 @@ use ark_ff::PrimeField;
 use ark_poly_commit::{ipa_pc, LabeledCommitment, UVPolynomial};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use ark_std::io::{Read, Write};
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone)]
 pub struct PredicateIndex {
     pub supported_degree_bound: usize,
     pub supported_hiding_bound: usize,
 }
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     // ipa_pc instance
     pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
@@ -24,30 +24,26 @@ pub struct InputInstance<G: AffineCurve> {
     pub ipa_proof: ipa_pc::Proof<G>,
 }
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve, P: UVPolynomial<G::ScalarField>> {
     pub(crate) random_linear_polynomial: P,
     pub(crate) random_linear_polynomial_commitment: G,
     pub(crate) commitment_randomness: G::ScalarField,
 }
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
     pub(crate) ipa_ck: ipa_pc::CommitterKey<G>,
     pub(crate) verifier_key: VerifierKey<G>,
 }
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone)]
 pub struct VerifierKey<G: AffineCurve> {
     pub(crate) ipa_vk: ipa_pc::VerifierKey<G>,
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
 }
 
-#[derive(Derivative)]
-#[derivative(Clone)]
+#[derive(Clone)]
 pub struct DeciderKey<G: AffineCurve>(pub(crate) ipa_pc::VerifierKey<G>);
 
 pub trait IsSpongeForAccSchemeParam {

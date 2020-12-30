@@ -8,6 +8,7 @@ use std::time::Instant;
 use ark_ff::{PrimeField, One};
 use ark_std::UniformRand;
 use ark_bn254::{G1Affine, Fr};
+use ark_serialize::CanonicalSerialize;
 
 // struct ProfileData {
 //     size: Vec<usize>,
@@ -95,7 +96,7 @@ where
 
         // Use the same accumulator as input
         old_accumulators.push(accumulator.clone());
-        old_accumulators.push(accumulator);
+        old_accumulators.push(accumulator.clone());
 
         let start = Instant::now();
         let (accumulator, proof) =
@@ -120,7 +121,12 @@ where
             &accumulator,
         ).unwrap();
         let decider_time = start.elapsed();
-        println!("Decider: {:?}\n\n", decider_time.as_millis());
+        println!("Decider: {:?}\n", decider_time.as_millis());
+        println!("Accumulator size: {}", accumulator.serialized_size());
+        println!("Accumulator instance size: {}", accumulator.instance.serialized_size());
+        println!("Accumulator witness size: {}", accumulator.witness.serialized_size());
+
+        println!("\n\n");
 
         assert!(verification_result);
         assert!(decision_result);

@@ -1,7 +1,9 @@
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use ark_std::io::{Read, Write};
 use crate::{AccumulationScheme, AidedAccumulationScheme};
 
 /// The accumulator of an aided accumulation scheme.
-#[derive(Derivative)]
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
 #[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
 pub struct Accumulator<A: AidedAccumulationScheme> {
     /// The instance of the accumulator.
