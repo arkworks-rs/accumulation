@@ -1,7 +1,7 @@
 use crate::std::vec::Vec;
 use ark_ff::{to_bytes, ToConstraintField};
 use ark_ec::AffineCurve;
-use ark_poly_commit::{lh_pc, LabeledCommitment};
+use ark_poly_commit::{LabeledCommitment, lh_pc};
 use ark_sponge::Absorbable;
 use ark_poly_commit::lh_pc::{CommitterKey, Commitment};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
@@ -9,13 +9,13 @@ use ark_std::io::{Read, Write};
 
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
-    pub(crate) lh_ck: CommitterKey<G>,
+    pub(crate) lh_ck: lh_pc::CommitterKey<G>,
     pub(crate) degree_challenge: G::ScalarField,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
-    pub commitment: LabeledCommitment<Commitment<G>>,
+    pub commitment: LabeledCommitment<lh_pc::Commitment<G>>,
     pub point: G::ScalarField,
     pub eval: G::ScalarField,
 }

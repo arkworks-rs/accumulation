@@ -1,4 +1,5 @@
 use crate::data_structures::{Accumulator, Input};
+use std::ops::Mul;
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
@@ -19,6 +20,9 @@ use rand_core::RngCore;
 mod data_structures;
 pub use data_structures::*;
 
+#[cfg(feature = "r1cs")]
+pub mod constraints;
+
 pub struct LHAidedAccumulationScheme<G, P, S>
 where
     G: AffineCurve,
@@ -28,10 +32,11 @@ where
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
     S: CryptographicSponge<G::ScalarField>,
 {
-    _field: PhantomData<G::ScalarField>,
+    _curve: PhantomData<G>,
     _polynomial: PhantomData<P>,
     _sponge: PhantomData<S>,
 }
+
 impl<G, P, S> LHAidedAccumulationScheme<G, P, S>
 where
     G: AffineCurve,
@@ -147,6 +152,17 @@ where
         combined_polynomial
     }
 
+    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a G::ScalarField>, challenge: G::ScalarField) -> G::ScalarField {
+        let mut combined_eval = G::ScalarField::zero();
+        let mut cur_challenge = G::ScalarField::one();
+        for eval in evaluations {
+            combined_eval += &eval.mul(&cur_challenge);
+            cur_challenge *= &challenge;
+        }
+
+        combined_eval
+    }
+
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a LabeledCommitment<lh_pc::Commitment<G>>>,
         challenge: G::ScalarField,
@@ -160,17 +176,6 @@ where
 
         let combined_commitment = scalar_commitment_pairs.into_iter().sum();
         lh_pc::Commitment(combined_commitment)
-    }
-
-    fn combine_evaluations<'a>(evaluations: impl IntoIterator<Item = &'a G::ScalarField>, challenge: G::ScalarField) -> G::ScalarField {
-        let mut combined_eval = G::ScalarField::zero();
-        let mut cur_challenge = G::ScalarField::one();
-        for eval in evaluations {
-            combined_eval += &(cur_challenge * eval);
-            cur_challenge *= &challenge;
-        }
-
-        combined_eval
     }
 }
 
@@ -333,7 +338,8 @@ where
 
             absorb![
                 &mut linear_combination_challenge_sponge,
-                &to_bytes!(&input_witness_eval, &witness_eval).unwrap()
+                &to_bytes!(&input_witness_eval).unwrap(),
+                &to_bytes!(&witness_eval).unwrap()
             ];
 
             let single_proof = SingleProof {
@@ -421,7 +427,7 @@ where
             let eval_check_lhs = p.eval - &input_instance.eval;
             let eval_check_rhs = p
                 .witness_eval
-                 * &(new_accumulator_instance.point - &input_instance.point);
+                .mul(&(new_accumulator_instance.point - &input_instance.point));
 
             if !eval_check_lhs.eq(&eval_check_rhs) {
                 return Ok(false);
@@ -442,10 +448,11 @@ where
         let mut linear_combination_challenge_sponge = S::new();
         linear_combination_challenge_sponge.absorb(&challenge_point);
 
-        for proof in proof {
+        for single_proof in proof {
             absorb![
                 &mut linear_combination_challenge_sponge,
-                &to_bytes!(&proof.eval, &proof.witness_eval).unwrap()
+                &to_bytes!(&single_proof.eval).unwrap(),
+                &to_bytes!(&single_proof.witness_eval).unwrap()
             ];
         }
 
@@ -507,9 +514,10 @@ pub mod tests {
     use crate::std::ops::Div;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
+    use ark_std::UniformRand;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
-    use ark_ec::AffineCurve;
-    use ark_poly::univariate::DensePolynomial;
+    use ark_ff::PrimeField;
+    use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{
         lh_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
@@ -518,7 +526,7 @@ pub mod tests {
     use ark_sponge::{Absorbable, CryptographicSponge};
     use rand::distributions::Distribution;
     use rand_core::RngCore;
-    use ark_std::UniformRand;
+    use ark_ec::AffineCurve;
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
