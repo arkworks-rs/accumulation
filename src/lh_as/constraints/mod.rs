@@ -36,6 +36,7 @@ where
     S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
     SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
 {
+    #[tracing::instrument(target = "r1cs", skip(challenge_var))]
     fn compute_challenge_vars<'a>(
         challenge_var: &NNFieldVar<G>,
         num_challenges: usize,
@@ -51,6 +52,7 @@ where
         challenge_vars
     }
 
+    #[tracing::instrument(target = "r1cs", skip(evaluations_var, challenge_vars))]
     fn combine_evaluation_vars<'a>(
         evaluations_var: impl IntoIterator<Item = &'a NNFieldVar<G>>,
         challenge_vars: impl IntoIterator<Item = &'a NNFieldVar<G>>,
@@ -64,6 +66,7 @@ where
         Ok(combined_evaluation_vars.reduce()?)
     }
 
+    #[tracing::instrument(target = "r1cs", skip(commitment_vars, challenge_bytes_vars))]
     fn combine_commitment_vars<'a>(
         commitment_vars: impl IntoIterator<Item = &'a C>,
         challenge_bytes_vars: impl IntoIterator<Item = &'a Vec<Boolean<ConstraintF<G>>>>,
@@ -76,6 +79,7 @@ where
         Ok(combined_commitment_var)
     }
 
+    #[tracing::instrument(target = "r1cs", skip(cs, verifier_key_var, input_instance_vars, accumulator_instance_vars, new_accumulator_instance_var, proof_var))]
     fn verify<'a>(
         cs: ConstraintSystemRef<<<G as AffineCurve>::BaseField as Field>::BasePrimeField>,
         verifier_key_var: &VerifierKeyVar<G>,
@@ -260,10 +264,10 @@ pub mod tests {
         let vk_var = VerifierKeyVar::<G>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
 
         let new_input_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
+            InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_witness(cs.clone(), || {
             Ok(old_accumulator.instance.clone())
         })
         .unwrap();
@@ -290,6 +294,9 @@ pub mod tests {
         println!("Num constaints: {:}", cs.num_constraints());
         println!("Num instance: {:}", cs.num_instance_variables());
         println!("Num witness: {:}", cs.num_witness_variables());
+        if !cs.is_satisfied().unwrap() {
+            println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
+        } 
 
         assert!(cs.is_satisfied().unwrap());
     }

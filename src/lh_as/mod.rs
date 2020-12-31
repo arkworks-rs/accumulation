@@ -554,7 +554,7 @@ pub mod tests {
             <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             //let max_degree = (1 << 5) - 1;
-            let max_degree = 50;
+            let max_degree = (1 << 20) - 1;
             let supported_degree = max_degree;
             let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 
