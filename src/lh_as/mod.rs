@@ -409,7 +409,7 @@ where
         }
 
         let mut challenge_point_sponge = S::new();
-        challenge_point_sponge.absorb(verifier_key);
+        challenge_point_sponge.absorb(&to_bytes![verifier_key].unwrap());
 
         let mut commitments = Vec::new();
         for (input_instance, p) in input_instances
@@ -554,7 +554,7 @@ pub mod tests {
             <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             //let max_degree = (1 << 5) - 1;
-            let max_degree = (1 << 20) - 1;
+            let max_degree = 2;
             let supported_degree = max_degree;
             let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 

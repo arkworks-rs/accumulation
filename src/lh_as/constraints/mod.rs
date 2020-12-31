@@ -6,7 +6,7 @@ use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_std::ops::Mul;
 use std::marker::PhantomData;
@@ -91,7 +91,7 @@ where
         let mut verify_result_var = Boolean::TRUE;
 
         let mut challenge_point_sponge_var = SV::new(cs.clone());
-        challenge_point_sponge_var.absorb_bytes(verifier_key_var.0.to_bytes()?.as_slice())?;
+        challenge_point_sponge_var.absorb_bytes(verifier_key_var.0.to_bytes()?.split_last().unwrap().1)?;
 
         let mut commitment_vars = Vec::new();
         for (input_instance_var, single_proof_var) in input_instance_vars
@@ -133,6 +133,7 @@ where
         verify_result_var = verify_result_var
             .and(&challenge_point_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
 
+
         let mut linear_combination_challenge_sponge_var = SV::new(cs.clone());
 
         // Pad to next multiple of 8
@@ -149,9 +150,9 @@ where
 
         for single_proof_var in proof_var {
             linear_combination_challenge_sponge_var
-                .absorb_bytes(single_proof_var.eval_var.to_bytes()?.as_slice())?;
+                .absorb_bytes(single_proof_var.eval_var.to_bytes()?.split_last().unwrap().1)?;
             linear_combination_challenge_sponge_var
-                .absorb_bytes(single_proof_var.witness_eval_var.to_bytes()?.as_slice())?;
+                .absorb_bytes(single_proof_var.witness_eval_var.to_bytes()?.split_last().unwrap().1)?;
         }
 
         let linear_combination_challenge_var = linear_combination_challenge_sponge_var

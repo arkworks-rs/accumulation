@@ -6,7 +6,7 @@ use ark_marlin::fiat_shamir::FiatShamirRng;
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::ToBytesGadget;
+use ark_r1cs_std::{ToBytesGadget, R1CSVar};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -94,8 +94,8 @@ where
         SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
     {
         let mut byte_vars = self.commitment_var.to_bytes()?;
-        byte_vars.extend(self.point_var.to_bytes()?);
-        byte_vars.extend(self.eval_var.to_bytes()?);
+        byte_vars.extend_from_slice(self.point_var.to_bytes()?.split_last().unwrap().1);
+        byte_vars.extend_from_slice(self.eval_var.to_bytes()?.split_last().unwrap().1);
 
         sponge_var.absorb_bytes(byte_vars.as_slice())
     }
