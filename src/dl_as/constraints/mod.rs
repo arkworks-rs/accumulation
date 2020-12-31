@@ -470,11 +470,12 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
-        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        assert!(cs.is_satisfied().unwrap());
         println!("Num constaints: {:}", cs.num_constraints());
         println!("Num instance: {:}", cs.num_instance_variables());
         println!("Num witness: {:}", cs.num_witness_variables());
+
+        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
+        assert!(cs.is_satisfied().unwrap());
 
         /*
         for constraint in cs.constraint_names().unwrap() {

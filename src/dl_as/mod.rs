@@ -615,7 +615,7 @@ pub mod tests {
             <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateParams,
             <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = 1;
+            let max_degree = (1 << 20) - 1;
             let supported_degree = max_degree;
             let predicate_params = PCDL::<G, P, D, S>::setup(max_degree, None, rng).unwrap();
 
