@@ -12,6 +12,7 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_relations::ns;
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
 
@@ -78,7 +79,7 @@ where
                 let ipa_commitment_var = &input_var.ipa_commitment_var;
                 let (succinct_check_result_var, check_polynomial_var) =
                     InnerProductArgPCGadget::<G, C, S, SpongeVarForPC<G, S, SV>>::succinct_check(
-                        cs.clone(),
+                        ns!(cs, "succinct_check").cs(),
                         ipa_vk_var,
                         vec![ipa_commitment_var],
                         &input_var.point_var,
@@ -102,15 +103,19 @@ where
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
         assert!(check_polynomial_var.0.len() <= log_supported_degree);
+        let mut bytes_input_var = Vec::new();
+
         let elem_vars = &check_polynomial_var.0;
         for i in 0..(log_supported_degree + 1) {
             if i < elem_vars.len() {
-                sponge_var.absorb_bytes(elem_vars[i].to_bytes()?.as_slice())?;
+                bytes_input_var.append(&mut (elem_vars[i].to_bytes()?));
             } else {
                 // Pad the check polynomial if necessary
-                sponge_var.absorb_bytes(NNFieldVar::<G>::zero().to_bytes()?.as_slice())?;
+                bytes_input_var.append(&mut NNFieldVar::<G>::zero().to_bytes()?);
             }
         }
+
+        sponge_var.absorb_bytes(bytes_input_var.as_slice())?;
 
         Ok(())
     }
@@ -137,7 +142,9 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge_var =
-            SpongeVarForAccScheme::<G, S, SV>::new(cs.clone());
+            SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "linear_combination_challenge_sponge_var").cs(),);
+        // TODO: Reenable for hiding
+        /*
         let random_coeff_vars = &proof_var.random_linear_polynomial_coeff_vars;
         linear_combination_challenge_sponge_var
             .absorb_bytes(random_coeff_vars[0].to_bytes()?.as_slice())?;
@@ -149,6 +156,7 @@ where
                 .to_bytes()?
                 .as_slice(),
         )?;
+         */
 
         let mut combined_succinct_check_result_var = Boolean::TRUE;
         for (_, check_polynomial_var, commitment_var) in succinct_check_vars {
@@ -172,7 +180,9 @@ where
             .pop()
             .unwrap();
 
-        let mut combined_commitment_var = proof_var.random_linear_polynomial_commitment_var.clone();
+        // TODO: Revert for hiding
+        //let mut combined_commitment_var = proof_var.random_linear_polynomial_commitment_var.clone();
+        let mut combined_commitment_var = C::zero();
 
         let mut combined_check_polynomial_and_addend_vars =
             Vec::with_capacity(succinct_check_vars.len());
@@ -194,12 +204,17 @@ where
             cur_challenge_var *= &linear_combination_challenge_var;
         }
 
+        // TODO: Reenable for hiding
+        /*
         let randomized_combined_commitment_var = ipa_vk_var
             .s_var
             .scalar_mul_le(proof_var.commitment_randomness_var.iter())?
             + &combined_commitment_var;
+         */
 
-        let mut challenge_point_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(cs.clone());
+        let randomized_combined_commitment_var = combined_commitment_var.clone();
+
+        let mut challenge_point_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "challenge_point_sponge_var").cs(),);
         challenge_point_sponge_var.absorb_bytes(combined_commitment_var.to_bytes()?.as_slice())?;
 
         for ((_, check_polynomial_var), linear_combination_challenge_bytes_var) in
@@ -267,6 +282,8 @@ where
             return Ok(Boolean::FALSE);
         }
 
+        // TODO: Revert for hiding
+        /*
         let linear_polynomial_commitment_var = Self::deterministic_commit_to_linear_polynomial_var(
             &verifier_key_var.ipa_ck_linear_var,
             &proof_var.random_linear_polynomial_coeff_vars,
@@ -277,8 +294,10 @@ where
                 .is_eq(&proof_var.random_linear_polynomial_commitment_var)?,
         )?;
 
+         */
+
         let succinct_check_result_var = Self::succinct_check_input_vars(
-            cs.clone(),
+            ns!(cs, "succinct_check_results_var").cs(),
             &verifier_key_var.ipa_vk_var,
             input_instance_vars
                 .into_iter()
@@ -291,7 +310,7 @@ where
             combined_check_poly_addend_vars,
             challenge_var,
         ) = Self::combine_succinct_check_vars_and_proof_var(
-            cs.clone(),
+            ns!(cs, "combine_succinct_check_vars_and_proof_var").cs(),
             &verifier_key_var.ipa_vk_var,
             &succinct_check_result_var,
             &proof_var,
@@ -312,10 +331,14 @@ where
             &challenge_var,
         )?;
 
+        // TODO: Revert for hiding
+        /*
         eval_var += Self::evaluate_linear_polynomial_var(
             &proof_var.random_linear_polynomial_coeff_vars,
             &challenge_var,
         );
+
+         */
 
         verify_result_var = verify_result_var
             .and(&eval_var.is_eq(&new_accumulator_instance_var.evaluation_var)?)?;
@@ -343,10 +366,13 @@ pub mod tests {
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_relations::r1cs::{ConstraintSystem, TracingMode};
+    use tracing_subscriber::layer::SubscriberExt;
+    use ark_relations::ns;
     use ark_sponge::poseidon::PoseidonSpongeWrapper;
     use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
+    use ark_relations::r1cs::ConstraintLayer;
 
     type G = EdwardsAffine;
     type C = EdwardsVar;
@@ -402,27 +428,34 @@ pub mod tests {
         )
         .unwrap());
 
+        let mut layer = ConstraintLayer::default();
+        layer.mode = TracingMode::OnlyConstraints;
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let vk_var = VerifierKeyVar::<G, C>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
+
+        let cs_init = ns!(cs, "init var").cs();
+        let vk_var = VerifierKeyVar::<G, C>::new_input(cs_init.clone(), || Ok(vk.clone())).unwrap();
 
         let new_input_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_input.instance.clone()))
+            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
             Ok(old_accumulator.instance.clone())
         })
         .unwrap();
 
-        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
             Ok(new_accumulator.instance.clone())
         })
         .unwrap();
 
-        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
+        let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
         DLAccumulationSchemeGadget::<G, C, Poseidon, PoseidonVar>::verify(
-            cs.clone(),
+            ns!(cs, "dl_as_verify").cs(),
             &vk_var,
             vec![&new_input_instance_var],
             vec![&old_accumulator_instance_var],
@@ -433,10 +466,16 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
+        assert!(cs.is_satisfied().unwrap());
         println!("Num constaints: {:}", cs.num_constraints());
         println!("Num instance: {:}", cs.num_instance_variables());
         println!("Num witness: {:}", cs.num_witness_variables());
 
-        assert!(cs.is_satisfied().unwrap());
+        /*
+        for constraint in cs.constraint_names().unwrap() {
+            println!("{:}", constraint)
+        }
+
+         */
     }
 }

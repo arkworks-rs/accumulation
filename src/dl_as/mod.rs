@@ -143,15 +143,20 @@ where
         log_supported_degree: usize,
     ) {
         assert!(check_polynomial.0.len() <= log_supported_degree);
+        let mut bytes_input = Vec::new();
+
         let elems = &check_polynomial.0;
+        // TODO: Absorb field elements instead?
         for i in 0..(log_supported_degree + 1) {
             if i < elems.len() {
-                sponge.absorb(&elems[i]);
+                bytes_input.append(&mut ark_ff::to_bytes!(elems[i]).unwrap());
             } else {
                 // Pad the check polynomial if necessary
-                sponge.absorb(&G::ScalarField::zero());
+                bytes_input.append(&mut ark_ff::to_bytes!(G::ScalarField::zero()).unwrap());
             }
         }
+
+        sponge.absorb(&bytes_input);
     }
 
     fn combine_succinct_checks_and_proof<'a>(
@@ -172,6 +177,8 @@ where
         assert!(proof.random_linear_polynomial.degree() <= 1);
         let mut linear_combination_challenge_sponge =
             SpongeForAccScheme::<G::ScalarField, S>::new();
+        // TODO: Renable for hiding
+        /*
         let random_coeffs = proof.random_linear_polynomial.coeffs();
         for i in 0..=1 {
             if i < random_coeffs.len() {
@@ -180,9 +187,13 @@ where
                 linear_combination_challenge_sponge.absorb(&G::ScalarField::zero());
             }
         }
+         */
 
+        /*
         linear_combination_challenge_sponge
             .absorb(&to_bytes!(proof.random_linear_polynomial_commitment).unwrap());
+
+         */
 
         for (check_polynomial, commitment) in succinct_checks {
             Self::absorb_check_polynomial_into_sponge(
@@ -198,7 +209,9 @@ where
             .pop()
             .unwrap();
 
-        let mut combined_commitment = proof.random_linear_polynomial_commitment.into_projective();
+        // TODO: Revert to enable hiding
+        //let mut combined_commitment = proof.random_linear_polynomial_commitment.into_projective();
+        let mut combined_commitment = G::Projective::zero();
         let mut combined_check_polynomial_addends = Vec::with_capacity(succinct_checks.len());
 
         let mut cur_challenge = linear_combination_challenge;
@@ -208,8 +221,9 @@ where
             cur_challenge *= &linear_combination_challenge;
         }
 
+        // TODO: Revert to enable hiding
         let randomized_combined_commitment =
-            combined_commitment + &(ipa_vk.s.mul(proof.commitment_randomness));
+            combined_commitment; //+ &(ipa_vk.s.mul(proof.commitment_randomness));
 
         let mut commitments = G::Projective::batch_normalization_into_affine(&[
             combined_commitment,
@@ -294,7 +308,8 @@ where
             PolynomialLabel::new(),
             combined_check_polynomial,
             None,
-            Some(1),
+            // TODO: Turn on hiding again
+            None,
         );
 
         let randomness = ipa_pc::Randomness {
@@ -430,7 +445,9 @@ where
 
         let mut combined_check_polynomial =
             Self::combine_check_polynomials(combined_check_polynomial_addends);
-        combined_check_polynomial += &proof.random_linear_polynomial;
+
+        // TODO: Reenable for hiding
+        //combined_check_polynomial += &proof.random_linear_polynomial;
 
         let accumulator = Self::compute_new_accumulator(
             &prover_key.ipa_ck,
@@ -457,6 +474,8 @@ where
     where
         Self: 'a,
     {
+        // TODO: Revert for hiding
+        /*
         if proof.random_linear_polynomial.degree() > 1 {
             return Ok(false);
         }
@@ -470,6 +489,8 @@ where
         if !linear_polynomial_commitment.eq(&proof.random_linear_polynomial_commitment) {
             return Ok(false);
         }
+
+         */
 
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators(
             &verifier_key.ipa_vk,
@@ -507,7 +528,8 @@ where
         let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_polynomial_addends, challenge);
 
-        eval += &proof.random_linear_polynomial.evaluate(&challenge);
+        // TODO: Revert for hiding
+        //eval += &proof.random_linear_polynomial.evaluate(&challenge);
 
         if !eval.eq(&new_accumulator.evaluation) {
             return Ok(false);
@@ -563,7 +585,7 @@ pub mod tests {
     use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
     use ark_ff::{One, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
+    use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey, PCVerifierKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::digest_sponge::DigestSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
@@ -595,7 +617,7 @@ pub mod tests {
             <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             let max_degree = 50;
-            let supported_degree = 50;
+            let supported_degree = max_degree;
             let predicate_params = PCDL::<G, P, D, S>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) = PCDL::<G, P, D, S>::trim(
@@ -623,15 +645,16 @@ pub mod tests {
 
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
                 .map(|i| {
-                    let degree =
-                        rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
+                    //let degree =
+                        //rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
+                    let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
                     let polynomial = P::rand(degree, rng);
-                    let hiding_bound = Some(degree);
+                    //let hiding_bound = None;
 
                     let labeled_polynomial =
-                        LabeledPolynomial::new(label, polynomial, None, hiding_bound);
+                        LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
                 })

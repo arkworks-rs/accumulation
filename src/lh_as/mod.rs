@@ -553,8 +553,8 @@ pub mod tests {
             <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateParams,
             <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = 50;
-            let supported_degree = 50;
+            let max_degree = (1 << 5) - 1;
+            let supported_degree = max_degree;
             let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) =
@@ -572,8 +572,9 @@ pub mod tests {
 
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
                 .map(|i| {
-                    let degree =
-                        rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
+                    //let degree =
+                        //rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
+                    let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
                     let polynomial = P::rand(degree, rng);
