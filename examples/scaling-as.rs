@@ -3,7 +3,7 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
-use ark_bn254::{Fr, G1Affine};
+use ark_pallas::{Fr, Affine as G1Affine};
 use ark_ff::{One, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;

@@ -31,7 +31,10 @@ ark-relations = { git = "https://github.com/arkworks-rs/snark", default-features
 ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std", default-features = false, optional = true }
 
 [dev-dependencies]
+<<<<<<< HEAD
 ark-pallas = { git = "https://github.com/arkworks-rs/curves", features = [ "r1cs" ] }
+ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", features = [ "r1cs" ] }
+ark-pallas = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
 ark-ed-on-bls12-381 = { git = "https://github.com/arkworks-rs/curves", default-features = false, features = [ "r1cs" ] }
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 sha2 = { version = "0.9.1", default_features = false}
