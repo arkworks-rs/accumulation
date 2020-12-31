@@ -222,8 +222,7 @@ where
         }
 
         // TODO: Revert to enable hiding
-        let randomized_combined_commitment =
-            combined_commitment; //+ &(ipa_vk.s.mul(proof.commitment_randomness));
+        let randomized_combined_commitment = combined_commitment; //+ &(ipa_vk.s.mul(proof.commitment_randomness));
 
         let mut commitments = G::Projective::batch_normalization_into_affine(&[
             combined_commitment,
@@ -616,7 +615,7 @@ pub mod tests {
             <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateParams,
             <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = 50;
+            let max_degree = 1;
             let supported_degree = max_degree;
             let predicate_params = PCDL::<G, P, D, S>::setup(max_degree, None, rng).unwrap();
 
@@ -646,15 +645,14 @@ pub mod tests {
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
                 .map(|i| {
                     //let degree =
-                        //rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
+                    //rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
                     let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
                     let polynomial = P::rand(degree, rng);
                     //let hiding_bound = None;
 
-                    let labeled_polynomial =
-                        LabeledPolynomial::new(label, polynomial, None, None);
+                    let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
                 })

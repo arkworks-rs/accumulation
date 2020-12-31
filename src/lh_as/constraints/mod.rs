@@ -12,6 +12,8 @@ use ark_std::ops::Mul;
 use std::marker::PhantomData;
 
 pub mod data_structures;
+use ark_nonnative_field::NonNativeFieldMulResultVar;
+use ark_r1cs_std::bits::uint8::UInt8;
 pub use data_structures::*;
 
 pub struct LHAccumulationSchemeGadget<G, C, S, SV>
@@ -53,21 +55,22 @@ where
         evaluations_var: impl IntoIterator<Item = &'a NNFieldVar<G>>,
         challenge_vars: impl IntoIterator<Item = &'a NNFieldVar<G>>,
     ) -> Result<NNFieldVar<G>, SynthesisError> {
-        let mut combined_evaluation_vars = NNFieldVar::<G>::zero();
+        let mut combined_evaluation_vars =
+            NonNativeFieldMulResultVar::<G::ScalarField, ConstraintF<G>>::zero();
         for (scalar_var, eval_var) in challenge_vars.into_iter().zip(evaluations_var) {
-            combined_evaluation_vars += (&eval_var).mul(scalar_var);
+            combined_evaluation_vars += (&eval_var).mul_without_reduce(scalar_var)?;
         }
 
-        Ok(combined_evaluation_vars)
+        Ok(combined_evaluation_vars.reduce()?)
     }
 
     fn combine_commitment_vars<'a>(
         commitment_vars: impl IntoIterator<Item = &'a C>,
-        challenge_vars: impl IntoIterator<Item = &'a NNFieldVar<G>>,
+        challenge_bytes_vars: impl IntoIterator<Item = &'a Vec<Boolean<ConstraintF<G>>>>,
     ) -> Result<C, SynthesisError> {
         let mut combined_commitment_var = C::zero();
-        for (scalar_var, comm_var) in challenge_vars.into_iter().zip(commitment_vars) {
-            combined_commitment_var += &comm_var.scalar_mul_le(scalar_var.to_bits_le()?.iter())?;
+        for (scalar_bytes_var, comm_var) in challenge_bytes_vars.into_iter().zip(commitment_vars) {
+            combined_commitment_var += &comm_var.scalar_mul_le(scalar_bytes_var.iter())?;
         }
 
         Ok(combined_commitment_var)
@@ -111,8 +114,15 @@ where
             commitment_vars.push(&input_instance_var.commitment_var);
         }
 
-        let challenge_point_var = challenge_point_sponge_var
-            .squeeze_field_elements(1)?
+        let mut challenge_point_sponge_field_element_and_bits =
+            challenge_point_sponge_var.squeeze_field_elements_and_bits(1)?;
+        let challenge_point_var = challenge_point_sponge_field_element_and_bits
+            .0
+            .pop()
+            .unwrap();
+
+        let mut challenge_point_bits_var = challenge_point_sponge_field_element_and_bits
+            .1
             .pop()
             .unwrap();
 
@@ -120,8 +130,18 @@ where
             .and(&challenge_point_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
 
         let mut linear_combination_challenge_sponge_var = SV::new(cs.clone());
+
+        // Pad to next multiple of 8
+        challenge_point_bits_var
+            .resize_with(((challenge_point_bits_var.len() + 7) / 8) * 8, || {
+                Boolean::FALSE
+            });
+        let challenge_point_bytes_var = challenge_point_bits_var
+            .chunks(8)
+            .map(UInt8::<ConstraintF<G>>::from_bits_le)
+            .collect::<Vec<_>>();
         linear_combination_challenge_sponge_var
-            .absorb_bytes(challenge_point_var.to_bytes()?.as_slice())?;
+            .absorb_bytes(challenge_point_bytes_var.as_slice())?;
 
         for single_proof_var in proof_var {
             linear_combination_challenge_sponge_var
@@ -153,7 +173,10 @@ where
             commitment_vars
                 .into_iter()
                 .chain(proof_var.into_iter().map(|p| &p.witness_commitment_var)),
-            &linear_combination_challenge_vars,
+            &linear_combination_challenge_vars
+                .into_iter()
+                .map(|challenge_var| challenge_var.to_bits_le())
+                .collect::<Result<Vec<_>, SynthesisError>>()?,
         )?;
 
         verify_result_var = verify_result_var

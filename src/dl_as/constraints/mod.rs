@@ -11,8 +11,8 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
-use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_relations::ns;
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
 
@@ -141,8 +141,9 @@ where
         let supported_degree = ipa_vk_var.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge_var =
-            SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "linear_combination_challenge_sponge_var").cs(),);
+        let mut linear_combination_challenge_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(
+            ns!(cs, "linear_combination_challenge_sponge_var").cs(),
+        );
         // TODO: Reenable for hiding
         /*
         let random_coeff_vars = &proof_var.random_linear_polynomial_coeff_vars;
@@ -214,7 +215,8 @@ where
 
         let randomized_combined_commitment_var = combined_commitment_var.clone();
 
-        let mut challenge_point_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "challenge_point_sponge_var").cs(),);
+        let mut challenge_point_sponge_var =
+            SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "challenge_point_sponge_var").cs());
         challenge_point_sponge_var.absorb_bytes(combined_commitment_var.to_bytes()?.as_slice())?;
 
         for ((_, check_polynomial_var), linear_combination_challenge_bytes_var) in
@@ -343,6 +345,8 @@ where
         verify_result_var = verify_result_var
             .and(&eval_var.is_eq(&new_accumulator_instance_var.evaluation_var)?)?;
 
+        verify_result_var.enforce_equal(&Boolean::TRUE);
+        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
         Ok(verify_result_var)
     }
 }
@@ -356,8 +360,6 @@ pub mod tests {
     use crate::dl_as::DLAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_ed_on_bls12_381::constraints::EdwardsVar;
-    use ark_ed_on_bls12_381::EdwardsAffine;
     use ark_marlin::fiat_shamir::constraints::{FiatShamirAlgebraicSpongeRngVar, FiatShamirRngVar};
     use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
@@ -366,18 +368,18 @@ pub mod tests {
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::r1cs::{ConstraintSystem, TracingMode};
-    use tracing_subscriber::layer::SubscriberExt;
     use ark_relations::ns;
+    use ark_relations::r1cs::ConstraintLayer;
+    use ark_relations::r1cs::{ConstraintSystem, TracingMode};
     use ark_sponge::poseidon::PoseidonSpongeWrapper;
     use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
-    use ark_relations::r1cs::ConstraintLayer;
+    use tracing_subscriber::layer::SubscriberExt;
 
-    type G = EdwardsAffine;
-    type C = EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
+    type G = ark_pallas::Affine;
+    type C = ark_pallas::constraints::GVar;
+    type F = ark_pallas::Fr;
+    type ConstraintF = ark_pallas::Fq;
 
     type AS = DLAccumulationScheme<
         G,
@@ -442,15 +444,17 @@ pub mod tests {
             InputInstanceVar::<G, C>::new_input(cs_init.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
-            Ok(old_accumulator.instance.clone())
-        })
-        .unwrap();
+        let old_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
+                Ok(old_accumulator.instance.clone())
+            })
+            .unwrap();
 
-        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
-            Ok(new_accumulator.instance.clone())
-        })
-        .unwrap();
+        let new_accumulator_instance_var =
+            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
+                Ok(new_accumulator.instance.clone())
+            })
+            .unwrap();
 
         let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
@@ -466,6 +470,7 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
+        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
         assert!(cs.is_satisfied().unwrap());
         println!("Num constaints: {:}", cs.num_constraints());
         println!("Num instance: {:}", cs.num_instance_variables());
