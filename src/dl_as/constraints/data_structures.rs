@@ -19,6 +19,7 @@ use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
+use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
@@ -29,7 +30,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub(crate) ipa_vk_var: ipa_pc::constraints::VerifierKeyVar<G, C>,
+    pub(crate) ipa_vk_var: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
     pub(crate) ipa_ck_linear_var: ipa_pc::constraints::VerifierKeyVar<G, C>,
 }
 
@@ -46,9 +47,10 @@ where
         let ns = cs.into();
         let verifier_key = f()?;
 
-        let ipa_vk_var = ipa_pc::constraints::VerifierKeyVar::<G, C>::new_variable(
+        let mut succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
+        let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
             ns.clone(),
-            || Ok(verifier_key.borrow().ipa_vk.clone()),
+            || Ok(succinct_verifier_key),
             mode,
         )
         .unwrap();
