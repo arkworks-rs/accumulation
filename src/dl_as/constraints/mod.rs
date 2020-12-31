@@ -159,6 +159,7 @@ where
         )?;
          */
 
+        let cost_absorbing_succinct_check_polys = cs.num_constraints();
         let mut combined_succinct_check_result_var = Boolean::TRUE;
         for (_, check_polynomial_var, commitment_var) in succinct_check_vars {
             if log_supported_degree > check_polynomial_var.0.len() {
@@ -298,6 +299,7 @@ where
 
          */
 
+        let cost = cs.num_constraints();
         let succinct_check_result_var = Self::succinct_check_input_vars(
             ns!(cs, "succinct_check_results_var").cs(),
             &verifier_key_var.ipa_vk_var,
@@ -305,7 +307,9 @@ where
                 .into_iter()
                 .chain(accumulator_instance_vars),
         )?;
+        println!("Cost of succinct_check_input_vars: {:?}", cs.num_constraints() - cost);
 
+        let cost = cs.num_constraints();
         let (
             combined_succinct_check_result_var,
             combined_commitment_var,
@@ -317,6 +321,7 @@ where
             &succinct_check_result_var,
             &proof_var,
         )?;
+        println!("Cost of combine_succinct_check_vars: {:?}", cs.num_constraints() - cost);
 
         verify_result_var = verify_result_var.and(&combined_succinct_check_result_var)?;
 
@@ -328,10 +333,13 @@ where
         verify_result_var = verify_result_var
             .and(&challenge_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
 
+        let cost = cs.num_constraints();
         let mut eval_var = Self::evaluate_combined_check_polynomial_vars(
             combined_check_poly_addend_vars,
             &challenge_var,
         )?;
+        println!("Cost of evaluate_combined_check_polynomial: {:?}", cs.num_constraints() - cost);
+        println!("Total constraint: {:?}", cs.num_constraints());
 
         // TODO: Revert for hiding
         /*
@@ -345,8 +353,6 @@ where
         verify_result_var = verify_result_var
             .and(&eval_var.is_eq(&new_accumulator_instance_var.evaluation_var)?)?;
 
-        verify_result_var.enforce_equal(&Boolean::TRUE);
-        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
         Ok(verify_result_var)
     }
 }
@@ -438,23 +444,31 @@ pub mod tests {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
 
         let cs_init = ns!(cs, "init var").cs();
-        let vk_var = VerifierKeyVar::<G, C>::new_input(cs_init.clone(), || Ok(vk.clone())).unwrap();
+        let cost = cs.num_constraints();
+        let vk_var = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
+        println!("Cost of declaring verifier_key {:?}", cs.num_constraints() - cost);
 
+        let cost = cs.num_constraints();
         let new_input_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || Ok(new_input.instance.clone()))
+            InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
+        println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
 
+        let cost = cs.num_constraints();
         let old_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
+            InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
                 Ok(old_accumulator.instance.clone())
             })
             .unwrap();
+        println!("Cost of declaring old accumulator {:?}", cs.num_constraints() - cost);
 
+        let cost = cs.num_constraints();
         let new_accumulator_instance_var =
             InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
                 Ok(new_accumulator.instance.clone())
             })
             .unwrap();
+        println!("Cost of declaring new accumulator {:?}", cs.num_constraints() - cost);
 
         let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
