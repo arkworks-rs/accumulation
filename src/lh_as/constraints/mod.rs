@@ -195,8 +195,6 @@ pub mod tests {
     use crate::lh_as::LHAidedAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_ed_on_bls12_381::constraints::EdwardsVar;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
     use ark_marlin::fiat_shamir::constraints::FiatShamirAlgebraicSpongeRngVar;
     use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
     use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
@@ -209,13 +207,13 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSpongeWrapper;
     use ark_std::test_rng;
 
-    type G = EdwardsAffine;
-    type C = EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
+    type G = ark_pallas::Affine;
+    type C = ark_pallas::constraints::GVar;
+    type F = ark_pallas::Fr;
+    type ConstraintF = ark_pallas::Fq;
 
     type AS =
-        LHAidedAccumulationScheme<G, DensePolynomial<Fr>, PoseidonSpongeWrapper<F, ConstraintF>>;
+        LHAidedAccumulationScheme<G, DensePolynomial<F>, PoseidonSpongeWrapper<F, ConstraintF>>;
 
     type I = LHAidedAccumulationSchemeTestInput;
 
