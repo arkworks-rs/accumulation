@@ -262,7 +262,7 @@ pub mod tests {
         .unwrap());
 
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let vk_var = VerifierKeyVar::<G>::new_input(cs.clone(), || Ok(vk.clone())).unwrap();
+        let vk_var = VerifierKeyVar::<G>::new_constant(cs.clone(), || Ok(vk.clone())).unwrap();
 
         let new_input_instance_var =
             InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance.clone()))
