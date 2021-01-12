@@ -6,14 +6,14 @@ use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, One, Zero};
+use ark_ff::{to_bytes, One, Zero, PrimeField};
 use ark_poly_commit::lh_pc::error::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
     lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
     PolynomialLabel, UVPolynomial,
 };
-use ark_sponge::{absorb, Absorbable, CryptographicSponge};
+use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use rand_core::RngCore;
 use std::ops::Mul;
 
@@ -23,28 +23,31 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-pub struct LHAidedAccumulationScheme<G, P, S>
+pub struct LHAidedAccumulationScheme<G, P, CF, S>
 where
     G: AffineCurve,
     G::ScalarField: Absorbable<G::ScalarField>,
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField,
+    S: CryptographicSponge<CF>,
 {
     _curve: PhantomData<G>,
     _polynomial: PhantomData<P>,
+    _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, P, S> LHAidedAccumulationScheme<G, P, S>
+impl<G, P, CF, S> LHAidedAccumulationScheme<G, P, CF, S>
 where
     G: AffineCurve,
     G::ScalarField: Absorbable<G::ScalarField>,
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField,
+    S: CryptographicSponge<CF>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &lh_pc::CommitterKey<G>,
@@ -323,7 +326,7 @@ where
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_field_elements(1)
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated { num_bits: 128 }])
             .pop()
             .unwrap();
 

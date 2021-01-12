@@ -1,7 +1,5 @@
 use ark_ec::AffineCurve;
 use ark_ff::{Field, One};
-use ark_marlin::fiat_shamir::constraints::{AlgebraicSpongeVar, FiatShamirRngVar};
-use ark_marlin::fiat_shamir::{AlgebraicSponge, FiatShamirRng};
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
@@ -10,35 +8,39 @@ use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
+use ark_r1cs_std::bits::uint8::UInt8;
+use ark_r1cs_std::R1CSVar;
+use ark_sponge::FieldElementSize;
 
 pub mod data_structures;
 pub use data_structures::*;
 
-pub struct DLAccumulationSchemeGadget<G, C, S, SV>
+pub struct DLAccumulationSchemeGadget<G, C, S>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
-    S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-    SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+    S: CryptographicSpongeVar<ConstraintF<G>>,
 {
     pub _affine: PhantomData<G>,
     pub _curve: PhantomData<C>,
     pub _sponge: PhantomData<S>,
-    pub _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> DLAccumulationSchemeGadget<G, C, S, SV>
+impl<G, C, S> DLAccumulationSchemeGadget<G, C, S>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
-    S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-    SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+    S: CryptographicSpongeVar<ConstraintF<G>>,
 {
+    #[tracing::instrument(target = "r1cs", skip(ck_var, linear_polynomial_var))]
     fn deterministic_commit_to_linear_polynomial_var(
         ck_var: &ipa_pc::constraints::CommitterKeyVar<G, C>,
         linear_polynomial_var: &[NNFieldVar<G>; 2],
@@ -54,6 +56,7 @@ where
         )
     }
 
+    #[tracing::instrument(target = "r1cs", skip(linear_polynomial_var, point_var))]
     fn evaluate_linear_polynomial_var(
         linear_polynomial_var: &[NNFieldVar<G>; 2],
         point_var: &NNFieldVar<G>,
@@ -61,6 +64,7 @@ where
         (&linear_polynomial_var[1]).mul(point_var) + &linear_polynomial_var[0]
     }
 
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, input_vars))]
     fn succinct_check_input_vars<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk_var: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
@@ -73,12 +77,13 @@ where
         )>,
         SynthesisError,
     > {
+        let mut test = SpongeVarForPC::<G, S>::new(cs.clone());
         input_vars
             .into_iter()
             .map(|input_var| {
                 let ipa_commitment_var = &input_var.ipa_commitment_var;
                 let (succinct_check_result_var, check_polynomial_var) =
-                    InnerProductArgPCGadget::<G, C, S, SpongeVarForPC<G, S, SV>>::succinct_check(
+                    InnerProductArgPCGadget::<G, C, SpongeVarForPC<G, S>>::succinct_check(
                         ns!(cs, "succinct_check").cs(),
                         ipa_vk_var,
                         vec![ipa_commitment_var],
@@ -97,8 +102,9 @@ where
             .collect::<Result<Vec<_>, SynthesisError>>()
     }
 
+    #[tracing::instrument(target = "r1cs", skip(sponge_var, check_polynomial_var))]
     fn absorb_check_polynomial_var_into_sponge_var(
-        sponge_var: &mut SpongeVarForAccScheme<G, S, SV>,
+        sponge_var: &mut SpongeVarForAccScheme<G, S>,
         check_polynomial_var: &SuccinctCheckPolynomialVar<G>,
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
@@ -115,11 +121,11 @@ where
             }
         }
 
-        sponge_var.absorb_bytes(bytes_input_var.as_slice())?;
-
+        sponge_var.absorb(bytes_input_var.to_constraint_field()?.as_slice())?;
         Ok(())
     }
 
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, succinct_check_vars, proof_var))]
     fn combine_succinct_check_vars_and_proof_var<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk_var: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
@@ -141,7 +147,7 @@ where
         let supported_degree = ipa_vk_var.supported_degree;
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge_var = SpongeVarForAccScheme::<G, S, SV>::new(
+        let mut linear_combination_challenge_sponge_var = SpongeVarForAccScheme::<G, S>::new(
             ns!(cs, "linear_combination_challenge_sponge_var").cs(),
         );
         // TODO: Reenable for hiding
@@ -174,13 +180,14 @@ where
             )?;
 
             linear_combination_challenge_sponge_var
-                .absorb_bytes(commitment_var.to_bytes()?.as_slice())?;
+                .absorb(commitment_var.to_constraint_field()?.as_slice())?;
         }
 
-        let linear_combination_challenge_var = linear_combination_challenge_sponge_var
-            .squeeze_field_elements(1)?
-            .pop()
-            .unwrap();
+        let (linear_combination_challenge_vars, linear_combination_challenge_bits_vars) =
+            linear_combination_challenge_sponge_var.squeeze_nonnative_field_element_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_check_vars.len()]
+                    .as_slice(),
+            )?;
 
         // TODO: Revert for hiding
         //let mut combined_commitment_var = proof_var.random_linear_polynomial_commitment_var.clone();
@@ -188,22 +195,26 @@ where
 
         let mut combined_check_polynomial_and_addend_vars =
             Vec::with_capacity(succinct_check_vars.len());
-        let mut addend_bytes_vars = Vec::with_capacity(succinct_check_vars.len());
+        let mut addend_bits_vars = Vec::with_capacity(succinct_check_vars.len());
 
-        let mut cur_challenge_var = linear_combination_challenge_var.clone();
-        for (succinct_check_result_var, check_polynomial_var, commitment_var) in succinct_check_vars
+        for (
+            ((succinct_check_result_var, check_polynomial_var, commitment_var), cur_challenge_var),
+            cur_challenge_bits_var,
+        ) in succinct_check_vars
+            .into_iter()
+            .zip(&linear_combination_challenge_vars)
+            .zip(&linear_combination_challenge_bits_vars)
         {
             combined_succinct_check_result_var =
                 combined_succinct_check_result_var.and(&succinct_check_result_var)?;
 
-            let cur_challenge_bytes_var = cur_challenge_var.to_bytes()?;
             combined_commitment_var +=
-                &(commitment_var.scalar_mul_le(cur_challenge_bytes_var.to_bits_le()?.iter())?);
+                &(commitment_var.scalar_mul_le(cur_challenge_bits_var.iter())?);
+
             combined_check_polynomial_and_addend_vars
                 .push((cur_challenge_var.clone(), check_polynomial_var));
-            addend_bytes_vars.push(cur_challenge_bytes_var);
 
-            cur_challenge_var *= &linear_combination_challenge_var;
+            addend_bits_vars.push(cur_challenge_bits_var);
         }
 
         // TODO: Reenable for hiding
@@ -217,21 +228,30 @@ where
         let randomized_combined_commitment_var = combined_commitment_var.clone();
 
         let mut challenge_point_sponge_var =
-            SpongeVarForAccScheme::<G, S, SV>::new(ns!(cs, "challenge_point_sponge_var").cs());
-        challenge_point_sponge_var.absorb_bytes(combined_commitment_var.to_bytes()?.as_slice())?;
+            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge_var").cs());
+        challenge_point_sponge_var
+            .absorb(combined_commitment_var.to_constraint_field()?.as_slice())?;
 
-        for ((_, check_polynomial_var), linear_combination_challenge_bytes_var) in
+        for ((_, check_polynomial_var), linear_combination_challenge_bits_var) in
             combined_check_polynomial_and_addend_vars
                 .iter()
-                .zip(&addend_bytes_vars)
+                .zip(&addend_bits_vars)
         {
             if log_supported_degree > (*check_polynomial_var).0.len() {
                 combined_succinct_check_result_var = Boolean::FALSE;
                 continue;
             }
 
-            challenge_point_sponge_var
-                .absorb_bytes(linear_combination_challenge_bytes_var.as_slice())?;
+            let mut linear_combination_challenge_bytes_var = linear_combination_challenge_bits_var
+                .chunks(8)
+                .map(UInt8::<ConstraintF<G>>::from_bits_le)
+                .collect::<Vec<_>>();
+
+            challenge_point_sponge_var.absorb(
+                linear_combination_challenge_bytes_var
+                    .to_constraint_field()?
+                    .as_slice(),
+            )?;
 
             Self::absorb_check_polynomial_var_into_sponge_var(
                 &mut challenge_point_sponge_var,
@@ -241,7 +261,10 @@ where
         }
 
         let challenge_point_var = challenge_point_sponge_var
-            .squeeze_field_elements(1)?
+            .squeeze_nonnative_field_element_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 180,
+            }])?
+            .0
             .pop()
             .unwrap();
 
@@ -253,6 +276,7 @@ where
         ))
     }
 
+    #[tracing::instrument(target = "r1cs", skip(combined_check_polynomial_addend_vars, point_var))]
     fn evaluate_combined_check_polynomial_vars<'a>(
         combined_check_polynomial_addend_vars: impl IntoIterator<
             Item = (NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>),
@@ -267,6 +291,7 @@ where
         Ok(eval_var)
     }
 
+    #[tracing::instrument(target = "r1cs", skip(cs, verifier_key_var, input_instance_vars, accumulator_instance_vars, new_accumulator_instance_var, proof_var))]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key_var: &VerifierKeyVar<G, C>,
@@ -307,7 +332,12 @@ where
                 .into_iter()
                 .chain(accumulator_instance_vars),
         )?;
-        println!("Cost of succinct_check_input_vars: {:?}", cs.num_constraints() - cost);
+        /*
+        println!(
+            "Cost of succinct_check_input_vars: {:?}",
+            cs.num_constraints() - cost
+        );
+         */
 
         let cost = cs.num_constraints();
         let (
@@ -321,9 +351,16 @@ where
             &succinct_check_result_var,
             &proof_var,
         )?;
-        println!("Cost of combine_succinct_check_vars: {:?}", cs.num_constraints() - cost);
+        /*
+        println!(
+            "Cost of combine_succinct_check_vars: {:?}",
+            cs.num_constraints() - cost
+        );
+
+         */
 
         verify_result_var = verify_result_var.and(&combined_succinct_check_result_var)?;
+
 
         verify_result_var = verify_result_var.and(
             &combined_commitment_var
@@ -338,8 +375,14 @@ where
             combined_check_poly_addend_vars,
             &challenge_var,
         )?;
-        println!("Cost of evaluate_combined_check_polynomial: {:?}", cs.num_constraints() - cost);
+        /*
+        println!(
+            "Cost of evaluate_combined_check_polynomial: {:?}",
+            cs.num_constraints() - cost
+        );
         println!("Total constraint: {:?}", cs.num_constraints());
+
+         */
 
         // TODO: Revert for hiding
         /*
@@ -366,10 +409,6 @@ pub mod tests {
     use crate::dl_as::DLAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_marlin::fiat_shamir::constraints::{FiatShamirAlgebraicSpongeRngVar, FiatShamirRngVar};
-    use ark_marlin::fiat_shamir::poseidon::constraints::PoseidonSpongeVar;
-    use ark_marlin::fiat_shamir::poseidon::PoseidonSponge;
-    use ark_marlin::fiat_shamir::FiatShamirAlgebraicSpongeRng;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -377,33 +416,31 @@ pub mod tests {
     use ark_relations::ns;
     use ark_relations::r1cs::ConstraintLayer;
     use ark_relations::r1cs::{ConstraintSystem, TracingMode};
-    use ark_sponge::poseidon::PoseidonSpongeWrapper;
+    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
+    use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 
-    type G = ark_pallas::Affine;
-    type C = ark_pallas::constraints::GVar;
-    type F = ark_pallas::Fr;
-    type ConstraintF = ark_pallas::Fq;
+//    type G = ark_pallas::Affine;
+//    type C = ark_pallas::constraints::GVar;
+//    type F = ark_pallas::Fr;
+//    type ConstraintF = ark_pallas::Fq;
+    type G = ark_ed_on_bls12_381::EdwardsAffine;
+    type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
+    type F = ark_ed_on_bls12_381::Fr;
+    type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type AS = DLAccumulationScheme<
         G,
         DensePolynomial<F>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,
-        PoseidonSpongeWrapper<F, ConstraintF>,
+        ConstraintF,
+        PoseidonSponge<ConstraintF>,
     >;
 
     type I = DLAccumulationSchemeTestInput;
-
-    type Poseidon = FiatShamirAlgebraicSpongeRng<F, ConstraintF, PoseidonSponge<ConstraintF>>;
-    type PoseidonVar = FiatShamirAlgebraicSpongeRngVar<
-        F,
-        ConstraintF,
-        PoseidonSponge<ConstraintF>,
-        PoseidonSpongeVar<ConstraintF>,
-    >;
 
     #[test]
     pub fn basic() {
@@ -427,7 +464,6 @@ pub mod tests {
         )
         .unwrap();
 
-        /*
         assert!(AS::verify(
             &vk,
             vec![&new_input.instance],
@@ -436,8 +472,6 @@ pub mod tests {
             &proof
         )
         .unwrap());
-        
-         */
 
         let mut layer = ConstraintLayer::default();
         layer.mode = TracingMode::OnlyConstraints;
@@ -448,14 +482,21 @@ pub mod tests {
 
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
-        let vk_var = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
-        println!("Cost of declaring verifier_key {:?}", cs.num_constraints() - cost);
+        let vk_var = VerifierKeyVar::<G, C>::new_witness(cs_init.clone(), || Ok(vk.clone())).unwrap();
+        /*
+        println!(
+            "Cost of declaring verifier_key {:?}",
+            cs.num_constraints() - cost
+        );
+
+         */
 
         let cost = cs.num_constraints();
-        let new_input_instance_var =
-            InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || Ok(new_input.instance.clone()))
-                .unwrap();
-        println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
+        let new_input_instance_var = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
+            Ok(new_input.instance.clone())
+        })
+        .unwrap();
+        //println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
 
         let cost = cs.num_constraints();
         let old_accumulator_instance_var =
@@ -463,7 +504,14 @@ pub mod tests {
                 Ok(old_accumulator.instance.clone())
             })
             .unwrap();
-        println!("Cost of declaring old accumulator {:?}", cs.num_constraints() - cost);
+
+        /*
+        println!(
+            "Cost of declaring old accumulator {:?}",
+            cs.num_constraints() - cost
+        );
+
+         */
 
         let cost = cs.num_constraints();
         let new_accumulator_instance_var =
@@ -471,11 +519,18 @@ pub mod tests {
                 Ok(new_accumulator.instance.clone())
             })
             .unwrap();
-        println!("Cost of declaring new accumulator {:?}", cs.num_constraints() - cost);
+
+        /*
+        println!(
+            "Cost of declaring new accumulator {:?}",
+            cs.num_constraints() - cost
+        );
+
+         */
 
         let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
-        DLAccumulationSchemeGadget::<G, C, Poseidon, PoseidonVar>::verify(
+        DLAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             ns!(cs, "dl_as_verify").cs(),
             &vk_var,
             vec![&new_input_instance_var],
@@ -487,18 +542,17 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
-        println!("Num constaints: {:}", cs.num_constraints());
-        println!("Num instance: {:}", cs.num_instance_variables());
-        println!("Num witness: {:}", cs.num_witness_variables());
+        //println!("Num constaints: {:}", cs.num_constraints());
+        //println!("Num instance: {:}", cs.num_instance_variables());
+        //println!("Num witness: {:}", cs.num_witness_variables());
 
         //println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
         //assert!(cs.is_satisfied().unwrap());
 
-        /*
+        println!("BEGIN");
         for constraint in cs.constraint_names().unwrap() {
             println!("{:}", constraint)
         }
-
-         */
+        println!("END");
     }
 }
