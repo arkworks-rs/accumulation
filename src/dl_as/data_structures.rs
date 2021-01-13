@@ -66,21 +66,25 @@ impl IsSpongeForAccSchemeParam for SpongeForPCParam {
 }
 
 pub struct DomainSeparatedSponge<
-    F: PrimeField,
-    S: CryptographicSponge<F>,
+    CF: PrimeField + Absorbable<CF>,
+    S: CryptographicSponge<CF>,
     I: IsSpongeForAccSchemeParam,
 > {
     sponge: S,
-    _field: PhantomData<F>,
+    _field: PhantomData<CF>,
     _param: PhantomData<I>,
 }
 
-impl<F: PrimeField, S: CryptographicSponge<F>, I: IsSpongeForAccSchemeParam> CryptographicSponge<F>
-    for DomainSeparatedSponge<F, S, I>
+impl<CF: PrimeField + Absorbable<CF>, S: CryptographicSponge<CF>, I: IsSpongeForAccSchemeParam>
+    CryptographicSponge<CF> for DomainSeparatedSponge<CF, S, I>
 {
     fn new() -> Self {
         let mut sponge = S::new();
-        sponge.absorb(&I::is_sponge_for_acc_scheme());
+        sponge.absorb(&if I::is_sponge_for_acc_scheme() {
+            CF::one()
+        } else {
+            CF::zero()
+        });
         Self {
             sponge,
             _field: PhantomData,
@@ -88,7 +92,7 @@ impl<F: PrimeField, S: CryptographicSponge<F>, I: IsSpongeForAccSchemeParam> Cry
         }
     }
 
-    fn absorb(&mut self, input: &impl Absorbable<F>) {
+    fn absorb(&mut self, input: &impl Absorbable<CF>) {
         self.sponge.absorb(input);
     }
 
@@ -96,12 +100,28 @@ impl<F: PrimeField, S: CryptographicSponge<F>, I: IsSpongeForAccSchemeParam> Cry
         self.sponge.squeeze_bytes(num_bytes)
     }
 
-    fn squeeze_field_elements_with_sizes(&mut self, sizes: &[FieldElementSize]) -> Vec<F> {
+    fn squeeze_bits(&mut self, num_bits: usize) -> Vec<bool> {
+        self.sponge.squeeze_bits(num_bits)
+    }
+
+    fn squeeze_field_elements_with_sizes(&mut self, sizes: &[FieldElementSize]) -> Vec<CF> {
         self.sponge.squeeze_field_elements_with_sizes(sizes)
     }
 
-    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<F> {
+    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<CF> {
         self.sponge.squeeze_field_elements(num_elements)
+    }
+
+    fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
+        &mut self,
+        sizes: &[FieldElementSize],
+    ) -> Vec<F> {
+        self.sponge
+            .squeeze_nonnative_field_elements_with_sizes(sizes)
+    }
+
+    fn squeeze_nonnative_field_elements<F: PrimeField>(&mut self, num_elements: usize) -> Vec<F> {
+        self.sponge.squeeze_nonnative_field_elements(num_elements)
     }
 }
 

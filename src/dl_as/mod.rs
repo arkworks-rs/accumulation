@@ -5,24 +5,24 @@ use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::{AccumulationScheme, AidedAccumulationScheme};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{to_bytes, One, UniformRand, Zero};
+use ark_ff::{to_bytes, One, PrimeField, UniformRand, Zero};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
 use ark_poly_commit::{
     ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
-use ark_sponge::{Absorbable, CryptographicSponge};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
+use ark_relations::r1cs::ToConstraintField;
 pub use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
-pub type PCDL<G, P, D, S> =
-    InnerProductArgPC<G, D, P, SpongeForPC<<G as AffineCurve>::ScalarField, S>>;
+pub type PCDL<G, P, D, CF, S> = InnerProductArgPC<G, D, P, CF, SpongeForPC<CF, S>>;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;
@@ -31,30 +31,33 @@ pub mod constraints;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct DLAccumulationScheme<G, P, D, R, S>
+pub struct DLAccumulationScheme<G, P, D, R, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField + Absorbable<CF>,
+    Vec<CF>: Absorbable<CF>,
+    S: CryptographicSponge<CF>,
 {
     _curve: PhantomData<G>,
     _polynomial: PhantomData<P>,
     _digest: PhantomData<D>,
     _rng: PhantomData<R>,
+    _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, P, D, R, S> DLAccumulationScheme<G, P, D, R, S>
+impl<G, P, D, R, CF, S> DLAccumulationScheme<G, P, D, R, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField + Absorbable<CF>,
+    Vec<CF>: Absorbable<CF>,
+    S: CryptographicSponge<CF>,
 {
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::CommitterKey<G>,
@@ -66,7 +69,7 @@ where
             LabeledPolynomial::new(PolynomialLabel::new(), linear_polynomial, None, None);
 
         let (mut linear_polynomial_commitments, _) =
-            PCDL::<G, P, D, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
+            PCDL::<G, P, D, CF, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
 
         Ok(linear_polynomial_commitments
             .pop()
@@ -95,7 +98,7 @@ where
                 });
             }
 
-            let check_polynomial = PCDL::<G, P, D, S>::succinct_check(
+            let check_polynomial = PCDL::<G, P, D, CF, S>::succinct_check(
                 ipa_vk,
                 vec![ipa_commitment],
                 input.point.clone(),
@@ -138,7 +141,7 @@ where
     }
 
     fn absorb_check_polynomial_into_sponge(
-        sponge: &mut impl CryptographicSponge<G::ScalarField>,
+        sponge: &mut impl CryptographicSponge<CF>,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
         log_supported_degree: usize,
     ) {
@@ -175,8 +178,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         assert!(proof.random_linear_polynomial.degree() <= 1);
-        let mut linear_combination_challenge_sponge =
-            SpongeForAccScheme::<G::ScalarField, S>::new();
+        let mut linear_combination_challenge_sponge = SpongeForAccScheme::<CF, S>::new();
         // TODO: Renable for hiding
         /*
         let random_coeffs = proof.random_linear_polynomial.coeffs();
@@ -192,7 +194,6 @@ where
         /*
         linear_combination_challenge_sponge
             .absorb(&to_bytes!(proof.random_linear_polynomial_commitment).unwrap());
-
          */
 
         for (check_polynomial, commitment) in succinct_checks {
@@ -201,24 +202,25 @@ where
                 check_polynomial,
                 log_supported_degree,
             );
-            linear_combination_challenge_sponge.absorb(&to_bytes!(commitment).unwrap());
+            linear_combination_challenge_sponge.absorb(&commitment.to_field_elements().unwrap());
         }
 
-        let linear_combination_challenge = linear_combination_challenge_sponge
-            .squeeze_field_elements(1)
-            .pop()
-            .unwrap();
+        let linear_combination_challenges: Vec<G::ScalarField> =
+            linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_checks.len()]
+                    .as_slice(),
+            );
 
         // TODO: Revert to enable hiding
         //let mut combined_commitment = proof.random_linear_polynomial_commitment.into_projective();
         let mut combined_commitment = G::Projective::zero();
         let mut combined_check_polynomial_addends = Vec::with_capacity(succinct_checks.len());
 
-        let mut cur_challenge = linear_combination_challenge;
-        for (check_polynomial, commitment) in succinct_checks {
+        for ((check_polynomial, commitment), cur_challenge) in
+            succinct_checks.iter().zip(linear_combination_challenges)
+        {
             combined_commitment += &(commitment.mul(cur_challenge));
             combined_check_polynomial_addends.push((cur_challenge, check_polynomial));
-            cur_challenge *= &linear_combination_challenge;
         }
 
         // TODO: Revert to enable hiding
@@ -239,13 +241,16 @@ where
             None,
         );
 
-        let mut challenge_point_sponge = SpongeForAccScheme::<G::ScalarField, S>::new();
+        let mut challenge_point_sponge = SpongeForAccScheme::<CF, S>::new();
 
         let combined_commitment = commitments.pop().unwrap();
-        challenge_point_sponge.absorb(&to_bytes![&combined_commitment].unwrap());
+        challenge_point_sponge.absorb(&combined_commitment.to_field_elements().unwrap());
 
         for (linear_combination_challenge, check_polynomial) in &combined_check_polynomial_addends {
-            challenge_point_sponge.absorb(linear_combination_challenge);
+            let mut linear_combination_challenge_bytes = to_bytes!(linear_combination_challenge).unwrap();
+            linear_combination_challenge_bytes.resize_with(16, || 0);
+            challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
+
             Self::absorb_check_polynomial_into_sponge(
                 &mut challenge_point_sponge,
                 check_polynomial,
@@ -254,7 +259,9 @@ where
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_field_elements(1)
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 180,
+            }])
             .pop()
             .unwrap();
 
@@ -316,7 +323,7 @@ where
             shifted_rand: None,
         };
 
-        let ipa_proof = PCDL::<G, P, D, S>::open_individual_opening_challenges(
+        let ipa_proof = PCDL::<G, P, D, CF, S>::open_individual_opening_challenges(
             ipa_ck,
             vec![&labeled_combined_polynomial],
             vec![&combined_commitment],
@@ -337,14 +344,15 @@ where
     }
 }
 
-impl<G, P, D, R, S> AidedAccumulationScheme for DLAccumulationScheme<G, P, D, R, S>
+impl<G, P, D, R, CF, S> AidedAccumulationScheme for DLAccumulationScheme<G, P, D, R, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField + Absorbable<CF>,
+    Vec<CF>: Absorbable<CF>,
+    S: CryptographicSponge<CF>,
 {
     type PredicateParams = ipa_pc::UniversalParams<G>;
     type PredicateIndex = PredicateIndex;
@@ -372,7 +380,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipa_ck, ipa_vk) = PCDL::<G, P, D, S>::trim(
+        let (ipa_ck, ipa_vk) = PCDL::<G, P, D, CF, S>::trim(
             predicate_params,
             predicate_index.supported_degree_bound,
             predicate_index.supported_hiding_bound,
@@ -380,7 +388,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let (ipa_ck_linear, _) = PCDL::<G, P, D, S>::trim(predicate_params, 1, 0, Some(&[1]))
+        let (ipa_ck_linear, _) = PCDL::<G, P, D, CF, S>::trim(predicate_params, 1, 0, Some(&[1]))
             .map_err(|e| BoxedError::new(e))?;
 
         let verifier_key = VerifierKey {
@@ -543,7 +551,7 @@ where
     ) -> Result<bool, Self::Error> {
         let accumulator = &accumulator.instance;
 
-        let ipa_check = PCDL::<G, P, D, S>::check_individual_opening_challenges(
+        let ipa_check = PCDL::<G, P, D, CF, S>::check_individual_opening_challenges(
             &decider_key.0,
             vec![&accumulator.ipa_commitment],
             &accumulator.point,
@@ -558,14 +566,15 @@ where
     }
 }
 
-impl<G, P, D, R, S> AccumulationScheme for DLAccumulationScheme<G, P, D, R, S>
+impl<G, P, D, R, CF, S> AccumulationScheme for DLAccumulationScheme<G, P, D, R, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField + Absorbable<CF>,
+    Vec<CF>: Absorbable<CF>,
+    S: CryptographicSponge<CF>,
 {
 }
 
@@ -581,12 +590,12 @@ pub mod tests {
     };
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
-    use ark_ff::{One, UniformRand};
+    use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
+    use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey, PCVerifierKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
-    use ark_sponge::digest_sponge::DigestSponge;
+    use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
     use rand::distributions::Distribution;
@@ -594,15 +603,16 @@ pub mod tests {
 
     pub struct DLAccumulationSchemeTestInput {}
 
-    impl<G, P, D, R, S> AccumulationSchemeTestInput<DLAccumulationScheme<G, P, D, R, S>>
+    impl<G, P, D, R, CF, S> AccumulationSchemeTestInput<DLAccumulationScheme<G, P, D, R, CF, S>>
         for DLAccumulationSchemeTestInput
     where
-        G: AffineCurve,
-        G::ScalarField: Absorbable<G::ScalarField>,
+        G: AffineCurve + ToConstraintField<CF>,
         P: UVPolynomial<G::ScalarField>,
         D: Digest,
         R: RngCore + SeedableRng,
-        S: CryptographicSponge<G::ScalarField>,
+        CF: PrimeField + Absorbable<CF>,
+        Vec<CF>: Absorbable<CF>,
+        S: CryptographicSponge<CF>,
     {
         type TestParams = ();
         type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>);
@@ -612,14 +622,14 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateParams,
-            <DLAccumulationScheme<G, P, D, R, S> as AidedAccumulationScheme>::PredicateIndex,
+            <DLAccumulationScheme<G, P, D, R, CF, S> as AidedAccumulationScheme>::PredicateParams,
+            <DLAccumulationScheme<G, P, D, R, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = (1 << 2) - 1;
+            let max_degree = (1 << 10) - 1;
             let supported_degree = max_degree;
-            let predicate_params = PCDL::<G, P, D, S>::setup(max_degree, None, rng).unwrap();
+            let predicate_params = PCDL::<G, P, D, CF, S>::setup(max_degree, None, rng).unwrap();
 
-            let (ck, vk) = PCDL::<G, P, D, S>::trim(
+            let (ck, vk) = PCDL::<G, P, D, CF, S>::trim(
                 &predicate_params,
                 supported_degree,
                 supported_degree,
@@ -639,7 +649,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<DLAccumulationScheme<G, P, D, R, S>>> {
+        ) -> Vec<Input<DLAccumulationScheme<G, P, D, R, CF, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
@@ -659,7 +669,7 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, randoms) =
-                PCDL::<G, P, D, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                PCDL::<G, P, D, CF, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = (&labeled_polynomials)
                 .into_iter()
@@ -668,7 +678,7 @@ pub mod tests {
                 .map(|((labeled_polynomial, labeled_commitment), randomness)| {
                     let point = G::ScalarField::rand(rng);
                     let evaluation = labeled_polynomial.evaluate(&point);
-                    let ipa_proof = PCDL::<G, P, D, S>::open_individual_opening_challenges(
+                    let ipa_proof = PCDL::<G, P, D, CF, S>::open_individual_opening_challenges(
                         ck,
                         vec![labeled_polynomial],
                         vec![&labeled_commitment],
@@ -698,8 +708,8 @@ pub mod tests {
         DensePolynomial<Fr>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,
-        DigestSponge<Fr, sha2::Sha512>,
-        //DummySponge,
+        Fq,
+        PoseidonSponge<Fq>,
     >;
     type I = DLAccumulationSchemeTestInput;
 

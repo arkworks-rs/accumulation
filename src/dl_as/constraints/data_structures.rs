@@ -5,21 +5,22 @@ use crate::dl_as::data_structures::{
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
-use ark_marlin::fiat_shamir::constraints::FiatShamirRngVar;
-use ark_marlin::fiat_shamir::FiatShamirRng;
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_poly_commit::ipa_pc;
+use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::FieldElementSize;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
@@ -206,11 +207,10 @@ where
 #[derivative(Clone)]
 pub struct DomainSeparatedSpongeVar<
     G: AffineCurve,
-    S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-    SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
+    S: CryptographicSpongeVar<ConstraintF<G>>,
     I: IsSpongeForAccSchemeParam,
 > {
-    sponge_var: SV,
+    sponge_var: S,
     absorbed_bit: bool,
 
     _affine: PhantomData<G>,
@@ -218,23 +218,18 @@ pub struct DomainSeparatedSpongeVar<
     _param: PhantomData<I>,
 }
 
-impl<
-        G: AffineCurve,
-        S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-        SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
-        I: IsSpongeForAccSchemeParam,
-    > DomainSeparatedSpongeVar<G, S, SV, I>
+impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAccSchemeParam>
+    DomainSeparatedSpongeVar<G, S, I>
 {
     fn try_absorb_domain_bit(&mut self) -> Result<(), SynthesisError> {
         if !self.absorbed_bit {
             let is_for_sponge = if I::is_sponge_for_acc_scheme() {
-                Boolean::TRUE
+                FpVar::one()
             } else {
-                Boolean::FALSE
+                FpVar::zero()
             };
 
-            self.sponge_var
-                .absorb_bytes(is_for_sponge.to_bytes()?.as_slice())?;
+            self.sponge_var.absorb(&[is_for_sponge])?;
 
             self.absorbed_bit = true;
         }
@@ -243,17 +238,12 @@ impl<
     }
 }
 
-impl<
-        G: AffineCurve,
-        S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-        SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
-        I: IsSpongeForAccSchemeParam,
-    > FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>
-    for DomainSeparatedSpongeVar<G, S, SV, I>
+impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAccSchemeParam>
+    CryptographicSpongeVar<ConstraintF<G>> for DomainSeparatedSpongeVar<G, S, I>
 {
     fn new(cs: ConstraintSystemRef<ConstraintF<G>>) -> Self {
         Self {
-            sponge_var: SV::new(cs),
+            sponge_var: S::new(cs),
             absorbed_bit: false,
             _affine: PhantomData,
             _sponge: PhantomData,
@@ -261,102 +251,54 @@ impl<
         }
     }
 
-    fn constant(cs: ConstraintSystemRef<ConstraintF<G>>, pfs: &S) -> Self {
-        Self {
-            sponge_var: SV::constant(cs, pfs),
-            absorbed_bit: false,
-            _affine: PhantomData,
-            _sponge: PhantomData,
-            _param: PhantomData,
-        }
+    fn cs(&self) -> ConstraintSystemRef<ConstraintF<G>> {
+        self.sponge_var.cs()
     }
 
-    fn absorb_nonnative_field_elements(
+    fn absorb(&mut self, input: &[FpVar<ConstraintF<G>>]) -> Result<(), SynthesisError> {
+        self.try_absorb_domain_bit()?;
+        self.sponge_var.absorb(input)
+    }
+
+    fn squeeze_bytes(
         &mut self,
-        elems: &[NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>],
-    ) -> Result<(), SynthesisError> {
+        num_bytes: usize,
+    ) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.absorb_nonnative_field_elements(elems)
+        self.sponge_var.squeeze_bytes(num_bytes)
     }
 
-    fn absorb_native_field_elements(
+    fn squeeze_bits(
         &mut self,
-        elems: &[FpVar<ConstraintF<G>>],
-    ) -> Result<(), SynthesisError> {
+        num_bits: usize,
+    ) -> Result<Vec<Boolean<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.absorb_native_field_elements(elems)
-    }
-
-    fn absorb_bytes(&mut self, elems: &[UInt8<ConstraintF<G>>]) -> Result<(), SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge_var.absorb_bytes(elems)
-    }
-
-    fn squeeze_native_field_elements(
-        &mut self,
-        num: usize,
-    ) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_native_field_elements(num)
+        self.sponge_var.squeeze_bits(num_bits)
     }
 
     fn squeeze_field_elements(
         &mut self,
-        num: usize,
-    ) -> Result<
-        Vec<NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>>,
-        SynthesisError,
-    > {
+        num_elements: usize,
+    ) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_field_elements(num)
+        self.sponge_var.squeeze_field_elements(num_elements)
     }
 
-    fn squeeze_bits(&mut self, num: usize) -> Result<Vec<Boolean<ConstraintF<G>>>, SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_bits(num)
-    }
-
-    fn squeeze_field_elements_and_bits(
+    fn squeeze_nonnative_field_element_with_sizes<F: PrimeField>(
         &mut self,
-        num: usize,
+        sizes: &[FieldElementSize],
     ) -> Result<
         (
-            Vec<NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>>,
-            Vec<Vec<Boolean<ConstraintF<G>>>>,
-        ),
-        SynthesisError,
-    > {
-        self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_field_elements_and_bits(num)
-    }
-
-    fn squeeze_128_bits_field_elements(
-        &mut self,
-        num: usize,
-    ) -> Result<
-        Vec<NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>>,
-        SynthesisError,
-    > {
-        self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_128_bits_field_elements(num)
-    }
-
-    fn squeeze_128_bits_field_elements_and_bits(
-        &mut self,
-        num: usize,
-    ) -> Result<
-        (
-            Vec<NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>>,
+            Vec<NonNativeFieldVar<F, ConstraintF<G>>>,
             Vec<Vec<Boolean<ConstraintF<G>>>>,
         ),
         SynthesisError,
     > {
         self.try_absorb_domain_bit()?;
         self.sponge_var
-            .squeeze_128_bits_field_elements_and_bits(num)
+            .squeeze_nonnative_field_element_with_sizes(sizes)
     }
 }
 
-pub type SpongeVarForAccScheme<G, S, SV> =
-    DomainSeparatedSpongeVar<G, S, SV, SpongeForAccSchemeParam>;
-pub type SpongeVarForPC<G, S, SV> = DomainSeparatedSpongeVar<G, S, SV, SpongeForPCParam>;
+pub type SpongeVarForAccScheme<G, S> = DomainSeparatedSpongeVar<G, S, SpongeForAccSchemeParam>;
+pub type SpongeVarForPC<G, S> = DomainSeparatedSpongeVar<G, S, SpongeForPCParam>;
