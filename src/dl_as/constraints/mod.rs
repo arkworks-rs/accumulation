@@ -434,14 +434,14 @@ pub mod tests {
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 
-    //    type G = ark_pallas::Affine;
-    //    type C = ark_pallas::constraints::GVar;
-    //    type F = ark_pallas::Fr;
-    //    type ConstraintF = ark_pallas::Fq;
-    type G = ark_ed_on_bls12_381::EdwardsAffine;
-    type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
+    type G = ark_pallas::Affine;
+    type C = ark_pallas::constraints::GVar;
+    type F = ark_pallas::Fr;
+    type ConstraintF = ark_pallas::Fq;
+    // type G = ark_ed_on_bls12_381::EdwardsAffine;
+    // type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
+    // type F = ark_ed_on_bls12_381::Fr;
+    // type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type AS = DLAccumulationScheme<
         G,
@@ -495,21 +495,18 @@ pub mod tests {
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
         let vk_var =
-            VerifierKeyVar::<G, C>::new_witness(cs_init.clone(), || Ok(vk.clone())).unwrap();
-        /*
+            VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
         println!(
             "Cost of declaring verifier_key {:?}",
             cs.num_constraints() - cost
         );
-
-         */
 
         let cost = cs.num_constraints();
         let new_input_instance_var = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
             Ok(new_input.instance.clone())
         })
         .unwrap();
-        //println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
+        println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
 
         let cost = cs.num_constraints();
         let old_accumulator_instance_var =
@@ -518,13 +515,10 @@ pub mod tests {
             })
             .unwrap();
 
-        /*
         println!(
             "Cost of declaring old accumulator {:?}",
             cs.num_constraints() - cost
         );
-
-         */
 
         let cost = cs.num_constraints();
         let new_accumulator_instance_var =
@@ -533,13 +527,10 @@ pub mod tests {
             })
             .unwrap();
 
-        /*
         println!(
             "Cost of declaring new accumulator {:?}",
             cs.num_constraints() - cost
         );
-
-         */
 
         let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
@@ -555,17 +546,18 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
-        //println!("Num constaints: {:}", cs.num_constraints());
-        //println!("Num instance: {:}", cs.num_instance_variables());
-        //println!("Num witness: {:}", cs.num_witness_variables());
+        println!("Num constaints: {:}", cs.num_constraints());
+        println!("Num instance: {:}", cs.num_instance_variables());
+        println!("Num witness: {:}", cs.num_witness_variables());
 
-        //println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        //assert!(cs.is_satisfied().unwrap());
-
-        println!("BEGIN");
-        for constraint in cs.constraint_names().unwrap() {
-            println!("{:}", constraint)
+        if !cs.is_satisfied().unwrap() {
+            println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
         }
-        println!("END");
+
+        // println!("BEGIN");
+        // for constraint in cs.constraint_names().unwrap() {
+        //     println!("{:}", constraint)
+        // }
+        // println!("END");
     }
 }
