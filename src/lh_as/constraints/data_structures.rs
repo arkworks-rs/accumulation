@@ -31,8 +31,8 @@ where
         let ns = cs.into();
         let vk = f()?;
         let mut vk_cf: CF = vk.borrow().to_field_elements().unwrap().pop().unwrap();
-        let vk_var = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk_cf), mode)?;
-        Ok(VerifierKeyVar(vk_var))
+        let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk_cf), mode)?;
+        Ok(VerifierKeyVar(vk))
     }
 }
 
@@ -42,9 +42,9 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub commitment_var: C,
-    pub point_var: NNFieldVar<G>,
-    pub eval_var: NNFieldVar<G>,
+    pub commitment: C,
+    pub point: NNFieldVar<G>,
+    pub eval: NNFieldVar<G>,
 
     pub _affine: PhantomData<G>,
 }
@@ -64,22 +64,22 @@ where
         let pedersen_comm: G = (input_instance.borrow().commitment.commitment().0)
             .0
             .clone();
-        let commitment_var = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
-        let point_var = NNFieldVar::<G>::new_variable(
+        let commitment = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
+        let point = NNFieldVar::<G>::new_variable(
             ns.clone(),
             || Ok(input_instance.borrow().point.clone()),
             mode,
         )?;
-        let eval_var = NNFieldVar::<G>::new_variable(
+        let eval = NNFieldVar::<G>::new_variable(
             ns.clone(),
             || Ok(input_instance.borrow().eval.clone()),
             mode,
         )?;
 
         Ok(Self {
-            commitment_var,
-            point_var,
-            eval_var,
+            commitment,
+            point,
+            eval,
             _affine: PhantomData,
         })
     }
@@ -91,13 +91,13 @@ where
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge_var: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
     where
         S: CryptographicSpongeVar<ConstraintF<G>>,
     {
-        sponge_var.absorb(self.commitment_var.to_constraint_field()?.as_slice())?;
-        sponge_var.absorb(self.point_var.to_bytes()?.to_constraint_field()?.as_slice())?;
-        sponge_var.absorb(self.eval_var.to_bytes()?.to_constraint_field()?.as_slice())
+        sponge.absorb(self.commitment.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.point.to_bytes()?.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.eval.to_bytes()?.to_constraint_field()?.as_slice())
     }
 }
 
@@ -106,9 +106,9 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub witness_commitment_var: C,
-    pub witness_eval_var: NNFieldVar<G>,
-    pub eval_var: NNFieldVar<G>,
+    pub witness_commitment: C,
+    pub witness_eval: NNFieldVar<G>,
+    pub eval: NNFieldVar<G>,
 
     pub _affine: PhantomData<G>,
 }
@@ -128,22 +128,22 @@ where
         let witness_commitment: G = (single_proof.borrow().witness_commitment.commitment().0)
             .0
             .clone();
-        let witness_commitment_var = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
-        let witness_eval_var = NNFieldVar::<G>::new_variable(
+        let witness_commitment = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
+        let witness_eval = NNFieldVar::<G>::new_variable(
             ns.clone(),
             || Ok(single_proof.borrow().witness_eval.clone()),
             mode,
         )?;
-        let eval_var = NNFieldVar::<G>::new_variable(
+        let eval = NNFieldVar::<G>::new_variable(
             ns.clone(),
             || Ok(single_proof.borrow().eval.clone()),
             mode,
         )?;
 
         Ok(Self {
-            witness_commitment_var,
-            witness_eval_var,
-            eval_var,
+            witness_commitment,
+            witness_eval,
+            eval,
             _affine: PhantomData,
         })
     }

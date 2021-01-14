@@ -160,7 +160,7 @@ where
     ) -> G::ScalarField {
         let mut combined_eval = G::ScalarField::zero();
         for (i, eval) in evaluations.into_iter().enumerate() {
-            combined_eval += &eval.mul(challenges[i]);
+            combined_eval += &eval.mul(&challenges[i]);
         }
 
         combined_eval

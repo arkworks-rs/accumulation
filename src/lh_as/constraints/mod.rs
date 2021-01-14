@@ -35,103 +35,103 @@ where
         + ToConstraintFieldGadget<ConstraintF<G>>,
     S: CryptographicSpongeVar<ConstraintF<G>>,
 {
-    #[tracing::instrument(target = "r1cs", skip(evaluations_var, challenge_vars))]
-    fn combine_evaluation_vars<'a>(
-        evaluations_var: impl IntoIterator<Item = &'a NNFieldVar<G>>,
-        challenge_vars: &[NNFieldVar<G>],
+    #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
+    fn combine_evaluation<'a>(
+        evaluations: impl IntoIterator<Item = &'a NNFieldVar<G>>,
+        challenge: &[NNFieldVar<G>],
     ) -> Result<NNFieldVar<G>, SynthesisError> {
-        let mut combined_evaluation_vars =
+        let mut combined_evaluation =
             NonNativeFieldMulResultVar::<G::ScalarField, ConstraintF<G>>::zero();
-        for (i, eval_var) in evaluations_var.into_iter().enumerate() {
-            combined_evaluation_vars += (&eval_var).mul_without_reduce(&challenge_vars[i])?;
+        for (i, eval) in evaluations.into_iter().enumerate() {
+            combined_evaluation += (&eval).mul_without_reduce(&challenge[i])?;
         }
 
-        Ok(combined_evaluation_vars.reduce()?)
+        Ok(combined_evaluation.reduce()?)
     }
 
-    #[tracing::instrument(target = "r1cs", skip(commitment_vars, challenge_bytes_vars))]
-    fn combine_commitment_vars<'a>(
-        commitment_vars: impl IntoIterator<Item = &'a C>,
-        challenge_bytes_vars: &[Vec<Boolean<ConstraintF<G>>>],
+    #[tracing::instrument(target = "r1cs", skip(commitment, challenge_bytes))]
+    fn combine_commitment<'a>(
+        commitment: impl IntoIterator<Item = &'a C>,
+        challenge_bytes: &[Vec<Boolean<ConstraintF<G>>>],
     ) -> Result<C, SynthesisError> {
-        let mut combined_commitment_var = C::zero();
-        for (i, comm_var) in commitment_vars.into_iter().enumerate() {
-            combined_commitment_var += &comm_var.scalar_mul_le(challenge_bytes_vars[i].iter())?;
+        let mut combined_commitment = C::zero();
+        for (i, comm) in commitment.into_iter().enumerate() {
+            combined_commitment += &comm.scalar_mul_le(challenge_bytes[i].iter())?;
         }
 
-        Ok(combined_commitment_var)
+        Ok(combined_commitment)
     }
 
     #[tracing::instrument(
         target = "r1cs",
         skip(
             cs,
-            verifier_key_var,
-            input_instance_vars,
-            accumulator_instance_vars,
-            new_accumulator_instance_var,
-            proof_var
+            verifier_key,
+            input_instance,
+            accumulator_instance,
+            new_accumulator_instance,
+            proof
         )
     )]
     fn verify<'a>(
         cs: ConstraintSystemRef<<<G as AffineCurve>::BaseField as Field>::BasePrimeField>,
-        verifier_key_var: &VerifierKeyVar<ConstraintF<G>>,
-        input_instance_vars: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        accumulator_instance_vars: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        new_accumulator_instance_var: &InputInstanceVar<G, C>,
-        proof_var: &ProofVar<G, C>,
+        verifier_key: &VerifierKeyVar<ConstraintF<G>>,
+        input_instance: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        accumulator_instance: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        new_accumulator_instance: &InputInstanceVar<G, C>,
+        proof: &ProofVar<G, C>,
     ) -> Result<Boolean<<G::BaseField as Field>::BasePrimeField>, SynthesisError> {
-        let mut verify_result_var = Boolean::TRUE;
+        let mut verify_result = Boolean::TRUE;
 
-        let mut challenge_point_sponge_var = S::new(cs.clone());
-        challenge_point_sponge_var.absorb(&[verifier_key_var.0.clone()])?;
+        let mut challenge_point_sponge = S::new(cs.clone());
+        challenge_point_sponge.absorb(&[verifier_key.0.clone()])?;
 
-        let mut commitment_vars = Vec::new();
-        for (input_instance_var, single_proof_var) in input_instance_vars
+        let mut commitment = Vec::new();
+        for (input_instance, single_proof) in input_instance
             .into_iter()
-            .chain(accumulator_instance_vars)
-            .zip(proof_var)
+            .chain(accumulator_instance)
+            .zip(proof)
         {
-            input_instance_var.absorb_into_sponge::<S>(&mut challenge_point_sponge_var)?;
-            challenge_point_sponge_var.absorb(
-                single_proof_var
-                    .witness_commitment_var
+            input_instance.absorb_into_sponge::<S>(&mut challenge_point_sponge)?;
+            challenge_point_sponge.absorb(
+                single_proof
+                    .witness_commitment
                     .to_constraint_field()?
                     .as_slice(),
             )?;
 
-            let eval_check_lhs_var: NNFieldVar<G> =
-                &single_proof_var.eval_var - &input_instance_var.eval_var;
-            let eval_check_rhs_var: NNFieldVar<G> = (&single_proof_var.witness_eval_var)
-                .mul(&(&new_accumulator_instance_var.point_var - &input_instance_var.point_var));
+            let eval_check_lhs: NNFieldVar<G> =
+                &single_proof.eval - &input_instance.eval;
+            let eval_check_rhs: NNFieldVar<G> = (&single_proof.witness_eval)
+                .mul(&(&new_accumulator_instance.point - &input_instance.point));
 
-            let eval_check_var = eval_check_lhs_var.is_eq(&eval_check_rhs_var)?;
-            verify_result_var = verify_result_var.and(&eval_check_var)?;
+            let eval_check = eval_check_lhs.is_eq(&eval_check_rhs)?;
+            verify_result = verify_result.and(&eval_check)?;
 
-            commitment_vars.push(&input_instance_var.commitment_var);
+            commitment.push(&input_instance.commitment);
         }
 
-        let mut challenge_point_sponge_field_element_and_bits = challenge_point_sponge_var
+        let mut challenge_point_sponge_field_element_and_bits = challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
                 num_bits: 180,
             }])?;
 
-        let challenge_point_var = challenge_point_sponge_field_element_and_bits
+        let challenge_point = challenge_point_sponge_field_element_and_bits
             .0
             .pop()
             .unwrap();
 
-        let mut challenge_point_bits_var = challenge_point_sponge_field_element_and_bits
+        let mut challenge_point_bits = challenge_point_sponge_field_element_and_bits
             .1
             .pop()
             .unwrap();
 
-        verify_result_var = verify_result_var
-            .and(&challenge_point_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
+        verify_result = verify_result
+            .and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
 
-        let mut linear_combination_challenge_sponge_var = S::new(cs.clone());
+        let mut linear_combination_challenge_sponge = S::new(cs.clone());
 
-        let challenge_point_bytes_var = challenge_point_bits_var
+        let challenge_point_bytes = challenge_point_bits
             .chunks(8)
             .map(|c| {
                 if c.len() != 8 {
@@ -144,53 +144,53 @@ where
             })
             .collect::<Vec<_>>();
 
-        linear_combination_challenge_sponge_var
-            .absorb(challenge_point_bytes_var.to_constraint_field()?.as_slice())?;
+        linear_combination_challenge_sponge
+            .absorb(challenge_point_bytes.to_constraint_field()?.as_slice())?;
 
-        for single_proof_var in proof_var {
-            linear_combination_challenge_sponge_var.absorb(
-                single_proof_var
-                    .eval_var
+        for single_proof in proof {
+            linear_combination_challenge_sponge.absorb(
+                single_proof
+                    .eval
                     .to_bytes()?
                     .to_constraint_field()?
                     .as_slice(),
             )?;
-            linear_combination_challenge_sponge_var.absorb(
-                single_proof_var
-                    .witness_eval_var
+            linear_combination_challenge_sponge.absorb(
+                single_proof
+                    .witness_eval
                     .to_bytes()?
                     .to_constraint_field()?
                     .as_slice(),
             )?;
         }
 
-        let (linear_combination_challenge_vars, linear_combination_challenge_bits_vars) = linear_combination_challenge_sponge_var
+        let (linear_combination_challenge, linear_combination_challenge_bits) = linear_combination_challenge_sponge
             .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; proof_var.len() * 2].as_slice(),
+                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
             )?;
 
-        let combined_eval_var = Self::combine_evaluation_vars(
-            proof_var
+        let combined_eval = Self::combine_evaluation(
+            proof
                 .into_iter()
-                .map(|p| &p.eval_var)
-                .chain(proof_var.into_iter().map(|p| &p.witness_eval_var)),
-            linear_combination_challenge_vars.as_slice(),
+                .map(|p| &p.eval)
+                .chain(proof.into_iter().map(|p| &p.witness_eval)),
+            linear_combination_challenge.as_slice(),
         )?;
 
-        verify_result_var = verify_result_var
-            .and(&combined_eval_var.is_eq(&new_accumulator_instance_var.eval_var)?)?;
+        verify_result = verify_result
+            .and(&combined_eval.is_eq(&new_accumulator_instance.eval)?)?;
 
-        let combined_commitment_var = Self::combine_commitment_vars(
-            commitment_vars
+        let combined_commitment = Self::combine_commitment(
+            commitment
                 .into_iter()
-                .chain(proof_var.into_iter().map(|p| &p.witness_commitment_var)),
-            linear_combination_challenge_bits_vars.as_slice()
+                .chain(proof.into_iter().map(|p| &p.witness_commitment)),
+            linear_combination_challenge_bits.as_slice()
         )?;
 
-        verify_result_var = verify_result_var
-            .and(&combined_commitment_var.is_eq(&new_accumulator_instance_var.commitment_var)?)?;
+        verify_result = verify_result
+            .and(&combined_commitment.is_eq(&new_accumulator_instance.commitment)?)?;
 
-        Ok(verify_result_var)
+        Ok(verify_result)
     }
 }
 
@@ -260,33 +260,33 @@ pub mod tests {
         .unwrap());
 
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let vk_var =
+        let vk =
             VerifierKeyVar::<ConstraintF>::new_witness(cs.clone(), || Ok(vk.clone())).unwrap();
 
-        let new_input_instance_var =
+        let new_input_instance =
             InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance_var =
+        let old_accumulator_instance =
             InputInstanceVar::<G, C>::new_witness(cs.clone(), || {
                 Ok(old_accumulator.instance.clone())
             })
             .unwrap();
 
-        let new_accumulator_instance_var = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
+        let new_accumulator_instance = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
             Ok(new_accumulator.instance.clone())
         })
         .unwrap();
 
-        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
+        let proof = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
 
         LHAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             cs.clone(),
-            &vk_var,
-            vec![&new_input_instance_var],
-            vec![&old_accumulator_instance_var],
-            &new_accumulator_instance_var,
-            &proof_var,
+            &vk,
+            vec![&new_input_instance],
+            vec![&old_accumulator_instance],
+            &new_accumulator_instance,
+            &proof,
         )
         .unwrap()
         .enforce_equal(&Boolean::TRUE)
