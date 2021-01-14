@@ -247,7 +247,8 @@ where
         challenge_point_sponge.absorb(&combined_commitment.to_field_elements().unwrap());
 
         for (linear_combination_challenge, check_polynomial) in &combined_check_polynomial_addends {
-            let mut linear_combination_challenge_bytes = to_bytes!(linear_combination_challenge).unwrap();
+            let mut linear_combination_challenge_bytes =
+                to_bytes!(linear_combination_challenge).unwrap();
             linear_combination_challenge_bytes.resize_with(16, || 0);
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
 

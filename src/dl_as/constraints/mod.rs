@@ -5,18 +5,18 @@ use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
 };
 use ark_r1cs_std::bits::boolean::Boolean;
+use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::FieldElementSize;
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
-use ark_r1cs_std::bits::uint8::UInt8;
-use ark_r1cs_std::R1CSVar;
-use ark_sponge::FieldElementSize;
 
 pub mod data_structures;
 pub use data_structures::*;
@@ -184,7 +184,7 @@ where
         }
 
         let (linear_combination_challenge_vars, linear_combination_challenge_bits_vars) =
-            linear_combination_challenge_sponge_var.squeeze_nonnative_field_element_with_sizes(
+            linear_combination_challenge_sponge_var.squeeze_nonnative_field_elements_with_sizes(
                 vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_check_vars.len()]
                     .as_slice(),
             )?;
@@ -261,7 +261,7 @@ where
         }
 
         let challenge_point_var = challenge_point_sponge_var
-            .squeeze_nonnative_field_element_with_sizes(&[FieldElementSize::Truncated {
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
                 num_bits: 180,
             }])?
             .0
@@ -276,7 +276,10 @@ where
         ))
     }
 
-    #[tracing::instrument(target = "r1cs", skip(combined_check_polynomial_addend_vars, point_var))]
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(combined_check_polynomial_addend_vars, point_var)
+    )]
     fn evaluate_combined_check_polynomial_vars<'a>(
         combined_check_polynomial_addend_vars: impl IntoIterator<
             Item = (NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>),
@@ -291,7 +294,17 @@ where
         Ok(eval_var)
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, verifier_key_var, input_instance_vars, accumulator_instance_vars, new_accumulator_instance_var, proof_var))]
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
+            cs,
+            verifier_key_var,
+            input_instance_vars,
+            accumulator_instance_vars,
+            new_accumulator_instance_var,
+            proof_var
+        )
+    )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key_var: &VerifierKeyVar<G, C>,
@@ -361,7 +374,6 @@ where
 
         verify_result_var = verify_result_var.and(&combined_succinct_check_result_var)?;
 
-
         verify_result_var = verify_result_var.and(
             &combined_commitment_var
                 .is_eq(&new_accumulator_instance_var.ipa_commitment_var.comm_var)?,
@@ -422,10 +434,10 @@ pub mod tests {
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 
-//    type G = ark_pallas::Affine;
-//    type C = ark_pallas::constraints::GVar;
-//    type F = ark_pallas::Fr;
-//    type ConstraintF = ark_pallas::Fq;
+    //    type G = ark_pallas::Affine;
+    //    type C = ark_pallas::constraints::GVar;
+    //    type F = ark_pallas::Fr;
+    //    type ConstraintF = ark_pallas::Fq;
     type G = ark_ed_on_bls12_381::EdwardsAffine;
     type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
     type F = ark_ed_on_bls12_381::Fr;
@@ -482,7 +494,8 @@ pub mod tests {
 
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
-        let vk_var = VerifierKeyVar::<G, C>::new_witness(cs_init.clone(), || Ok(vk.clone())).unwrap();
+        let vk_var =
+            VerifierKeyVar::<G, C>::new_witness(cs_init.clone(), || Ok(vk.clone())).unwrap();
         /*
         println!(
             "Cost of declaring verifier_key {:?}",

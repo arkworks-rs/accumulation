@@ -44,7 +44,7 @@ pub mod error;
 /// [pcdas]: https://eprint.iacr.org/2020/499
 pub mod dl_as;
 
-//pub mod lh_as;
+pub mod lh_as;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties

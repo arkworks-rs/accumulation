@@ -284,7 +284,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
         self.sponge_var.squeeze_field_elements(num_elements)
     }
 
-    fn squeeze_nonnative_field_element_with_sizes<F: PrimeField>(
+    fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
         &mut self,
         sizes: &[FieldElementSize],
     ) -> Result<
@@ -296,7 +296,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
     > {
         self.try_absorb_domain_bit()?;
         self.sponge_var
-            .squeeze_nonnative_field_element_with_sizes(sizes)
+            .squeeze_nonnative_field_elements_with_sizes(sizes)
     }
 }
 

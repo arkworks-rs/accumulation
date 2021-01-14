@@ -1,13 +1,13 @@
 use crate::lh_as::{InputInstance, SingleProof};
 use ark_ec::AffineCurve;
-use ark_ff::Field;
-use ark_marlin::fiat_shamir::constraints::FiatShamirRngVar;
-use ark_marlin::fiat_shamir::FiatShamirRng;
+use ark_ff::{Field, PrimeField, ToConstraintField};
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBytesGadget, R1CSVar};
+use ark_r1cs_std::{R1CSVar, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -17,19 +17,21 @@ pub(crate) type NNFieldVar<G> = NonNativeFieldVar<
     <<G as AffineCurve>::BaseField as Field>::BasePrimeField,
 >;
 
-pub struct VerifierKeyVar<G: AffineCurve>(pub(crate) NNFieldVar<G>);
-impl<G> AllocVar<G::ScalarField, ConstraintF<G>> for VerifierKeyVar<G>
+pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
+
+impl<CF> AllocVar<Vec<u8>, CF> for VerifierKeyVar<CF>
 where
-    G: AffineCurve,
+    CF: PrimeField,
 {
-    fn new_variable<T: Borrow<G::ScalarField>>(
-        cs: impl Into<Namespace<ConstraintF<G>>>,
+    fn new_variable<T: Borrow<Vec<u8>>>(
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         let vk = f()?;
-        let vk_var = NNFieldVar::<G>::new_variable(ns.clone(), || Ok(vk.borrow().clone()), mode)?;
+        let mut vk_cf: CF = vk.borrow().to_field_elements().unwrap().pop().unwrap();
+        let vk_var = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk_cf), mode)?;
         Ok(VerifierKeyVar(vk_var))
     }
 }
@@ -86,18 +88,16 @@ where
 impl<G, C> InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S, SV>(&self, sponge_var: &mut SV) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S>(&self, sponge_var: &mut S) -> Result<(), SynthesisError>
     where
-        S: FiatShamirRng<G::ScalarField, ConstraintF<G>>,
-        SV: FiatShamirRngVar<G::ScalarField, ConstraintF<G>, S>,
+        S: CryptographicSpongeVar<ConstraintF<G>>,
     {
-        let mut byte_vars = self.commitment_var.to_bytes()?;
-        byte_vars.extend_from_slice(self.point_var.to_bytes()?.split_last().unwrap().1);
-        byte_vars.extend_from_slice(self.eval_var.to_bytes()?.split_last().unwrap().1);
-
-        sponge_var.absorb_bytes(byte_vars.as_slice())
+        sponge_var.absorb(self.commitment_var.to_constraint_field()?.as_slice())?;
+        sponge_var.absorb(self.point_var.to_bytes()?.to_constraint_field()?.as_slice())?;
+        sponge_var.absorb(self.eval_var.to_bytes()?.to_constraint_field()?.as_slice())
     }
 }
 

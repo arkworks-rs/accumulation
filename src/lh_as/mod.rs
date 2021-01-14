@@ -6,7 +6,7 @@ use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, One, Zero, PrimeField};
+use ark_ff::{to_bytes, One, PrimeField, Zero};
 use ark_poly_commit::lh_pc::error::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
@@ -18,6 +18,7 @@ use rand_core::RngCore;
 use std::ops::Mul;
 
 mod data_structures;
+use ark_relations::r1cs::ToConstraintField;
 pub use data_structures::*;
 
 #[cfg(feature = "r1cs")]
@@ -25,12 +26,12 @@ pub mod constraints;
 
 pub struct LHAidedAccumulationScheme<G, P, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
     CF: PrimeField,
+    Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
     _curve: PhantomData<G>,
@@ -41,12 +42,12 @@ where
 
 impl<G, P, CF, S> LHAidedAccumulationScheme<G, P, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
     CF: PrimeField,
+    Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
@@ -140,16 +141,14 @@ where
 
     fn combine_polynomials<'a>(
         labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
-        challenge: G::ScalarField,
+        challenges: &[G::ScalarField],
     ) -> P
     where
         P: 'a,
     {
         let mut combined_polynomial = P::zero();
-        let mut cur_challenge = G::ScalarField::one();
-        for p in labeled_polynomials {
-            combined_polynomial += (cur_challenge, p.polynomial());
-            cur_challenge *= &challenge;
+        for (i, p) in labeled_polynomials.into_iter().enumerate() {
+            combined_polynomial += (challenges[i], p.polynomial());
         }
 
         combined_polynomial
@@ -157,13 +156,11 @@ where
 
     fn combine_evaluations<'a>(
         evaluations: impl IntoIterator<Item = &'a G::ScalarField>,
-        challenge: G::ScalarField,
+        challenges: &[G::ScalarField],
     ) -> G::ScalarField {
         let mut combined_eval = G::ScalarField::zero();
-        let mut cur_challenge = G::ScalarField::one();
-        for eval in evaluations {
-            combined_eval += &eval.mul(&cur_challenge);
-            cur_challenge *= &challenge;
+        for (i, eval) in evaluations.into_iter().enumerate() {
+            combined_eval += &eval.mul(challenges[i]);
         }
 
         combined_eval
@@ -171,13 +168,11 @@ where
 
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a LabeledCommitment<lh_pc::Commitment<G>>>,
-        challenge: G::ScalarField,
+        challenges: &[G::ScalarField],
     ) -> lh_pc::Commitment<G> {
         let mut scalar_commitment_pairs = Vec::new();
-        let mut cur_challenge = G::ScalarField::one();
-        for c in commitments {
-            scalar_commitment_pairs.push((cur_challenge, &c.commitment().0));
-            cur_challenge *= &challenge;
+        for (i, c) in commitments.into_iter().enumerate() {
+            scalar_commitment_pairs.push((challenges[i], &c.commitment().0));
         }
 
         let combined_commitment = scalar_commitment_pairs.into_iter().sum();
@@ -185,21 +180,22 @@ where
     }
 }
 
-impl<G, P, S> AidedAccumulationScheme for LHAidedAccumulationScheme<G, P, S>
+impl<G, P, CF, S> AidedAccumulationScheme for LHAidedAccumulationScheme<G, P, CF, S>
 where
-    G: AffineCurve,
-    G::ScalarField: Absorbable<G::ScalarField>,
+    G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    S: CryptographicSponge<G::ScalarField>,
+    CF: PrimeField,
+    Vec<CF>: Absorbable<CF>,
+    S: CryptographicSponge<CF>,
 {
     type PredicateParams = lh_pc::UniversalParameters<G>;
     type PredicateIndex = usize;
     type UniversalParams = ();
 
     type ProverKey = ProverKey<G>;
-    type VerifierKey = G::ScalarField;
+    type VerifierKey = Vec<u8>;
     type DeciderKey = lh_pc::VerifierKey<G>;
 
     type InputInstance = InputInstance<G>;
@@ -227,14 +223,11 @@ where
         let mut degree_challenge_sponge = S::new();
         degree_challenge_sponge.absorb(predicate_index);
 
-        let degree_challenge = degree_challenge_sponge
-            .squeeze_field_elements(1)
-            .pop()
-            .unwrap();
+        let degree_challenge = degree_challenge_sponge.squeeze_bytes(8);
 
         let prover_key = ProverKey {
             lh_ck: ck,
-            degree_challenge,
+            degree_challenge: degree_challenge.clone(),
         };
 
         Ok((prover_key, degree_challenge, vk))
@@ -321,17 +314,26 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 instance,
-                &to_bytes!(witness_commitment.commitment()).unwrap()
+                witness_commitment
+                    .commitment()
+                    .0
+                     .0
+                    .to_field_elements()
+                    .unwrap()
             ];
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated { num_bits: 128 }])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 180,
+            }])
             .pop()
             .unwrap();
 
-        let mut linear_combination_challenge_sponge = S::new();
-        linear_combination_challenge_sponge.absorb(&challenge_point);
+        let mut linear_combination_challenges_sponge = S::new();
+        let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
+        challenge_point_bytes.resize_with(23, || 0u8);
+        linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
 
         let mut proof = Vec::new();
         for ((input_witness, witness_polynomial), witness_commitment) in input_witnesses
@@ -343,7 +345,7 @@ where
             let witness_eval = witness_polynomial.evaluate(&challenge_point);
 
             absorb![
-                &mut linear_combination_challenge_sponge,
+                &mut linear_combination_challenges_sponge,
                 &to_bytes!(&input_witness_eval).unwrap(),
                 &to_bytes!(&witness_eval).unwrap()
             ];
@@ -357,14 +359,14 @@ where
             proof.push(single_proof);
         }
 
-        let linear_combination_challenge = linear_combination_challenge_sponge
-            .squeeze_field_elements(1)
-            .pop()
-            .unwrap();
+        let linear_combination_challenges = linear_combination_challenges_sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
+            );
 
         let combined_polynomial = Self::combine_polynomials(
             input_witnesses.into_iter().chain(&witness_polynomials),
-            linear_combination_challenge,
+            linear_combination_challenges.as_slice(),
         );
 
         let combined_polynomial =
@@ -377,7 +379,7 @@ where
                 .into_iter()
                 .map(|instance| &instance.commitment)
                 .chain(&witness_commitments),
-            linear_combination_challenge,
+            linear_combination_challenges.as_slice(),
         );
 
         let combined_commitment =
@@ -412,7 +414,7 @@ where
         }
 
         let mut challenge_point_sponge = S::new();
-        challenge_point_sponge.absorb(&to_bytes![verifier_key].unwrap());
+        challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
         for (input_instance, p) in input_instances
@@ -427,7 +429,12 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,
-                &to_bytes!(p.witness_commitment.commitment()).unwrap()
+                p.witness_commitment
+                    .commitment()
+                    .0
+                     .0
+                    .to_field_elements()
+                    .unwrap()
             ];
 
             let eval_check_lhs = p.eval - &input_instance.eval;
@@ -442,8 +449,10 @@ where
             commitments.push(&input_instance.commitment);
         }
 
-        let challenge_point = challenge_point_sponge
-            .squeeze_field_elements(1)
+        let challenge_point: G::ScalarField = challenge_point_sponge
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 180,
+            }])
             .pop()
             .unwrap();
 
@@ -451,28 +460,30 @@ where
             return Ok(false);
         }
 
-        let mut linear_combination_challenge_sponge = S::new();
-        linear_combination_challenge_sponge.absorb(&challenge_point);
+        let mut linear_combination_challenges_sponge = S::new();
+        let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
+        challenge_point_bytes.resize_with(23, || 0u8);
+        linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
 
         for single_proof in proof {
             absorb![
-                &mut linear_combination_challenge_sponge,
+                &mut linear_combination_challenges_sponge,
                 &to_bytes!(&single_proof.eval).unwrap(),
                 &to_bytes!(&single_proof.witness_eval).unwrap()
             ];
         }
 
-        let linear_combination_challenge = linear_combination_challenge_sponge
-            .squeeze_field_elements(1)
-            .pop()
-            .unwrap();
+        let linear_combination_challenges = linear_combination_challenges_sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
+            );
 
         let combined_eval = Self::combine_evaluations(
             proof
                 .into_iter()
                 .map(|p| &p.eval)
                 .chain(proof.into_iter().map(|p| &p.witness_eval)),
-            linear_combination_challenge,
+            linear_combination_challenges.as_slice(),
         );
 
         if !combined_eval.eq(&new_accumulator_instance.eval) {
@@ -483,7 +494,7 @@ where
             commitments
                 .into_iter()
                 .chain(proof.into_iter().map(|p| &p.witness_commitment)),
-            linear_combination_challenge,
+            linear_combination_challenges.as_slice(),
         );
 
         if !combined_commitment.eq(new_accumulator_instance.commitment.commitment()) {
@@ -521,13 +532,14 @@ pub mod tests {
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fr};
+    use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
+    use ark_ff::{PrimeField, ToConstraintField};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{
         lh_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
     };
-    use ark_sponge::digest_sponge::DigestSponge;
+    use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use ark_std::UniformRand;
     use rand::distributions::Distribution;
@@ -535,15 +547,16 @@ pub mod tests {
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
-    impl<G, P, S> AccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, S>>
+    impl<G, P, CF, S> AccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, CF, S>>
         for LHAidedAccumulationSchemeTestInput
     where
-        G: AffineCurve,
-        G::ScalarField: Absorbable<G::ScalarField>,
+        G: AffineCurve + ToConstraintField<CF>,
         P: UVPolynomial<G::ScalarField>,
         for<'a, 'b> &'a P: Add<&'b P, Output = P>,
         for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-        S: CryptographicSponge<G::ScalarField>,
+        CF: PrimeField,
+        Vec<CF>: Absorbable<CF>,
+        S: CryptographicSponge<CF>,
     {
         type TestParams = ();
         type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>);
@@ -553,11 +566,11 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateParams,
-            <LHAidedAccumulationScheme<G, P, S> as AidedAccumulationScheme>::PredicateIndex,
+            <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateParams,
+            <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             //let max_degree = (1 << 5) - 1;
-            let max_degree = (1 << 20) - 1;
+            let max_degree = (1 << 2) - 1;
             let supported_degree = max_degree;
             let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
 
@@ -571,7 +584,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<LHAidedAccumulationScheme<G, P, S>>> {
+        ) -> Vec<Input<LHAidedAccumulationScheme<G, P, CF, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
@@ -615,11 +628,7 @@ pub mod tests {
         }
     }
 
-    type AS = LHAidedAccumulationScheme<
-        EdwardsAffine,
-        DensePolynomial<Fr>,
-        DigestSponge<Fr, sha2::Sha512>,
-    >;
+    type AS = LHAidedAccumulationScheme<EdwardsAffine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
     type I = LHAidedAccumulationSchemeTestInput;
 
