@@ -19,19 +19,18 @@ pub(crate) type NNFieldVar<G> = NonNativeFieldVar<
 
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 
-impl<CF> AllocVar<Vec<u8>, CF> for VerifierKeyVar<CF>
+impl<CF> AllocVar<CF, CF> for VerifierKeyVar<CF>
 where
     CF: PrimeField,
 {
-    fn new_variable<T: Borrow<Vec<u8>>>(
+    fn new_variable<T: Borrow<CF>>(
         cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         let vk = f()?;
-        let mut vk_cf: CF = vk.borrow().to_field_elements().unwrap().pop().unwrap();
-        let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk_cf), mode)?;
+        let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk.borrow().clone()), mode)?;
         Ok(VerifierKeyVar(vk))
     }
 }

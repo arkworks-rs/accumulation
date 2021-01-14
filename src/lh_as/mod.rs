@@ -30,7 +30,7 @@ where
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField,
+    CF: PrimeField + Absorbable<CF>,
     Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
@@ -46,7 +46,7 @@ where
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField,
+    CF: PrimeField + Absorbable<CF>,
     Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
@@ -186,7 +186,7 @@ where
     P: UVPolynomial<G::ScalarField>,
     for<'a, 'b> &'a P: Add<&'b P, Output = P>,
     for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField,
+    CF: PrimeField + Absorbable<CF>,
     Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
@@ -194,8 +194,8 @@ where
     type PredicateIndex = usize;
     type UniversalParams = ();
 
-    type ProverKey = ProverKey<G>;
-    type VerifierKey = Vec<u8>;
+    type ProverKey = ProverKey<G, CF>;
+    type VerifierKey = CF;
     type DeciderKey = lh_pc::VerifierKey<G>;
 
     type InputInstance = InputInstance<G>;
@@ -223,7 +223,7 @@ where
         let mut degree_challenge_sponge = S::new();
         degree_challenge_sponge.absorb(predicate_index);
 
-        let degree_challenge = degree_challenge_sponge.squeeze_bytes(8);
+        let degree_challenge = degree_challenge_sponge.squeeze_field_elements(1).pop().unwrap();
 
         let prover_key = ProverKey {
             lh_ck: ck,
@@ -554,7 +554,7 @@ pub mod tests {
         P: UVPolynomial<G::ScalarField>,
         for<'a, 'b> &'a P: Add<&'b P, Output = P>,
         for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-        CF: PrimeField,
+        CF: PrimeField + Absorbable<CF>,
         Vec<CF>: Absorbable<CF>,
         S: CryptographicSponge<CF>,
     {

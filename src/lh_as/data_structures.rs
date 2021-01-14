@@ -7,9 +7,9 @@ use ark_sponge::Absorbable;
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]
-pub struct ProverKey<G: AffineCurve> {
+pub struct ProverKey<G: AffineCurve, CF: PrimeField> {
     pub(crate) lh_ck: lh_pc::CommitterKey<G>,
-    pub(crate) degree_challenge: Vec<u8>,
+    pub(crate) degree_challenge: CF,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
