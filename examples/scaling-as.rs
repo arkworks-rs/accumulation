@@ -4,7 +4,7 @@
 
 // For benchmarking
 use ark_ff::{One, PrimeField};
-use ark_pallas::{Affine as G1Affine, Fr, Fq};
+use ark_pallas::{Affine as G1Affine, Fq, Fr};
 use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use rand::Rng;
@@ -29,16 +29,14 @@ use ark_accumulation::{
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
+use ark_sponge::poseidon::PoseidonSponge;
 use ark_std::vec::Vec;
 use rand_core::RngCore;
-use ark_sponge::poseidon::PoseidonSponge;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
-type AS_LH =
-    LHAidedAccumulationScheme<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
+type AS_LH = LHAidedAccumulationScheme<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
-type PCDL =
-    dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, Fq, PoseidonSponge<Fq>>;
+type PCDL = dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, Fq, PoseidonSponge<Fq>>;
 
 type AS_DL = DLAccumulationScheme<
     G1Affine,

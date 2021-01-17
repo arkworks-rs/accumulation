@@ -494,8 +494,7 @@ pub mod tests {
 
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
-        let vk_var =
-            VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
+        let vk_var = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
         println!(
             "Cost of declaring verifier_key {:?}",
             cs.num_constraints() - cost

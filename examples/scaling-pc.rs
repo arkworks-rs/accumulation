@@ -4,7 +4,7 @@
 
 // For benchmarking
 use ark_ff::PrimeField;
-use ark_pallas::{Affine as G1Affine, Fr, Fq};
+use ark_pallas::{Affine as G1Affine, Fq, Fr};
 use rand::Rng;
 use std::time::Instant;
 
@@ -21,13 +21,12 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_serialize::CanonicalSerialize;
-use ark_std::vec::Vec;
 use ark_sponge::poseidon::PoseidonSponge;
+use ark_std::vec::Vec;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
 
-type PCDL =
-    dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, Fq, PoseidonSponge<Fq>>;
+type PCDL = dl_as::PCDL<G1Affine, DensePolynomial<Fr>, sha2::Sha512, Fq, PoseidonSponge<Fq>>;
 
 fn profile_pc<F, PC, R>(min_degree: usize, max_degree: usize, rng: &mut R)
 where

@@ -223,7 +223,10 @@ where
         let mut degree_challenge_sponge = S::new();
         degree_challenge_sponge.absorb(predicate_index);
 
-        let degree_challenge = degree_challenge_sponge.squeeze_field_elements(1).pop().unwrap();
+        let degree_challenge = degree_challenge_sponge
+            .squeeze_field_elements(1)
+            .pop()
+            .unwrap();
 
         let prover_key = ProverKey {
             lh_ck: ck,

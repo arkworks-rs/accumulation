@@ -100,8 +100,7 @@ where
                     .as_slice(),
             )?;
 
-            let eval_check_lhs: NNFieldVar<G> =
-                &single_proof.eval - &input_instance.eval;
+            let eval_check_lhs: NNFieldVar<G> = &single_proof.eval - &input_instance.eval;
             let eval_check_rhs: NNFieldVar<G> = (&single_proof.witness_eval)
                 .mul(&(&new_accumulator_instance.point - &input_instance.point));
 
@@ -126,8 +125,8 @@ where
             .pop()
             .unwrap();
 
-        verify_result = verify_result
-            .and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
+        verify_result =
+            verify_result.and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
 
         let mut linear_combination_challenge_sponge = S::new(cs.clone());
 
@@ -164,8 +163,8 @@ where
             )?;
         }
 
-        let (linear_combination_challenge, linear_combination_challenge_bits) = linear_combination_challenge_sponge
-            .squeeze_nonnative_field_elements_with_sizes(
+        let (linear_combination_challenge, linear_combination_challenge_bits) =
+            linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
                 vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
             )?;
 
@@ -177,18 +176,17 @@ where
             linear_combination_challenge.as_slice(),
         )?;
 
-        verify_result = verify_result
-            .and(&combined_eval.is_eq(&new_accumulator_instance.eval)?)?;
+        verify_result = verify_result.and(&combined_eval.is_eq(&new_accumulator_instance.eval)?)?;
 
         let combined_commitment = Self::combine_commitment(
             commitment
                 .into_iter()
                 .chain(proof.into_iter().map(|p| &p.witness_commitment)),
-            linear_combination_challenge_bits.as_slice()
+            linear_combination_challenge_bits.as_slice(),
         )?;
 
-        verify_result = verify_result
-            .and(&combined_commitment.is_eq(&new_accumulator_instance.commitment)?)?;
+        verify_result =
+            verify_result.and(&combined_commitment.is_eq(&new_accumulator_instance.commitment)?)?;
 
         Ok(verify_result)
     }
@@ -260,18 +258,16 @@ pub mod tests {
         .unwrap());
 
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let vk =
-            VerifierKeyVar::<ConstraintF>::new_constant(cs.clone(), vk.clone()).unwrap();
+        let vk = VerifierKeyVar::<ConstraintF>::new_constant(cs.clone(), vk.clone()).unwrap();
 
         let new_input_instance =
             InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance.clone()))
                 .unwrap();
 
-        let old_accumulator_instance =
-            InputInstanceVar::<G, C>::new_witness(cs.clone(), || {
-                Ok(old_accumulator.instance.clone())
-            })
-            .unwrap();
+        let old_accumulator_instance = InputInstanceVar::<G, C>::new_witness(cs.clone(), || {
+            Ok(old_accumulator.instance.clone())
+        })
+        .unwrap();
 
         let new_accumulator_instance = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
             Ok(new_accumulator.instance.clone())
