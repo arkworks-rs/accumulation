@@ -46,6 +46,8 @@ pub mod dl_as;
 
 pub mod lh_as;
 
+pub mod hp_as;
+
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
 /// to ensure each accumulated input satisfies the predicate. The prover also outputs a proof
@@ -63,14 +65,14 @@ pub trait AccumulationScheme:
 /// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
 /// accumulators or inputs but instead receive their respective instances.
 pub trait AidedAccumulationScheme: Sized {
+    /// The universal parameters for the accumulation scheme.
+    type UniversalParams: Clone;
+
     /// The public parameters of the accumulation scheme's predicate.
     type PredicateParams: Clone;
 
     /// The index of the accumulation scheme's predicate.
     type PredicateIndex: Clone;
-
-    /// The universal parameters for the accumulation scheme.
-    type UniversalParams: Clone;
 
     /// The prover key, used to accumulate inputs and past accumulators and to prove that the
     /// new accumulator was computed correctly from the inputs and old accumulators.
