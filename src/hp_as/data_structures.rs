@@ -1,9 +1,12 @@
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField};
 use ark_relations::r1cs::ToConstraintField;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;
+use ark_std::io::{Read, Write};
 use ark_std::slice::SliceIndex;
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
 pub struct InputInstance<G: AffineCurve> {
     pub comm_1: G,
     pub comm_2: G,
@@ -27,6 +30,7 @@ where
     }
 }
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWitness<G: AffineCurve> {
     pub a_vec: Vec<G::ScalarField>,
     pub b_vec: Vec<G::ScalarField>,
@@ -34,6 +38,7 @@ pub struct InputWitness<G: AffineCurve> {
     //pub randomness: Option<(G::ScalarField, G::ScalarField, G::ScalarField)>,
 }
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     pub t_comms: (Vec<G>, Vec<G>),
 }

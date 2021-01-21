@@ -5,6 +5,8 @@ use crate::AidedAccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::to_bytes;
+use ark_ff::Field;
+use ark_ff::One;
 use ark_ff::Zero;
 use ark_ff::{PrimeField, ToConstraintField};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -28,7 +30,6 @@ where
     S: CryptographicSponge<CF>,
 {
     _affine: PhantomData<G>,
-    _polynomial: PhantomData<P>,
     _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
@@ -77,14 +78,15 @@ where
             let a_poly = DensePolynomial::from_coefficients_vec(a_coeffs);
             let b_poly = DensePolynomial::from_coefficients_vec(b_coeffs);
 
-            let product_polynomial = a_poly.mul(&b_poly);
+            // TODO: Change to nlogn mul
+            let product_polynomial = a_poly.naive_mul(&b_poly);
             let mut product_polynomial_coeffs = product_polynomial.coeffs;
 
             assert!(product_polynomial_coeffs.len() <= 2 * num_inputs - 1);
             product_polynomial_coeffs.resize_with(2 * num_inputs - 1, || G::ScalarField::zero());
 
-            for i in (0..(2 * num_inputs - 1)).rev() {
-                t_vecs[i].push(product_polynomial_coeffs.pop().unwrap());
+            for i in 0..(2 * num_inputs - 1) {
+                t_vecs[i].push(product_polynomial_coeffs[i].clone());
             }
         }
 
@@ -114,14 +116,16 @@ where
                 continue;
             }
 
-            let t_comm =
-                PedersenCommitment::commit(ck, t_vec.as_slice(), None).map_err(BoxedError::new)?;
+            let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), None)
+                .map_err(BoxedError::new)?
+                .0;
 
-            if i < num_inputs - 1 {
-                t_comms.0.push(t_comm.0);
+            (if i < num_inputs - 1 {
+                &mut t_comms.0
             } else {
-                t_comms.1.push(t_comm.0);
-            }
+                &mut t_comms.1
+            })
+            .push(comm)
         }
 
         Ok(t_comms)
@@ -145,7 +149,7 @@ where
         mu_challenges: &[G::ScalarField],
         nu_challenges: &[G::ScalarField],
         combined_challenges: &[G::ScalarField],
-    ) -> (G, G, G) {
+    ) -> InputInstance<G> {
         let num_inputs = input_instances.len();
 
         let combined_comm_1: G = Self::combine_commitments(
@@ -164,20 +168,25 @@ where
         .into();
 
         let combined_comm_3: G = {
-            let t_comm_addend_1 = Self::combine_commitments(proof.t_comms.0.iter(), &nu_challenges);
-            let t_comm_addend_2 =
+            let t_comm_low_addend =
+                Self::combine_commitments(proof.t_comms.0.iter(), &nu_challenges);
+            let t_comm_high_addend =
                 Self::combine_commitments(proof.t_comms.1.iter(), &nu_challenges[num_inputs..]);
 
-            let mut proof_comm_3_addend = Self::combine_commitments(
+            let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
                 &mu_challenges,
-            );
-            proof_comm_3_addend *= nu_challenges[num_inputs - 1].clone();
+            )
+            .mul(nu_challenges[num_inputs - 1].into());
 
-            (t_comm_addend_1 + &t_comm_addend_2 + &proof_comm_3_addend).into()
+            (t_comm_low_addend + &t_comm_high_addend + &comm_3_addend).into()
         };
 
-        (combined_comm_1, combined_comm_2, combined_comm_3)
+        InputInstance {
+            comm_1: combined_comm_1,
+            comm_2: combined_comm_2,
+            comm_3: combined_comm_3,
+        }
     }
 
     fn sum_vectors<'a>(
@@ -188,7 +197,7 @@ where
         for (ni, vector) in vectors.into_iter().enumerate() {
             for (li, elem) in vector.into_iter().enumerate() {
                 let product = challenges[ni].clone() * elem;
-                if li > output.len() {
+                if li >= output.len() {
                     output.push(product);
                 } else {
                     output[li] += product;
@@ -216,8 +225,17 @@ where
 
         InputWitness {
             a_vec: a_opening_vec,
-            b_vec: b_opening_vec
+            b_vec: b_opening_vec,
         }
+    }
+
+    fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
+        let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
+        for (a, b) in a_vec.iter().zip(b_vec.iter()) {
+            product.push(a.clone() * b);
+        }
+
+        product
     }
 }
 
@@ -265,6 +283,7 @@ where
     where
         Self: 'a,
     {
+        // TODO: What if there are no inputs
         let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
         let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();
 
@@ -281,10 +300,10 @@ where
             .chain(accumulators.iter().map(|accumulator| &accumulator.witness))
             .collect::<Vec<_>>();
 
-        let mut mu_challenges_sponge = S::new();
+        let mut challenges_sponge = S::new();
         // TODO: Absorb vk
         for input_instance in input_instances.iter() {
-            mu_challenges_sponge.absorb(input_instance);
+            challenges_sponge.absorb(input_instance);
         }
 
         let num_inputs = input_instances.len();
@@ -292,7 +311,7 @@ where
 
         // TODO: Squeeze shorter bits
         let mu_challenges: Vec<G::ScalarField> =
-            mu_challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
+            challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
 
         // Matrix of dimension hp_vec_len x num_inputs
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
@@ -304,19 +323,26 @@ where
         let t_comms = Self::compute_t_comms(prover_key, &t_vecs)?;
         let proof = Proof { t_comms };
 
-        let mut nu_challenges_sponge = S::new();
-        nu_challenges_sponge.absorb(&to_bytes!(mu_challenges[0]).unwrap());
-        nu_challenges_sponge.absorb(&proof);
+        challenges_sponge.absorb(&proof);
 
-        let nu_challenges: Vec<G::ScalarField> =
-            nu_challenges_sponge.squeeze_nonnative_field_elements(2 * num_inputs - 1);
+        let nu_challenge: G::ScalarField = challenges_sponge
+            .squeeze_nonnative_field_elements(1)
+            .pop()
+            .unwrap();
+        let mut nu_challenges = Vec::with_capacity(2 * num_inputs - 1);
+
+        let mut cur_nu_challenge = G::ScalarField::one();
+        for _ in 0..(2 * num_inputs - 1) {
+            nu_challenges.push(cur_nu_challenge);
+            cur_nu_challenge *= &nu_challenge;
+        }
 
         let mut combined_challenges = Vec::with_capacity(num_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {
             combined_challenges.push(mu.clone().mul(nu));
         }
 
-        let hp_comms = Self::compute_combined_hp_commitments(
+        let accumulator_instance = Self::compute_combined_hp_commitments(
             input_instances.as_slice(),
             &proof,
             mu_challenges.as_slice(),
@@ -324,17 +350,22 @@ where
             combined_challenges.as_slice(),
         );
 
-        let accumulator_instance = InputInstance {
-            comm_1: hp_comms.0,
-            comm_2: hp_comms.1,
-            comm_3: hp_comms.2,
+        let accumulator_witness = Self::compute_combined_hp_openings(
+            input_witnesses.as_slice(),
+            nu_challenges.as_slice(),
+            combined_challenges.as_slice(),
+        );
+
+        let accumulator = Accumulator {
+            instance: accumulator_instance,
+            witness: accumulator_witness,
         };
 
-        unimplemented!()
+        Ok((accumulator, proof))
     }
 
     fn verify<'a>(
-        verifier_key: &Self::VerifierKey,
+        _verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
@@ -343,13 +374,195 @@ where
     where
         Self: 'a,
     {
-        unimplemented!()
+        // TODO: Validate input instances
+        let input_instances = input_instances
+            .into_iter()
+            .chain(accumulator_instances)
+            .collect::<Vec<_>>();
+        let num_inputs = input_instances.len();
+
+        let mut challenges_sponge = S::new();
+        // TODO: Absorb vk
+        for input_instance in input_instances.iter() {
+            challenges_sponge.absorb(input_instance);
+        }
+
+        // TODO: Squeeze shorter bits
+        let mu_challenges: Vec<G::ScalarField> =
+            challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
+
+        challenges_sponge.absorb(proof);
+
+        let nu_challenge: G::ScalarField = challenges_sponge
+            .squeeze_nonnative_field_elements(1)
+            .pop()
+            .unwrap();
+        let mut nu_challenges = Vec::with_capacity(2 * num_inputs - 1);
+
+        let mut cur_nu_challenge = G::ScalarField::one();
+        for _ in 0..(2 * num_inputs - 1) {
+            nu_challenges.push(cur_nu_challenge);
+            cur_nu_challenge *= &nu_challenge;
+        }
+
+        let mut combined_challenges = Vec::with_capacity(num_inputs);
+        for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {
+            combined_challenges.push(mu.clone().mul(nu));
+        }
+
+        let accumulator_instance = Self::compute_combined_hp_commitments(
+            input_instances.as_slice(),
+            proof,
+            mu_challenges.as_slice(),
+            nu_challenges.as_slice(),
+            combined_challenges.as_slice(),
+        );
+
+        Ok(accumulator_instance.eq(new_accumulator_instance))
     }
 
     fn decide(
         decider_key: &Self::DeciderKey,
         accumulator: &Accumulator<Self>,
     ) -> Result<bool, Self::Error> {
-        unimplemented!()
+        let instance = &accumulator.instance;
+        let witness = &accumulator.witness;
+
+        let a_vec = &witness.a_vec;
+        let b_vec = &witness.b_vec;
+        let mut product = Self::compute_hp(a_vec.as_slice(), b_vec.as_slice());
+
+        let test_comm_1 = PedersenCommitment::commit(decider_key, a_vec.as_slice(), None)
+            .map_err(BoxedError::new)?;
+        let test_comm_2 = PedersenCommitment::commit(decider_key, b_vec.as_slice(), None)
+            .map_err(BoxedError::new)?;
+        let test_comm_3 = PedersenCommitment::commit(decider_key, product.as_slice(), None)
+            .map_err(BoxedError::new)?;
+
+        assert!(test_comm_1.0.eq(&instance.comm_1));
+        assert!(test_comm_2.0.eq(&instance.comm_2));
+        let result = test_comm_3.0.eq(&instance.comm_3);
+
+        Ok(result)
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use crate::data_structures::Input;
+    use crate::error::BoxedError;
+    use crate::hp_as::data_structures::{InputInstance, InputWitness};
+    use crate::hp_as::HPAidedAccumulationScheme;
+    use crate::tests::*;
+    use crate::AidedAccumulationScheme;
+    use ark_ec::AffineCurve;
+    use ark_ed_on_bls12_381::{EdwardsAffine, Fq};
+    use ark_ff::One;
+    use ark_ff::{PrimeField, ToConstraintField};
+    use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
+    use ark_sponge::poseidon::PoseidonSponge;
+    use ark_sponge::CryptographicSponge;
+    use ark_std::test_rng;
+    use ark_std::UniformRand;
+    use rand_core::RngCore;
+
+    pub struct HPAidedAccumulationSchemeTestInput {}
+
+    impl<G, CF, S> AccumulationSchemeTestInput<HPAidedAccumulationScheme<G, CF, S>>
+        for HPAidedAccumulationSchemeTestInput
+    where
+        G: AffineCurve + ToConstraintField<CF>,
+        CF: PrimeField,
+        S: CryptographicSponge<CF>,
+    {
+        type TestParams = usize;
+        type InputParams = PedersenCommitmentCK<G>;
+
+        fn setup(
+            test_params: &Self::TestParams,
+            rng: &mut impl RngCore,
+        ) -> (
+            Self::InputParams,
+            <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateParams,
+            <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
+        ) {
+            let mut rng = test_rng();
+            let pp = PedersenCommitment::setup(*test_params, &mut rng).unwrap();
+            let ck = PedersenCommitment::trim(&pp, *test_params).unwrap();
+            (ck, pp, *test_params)
+        }
+
+        fn generate_inputs(
+            input_params: &Self::InputParams,
+            num_inputs: usize,
+            rng: &mut impl RngCore,
+        ) -> Vec<Input<HPAidedAccumulationScheme<G, CF, S>>> {
+            let mut rng = test_rng();
+            let vector_len = input_params.supported_elems_len();
+
+            (0..num_inputs)
+                .map(|_| {
+                    let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
+                    let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
+                    let product = HPAidedAccumulationScheme::<G, CF, S>::compute_hp(
+                        a_vec.as_slice(),
+                        b_vec.as_slice(),
+                    );
+
+                    let comm_1 = PedersenCommitment::commit(input_params, a_vec.as_slice(), None)
+                        .unwrap()
+                        .0;
+                    let comm_2 = PedersenCommitment::commit(input_params, b_vec.as_slice(), None)
+                        .unwrap()
+                        .0;
+                    let comm_3 = PedersenCommitment::commit(input_params, product.as_slice(), None)
+                        .unwrap()
+                        .0;
+
+                    let instance = InputInstance {
+                        comm_1,
+                        comm_2,
+                        comm_3,
+                    };
+
+                    let witness = InputWitness { a_vec, b_vec };
+                    Input { instance, witness }
+                })
+                .collect::<Vec<_>>()
+        }
+    }
+
+    type AS = HPAidedAccumulationScheme<EdwardsAffine, Fq, PoseidonSponge<Fq>>;
+
+    type I = HPAidedAccumulationSchemeTestInput;
+
+    /*
+    #[test]
+    pub fn hp_single_input_test() -> Result<(), BoxedError> {
+        single_input_test::<AS, I>(&8)
+    }
+
+     */
+
+    #[test]
+    pub fn hp_multiple_inputs_test() -> Result<(), BoxedError> {
+        multiple_inputs_test::<AS, I>(&8)
+    }
+
+    /*
+    #[test]
+    pub fn hp_multiple_accumulations_test() -> Result<(), BoxedError> {
+        multiple_accumulations_test::<AS, I>(&8)
+    }
+
+    #[test]
+    pub fn hp_multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
+        multiple_accumulations_multiple_inputs_test::<AS, I>(&8)
+    }
+
+    #[test]
+    pub fn hp_accumulators_only_test() -> Result<(), BoxedError> {
+        accumulators_only_test::<AS, I>(&8)
+    }
+     */
 }

@@ -572,6 +572,7 @@ pub mod tests {
             <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateParams,
             <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
+            // TODO: Change these parameters to test params
             //let max_degree = (1 << 5) - 1;
             let max_degree = (1 << 2) - 1;
             let supported_degree = max_degree;
