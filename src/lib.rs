@@ -4,7 +4,7 @@
 #![warn(
     const_err,
     future_incompatible,
-    missing_docs,
+    // missing_docs,
     non_shorthand_field_patterns,
     renamed_and_removed_lints,
     rust_2018_idioms,

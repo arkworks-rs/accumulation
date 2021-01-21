@@ -23,6 +23,8 @@ use std::ops::Mul;
 
 pub mod data_structures;
 
+pub mod constraints;
+
 pub struct HPAidedAccumulationScheme<G, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
@@ -200,7 +202,7 @@ where
                 if li >= output.len() {
                     output.push(product);
                 } else {
-                    output[li] += product;
+                    output[li] += &product;
                 }
             }
         }
@@ -388,6 +390,8 @@ where
         }
 
         // TODO: Squeeze shorter bits
+        // TODO: make the first element of `mu_challenges` be `1`, and skip
+        // the scalar multiplication for it.
         let mu_challenges: Vec<G::ScalarField> =
             challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
 
