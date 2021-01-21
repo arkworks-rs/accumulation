@@ -46,26 +46,24 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let verifier_key = f()?;
+        f().and_then(|verifier_key| {
+            let mut succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
+            let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
+                ns.clone(),
+                || Ok(succinct_verifier_key),
+                mode,
+            )?;
 
-        let mut succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
-        let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
-            ns.clone(),
-            || Ok(succinct_verifier_key),
-            mode,
-        )
-        .unwrap();
+            let ipa_ck_linear_var = ipa_pc::constraints::VerifierKeyVar::<G, C>::new_variable(
+                ns.clone(),
+                || Ok(&verifier_key.borrow().ipa_ck_linear),
+                mode,
+            )?;
 
-        let ipa_ck_linear_var = ipa_pc::constraints::VerifierKeyVar::<G, C>::new_variable(
-            ns.clone(),
-            || Ok(verifier_key.borrow().ipa_ck_linear.clone()),
-            mode,
-        )
-        .unwrap();
-
-        Ok(Self {
-            ipa_vk_var,
-            ipa_ck_linear_var,
+            Ok(Self {
+                ipa_vk_var,
+                ipa_ck_linear_var,
+            })
         })
     }
 }
@@ -92,42 +90,40 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let input_instance = f()?;
+        f().and_then(|input_instance| {
+            let ipa_commitment_var = ipa_pc::constraints::CommitmentVar::<G, C>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().ipa_commitment),
+                mode,
+            )?;
 
-        let ipa_commitment_var = ipa_pc::constraints::CommitmentVar::<G, C>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().ipa_commitment.clone()),
-            mode,
-        )
-        .unwrap();
+            let point_var = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().point),
+                mode,
+            )?;
 
-        let point_var = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().point.clone()),
-            mode,
-        )
-        .unwrap();
+            let evaluation_var = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().evaluation),
+                mode,
+            )?;
 
-        let evaluation_var = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().evaluation.clone()),
-            mode,
-        )
-        .unwrap();
+            let ipa_proof_var = ipa_pc::constraints::ProofVar::<G, C>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().ipa_proof),
+                mode,
+            )?;
 
-        let ipa_proof_var = ipa_pc::constraints::ProofVar::<G, C>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().ipa_proof.clone()),
-            mode,
-        )
-        .unwrap();
-
-        Ok(Self {
-            ipa_commitment_var,
-            point_var,
-            evaluation_var,
-            ipa_proof_var,
+            Ok(Self {
+                ipa_commitment_var,
+                point_var,
+                evaluation_var,
+                ipa_proof_var,
+            })
         })
+
+        
     }
 }
 
@@ -153,52 +149,53 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let proof = f()?;
+        f().and_then(|proof| {
 
-        let random_linear_polynomial_coeffs = &proof.borrow().random_linear_polynomial.coeffs();
-        assert!(random_linear_polynomial_coeffs.len() <= 2);
+            let random_linear_polynomial_coeffs = &proof.borrow().random_linear_polynomial.coeffs();
+            assert!(random_linear_polynomial_coeffs.len() <= 2);
 
-        let random_linear_polynomial_coeff_vars = [
-            NNFieldVar::<G>::new_variable(
+            let random_linear_polynomial_coeff_vars = [
+                NNFieldVar::<G>::new_variable(
+                    ns.clone(),
+                    || {
+                        Ok(if random_linear_polynomial_coeffs.len() > 0 {
+                            random_linear_polynomial_coeffs[0].clone()
+                        } else {
+                            G::ScalarField::zero()
+                        })
+                    },
+                    mode,
+                )?,
+                NNFieldVar::<G>::new_variable(
+                    ns.clone(),
+                    || {
+                        Ok(if random_linear_polynomial_coeffs.len() > 1 {
+                            random_linear_polynomial_coeffs[1].clone()
+                        } else {
+                            G::ScalarField::zero()
+                        })
+                    },
+                    mode,
+                )?,
+            ];
+
+            let random_linear_polynomial_commitment_var = C::new_variable(
                 ns.clone(),
-                || {
-                    Ok(if random_linear_polynomial_coeffs.len() > 0 {
-                        random_linear_polynomial_coeffs[0].clone()
-                    } else {
-                        G::ScalarField::zero()
-                    })
-                },
+                || Ok(proof.borrow().random_linear_polynomial_commitment),
                 mode,
-            )?,
-            NNFieldVar::<G>::new_variable(
-                ns.clone(),
-                || {
-                    Ok(if random_linear_polynomial_coeffs.len() > 1 {
-                        random_linear_polynomial_coeffs[1].clone()
-                    } else {
-                        G::ScalarField::zero()
-                    })
-                },
-                mode,
-            )?,
-        ];
+            )?;
 
-        let random_linear_polynomial_commitment_var = C::new_variable(
-            ns.clone(),
-            || Ok(proof.borrow().random_linear_polynomial_commitment.clone()),
-            mode,
-        )?;
+            let commitment_randomness_var = BitIteratorLE::without_trailing_zeros(
+                (&proof.borrow().commitment_randomness).into_repr(),
+            )
+            .map(|b| Boolean::new_variable(ns.clone(), || Ok(b), mode))
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-        let commitment_randomness_var = BitIteratorLE::without_trailing_zeros(
-            (&proof.borrow().commitment_randomness).into_repr(),
-        )
-        .map(|b| Boolean::new_variable(ns.clone(), || Ok(b), mode))
-        .collect::<Result<Vec<_>, SynthesisError>>()?;
-
-        Ok(Self {
-            random_linear_polynomial_coeff_vars,
-            random_linear_polynomial_commitment_var,
-            commitment_randomness_var,
+            Ok(Self {
+                random_linear_polynomial_coeff_vars,
+                random_linear_polynomial_commitment_var,
+                commitment_randomness_var,
+            })
         })
     }
 }

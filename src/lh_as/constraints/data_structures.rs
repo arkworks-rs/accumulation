@@ -29,9 +29,10 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let vk = f()?;
-        let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk.borrow().clone()), mode)?;
-        Ok(VerifierKeyVar(vk))
+        f().and_then(|vk| {
+            let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk.borrow().clone()), mode)?;
+            Ok(VerifierKeyVar(vk))
+        })
     }
 }
 
@@ -59,28 +60,30 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let input_instance = f()?;
-        let pedersen_comm: G = (input_instance.borrow().commitment.commitment().0)
-            .0
-            .clone();
-        let commitment = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
-        let point = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().point.clone()),
-            mode,
-        )?;
-        let eval = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(input_instance.borrow().eval.clone()),
-            mode,
-        )?;
+        f().and_then(|input_instance| {
+            let pedersen_comm: G = (input_instance.borrow().commitment.commitment().0)
+                .0
+                .clone();
+            let commitment = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
+            let point = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().point),
+                mode,
+            )?;
+            let eval = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&input_instance.borrow().eval),
+                mode,
+            )?;
 
-        Ok(Self {
-            commitment,
-            point,
-            eval,
-            _affine: PhantomData,
+            Ok(Self {
+                commitment,
+                point,
+                eval,
+                _affine: PhantomData,
+            })
         })
+        
     }
 }
 
@@ -123,28 +126,30 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        let single_proof = f()?;
-        let witness_commitment: G = (single_proof.borrow().witness_commitment.commitment().0)
-            .0
-            .clone();
-        let witness_commitment = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
-        let witness_eval = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(single_proof.borrow().witness_eval.clone()),
-            mode,
-        )?;
-        let eval = NNFieldVar::<G>::new_variable(
-            ns.clone(),
-            || Ok(single_proof.borrow().eval.clone()),
-            mode,
-        )?;
+        f().and_then(|single_proof| {
+            let witness_commitment: G = (single_proof.borrow().witness_commitment.commitment().0)
+                .0
+                .clone();
+            let witness_commitment = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
+            let witness_eval = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&single_proof.borrow().witness_eval),
+                mode,
+            )?;
+            let eval = NNFieldVar::<G>::new_variable(
+                ns.clone(),
+                || Ok(&single_proof.borrow().eval),
+                mode,
+            )?;
 
-        Ok(Self {
-            witness_commitment,
-            witness_eval,
-            eval,
-            _affine: PhantomData,
+            Ok(Self {
+                witness_commitment,
+                witness_eval,
+                eval,
+                _affine: PhantomData,
+            })
         })
+        
     }
 }
 
