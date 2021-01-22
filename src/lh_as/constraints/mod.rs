@@ -6,7 +6,7 @@ use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::FieldElementSize;
@@ -120,7 +120,7 @@ where
             .pop()
             .unwrap();
 
-        let mut challenge_point_bits = challenge_point_sponge_field_element_and_bits
+        let challenge_point_bits = challenge_point_sponge_field_element_and_bits
             .1
             .pop()
             .unwrap();

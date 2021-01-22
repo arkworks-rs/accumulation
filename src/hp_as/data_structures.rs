@@ -4,7 +4,6 @@ use ark_relations::r1cs::ToConstraintField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;
 use ark_std::io::{Read, Write};
-use ark_std::slice::SliceIndex;
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
 pub struct InputInstance<G: AffineCurve> {

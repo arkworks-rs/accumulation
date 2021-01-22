@@ -15,7 +15,6 @@ use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::FieldElementSize;
@@ -47,8 +46,7 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|verifier_key| {
-            let mut succinct_verifier_key =
-                SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
+            let succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
             let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(succinct_verifier_key),

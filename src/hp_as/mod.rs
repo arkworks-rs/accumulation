@@ -4,8 +4,6 @@ use crate::hp_as::data_structures::{InputInstance, InputWitness, Proof};
 use crate::AidedAccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::to_bytes;
-use ark_ff::Field;
 use ark_ff::One;
 use ark_ff::Zero;
 use ark_ff::{PrimeField, ToConstraintField};
@@ -160,7 +158,7 @@ where
             })
             .push(comm);
 
-            t_randomizers.as_mut().map(|mut randomizers| {
+            t_randomizers.as_mut().map(|randomizers| {
                 (if i < num_inputs - 1 {
                     &mut randomizers.0
                 } else {
@@ -549,7 +547,7 @@ where
 
         let a_vec = &witness.a_vec;
         let b_vec = &witness.b_vec;
-        let mut product = Self::compute_hp(a_vec.as_slice(), b_vec.as_slice());
+        let product = Self::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
         let test_comm_1 =
             PedersenCommitment::commit(decider_key, a_vec.as_slice(), randomness.map(|r| r.0))
@@ -579,7 +577,6 @@ pub mod tests {
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq};
-    use ark_ff::One;
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
@@ -602,7 +599,7 @@ pub mod tests {
 
         fn setup(
             test_params: &Self::TestParams,
-            rng: &mut impl RngCore,
+            _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateParams,
@@ -617,7 +614,7 @@ pub mod tests {
         fn generate_inputs(
             input_params: &Self::InputParams,
             num_inputs: usize,
-            rng: &mut impl RngCore,
+            _rng: &mut impl RngCore,
         ) -> Vec<Input<HPAidedAccumulationScheme<G, CF, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_elems_len();

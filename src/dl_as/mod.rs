@@ -11,13 +11,13 @@ use ark_poly_commit::{
     ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
+use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
-use ark_relations::r1cs::ToConstraintField;
 pub use data_structures::*;
 
 // Alias for readability
@@ -451,7 +451,7 @@ where
             )
             .map_err(|e| BoxedError::new(e))?;
 
-        let mut combined_check_polynomial =
+        let combined_check_polynomial =
             Self::combine_check_polynomials(combined_check_polynomial_addends);
 
         // TODO: Reenable for hiding
@@ -533,7 +533,7 @@ where
             return Ok(false);
         }
 
-        let mut eval =
+        let eval =
             Self::evaluate_combined_check_polynomials(combined_check_polynomial_addends, challenge);
 
         // TODO: Revert for hiding
@@ -594,12 +594,11 @@ pub mod tests {
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey, PCVerifierKey};
+    use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
-    use rand::distributions::Distribution;
     use rand_core::{RngCore, SeedableRng};
 
     pub struct DLAccumulationSchemeTestInput {}

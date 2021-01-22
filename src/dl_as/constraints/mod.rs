@@ -77,7 +77,7 @@ where
         )>,
         SynthesisError,
     > {
-        let mut test = SpongeVarForPC::<G, S>::new(cs.clone());
+        let _test = SpongeVarForPC::<G, S>::new(cs.clone());
         input_vars
             .into_iter()
             .map(|input_var| {
@@ -125,7 +125,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, succinct_check_vars, proof_var))]
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, succinct_check_vars, _proof_var))]
     fn combine_succinct_check_vars_and_proof_var<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk_var: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
@@ -134,7 +134,7 @@ where
             SuccinctCheckPolynomialVar<G>,
             &FinalCommKeyVar<C>,
         )>,
-        proof_var: &ProofVar<G, C>,
+        _proof_var: &ProofVar<G, C>,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -165,7 +165,7 @@ where
         )?;
          */
 
-        let cost_absorbing_succinct_check_polys = cs.num_constraints();
+        let _cost_absorbing_succinct_check_polys = cs.num_constraints();
         let mut combined_succinct_check_result_var = Boolean::TRUE;
         for (_, check_polynomial_var, commitment_var) in succinct_check_vars {
             if log_supported_degree > check_polynomial_var.0.len() {
@@ -242,7 +242,7 @@ where
                 continue;
             }
 
-            let mut linear_combination_challenge_bytes_var = linear_combination_challenge_bits_var
+            let linear_combination_challenge_bytes_var = linear_combination_challenge_bits_var
                 .chunks(8)
                 .map(UInt8::<ConstraintF<G>>::from_bits_le)
                 .collect::<Vec<_>>();
@@ -337,7 +337,7 @@ where
 
          */
 
-        let cost = cs.num_constraints();
+        let _cost = cs.num_constraints();
         let succinct_check_result_var = Self::succinct_check_input_vars(
             ns!(cs, "succinct_check_results_var").cs(),
             &verifier_key_var.ipa_vk_var,
@@ -352,7 +352,7 @@ where
         );
          */
 
-        let cost = cs.num_constraints();
+        let _cost = cs.num_constraints();
         let (
             combined_succinct_check_result_var,
             combined_commitment_var,
@@ -382,8 +382,8 @@ where
         verify_result_var = verify_result_var
             .and(&challenge_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
 
-        let cost = cs.num_constraints();
-        let mut eval_var = Self::evaluate_combined_check_polynomial_vars(
+        let _cost = cs.num_constraints();
+        let eval_var = Self::evaluate_combined_check_polynomial_vars(
             combined_check_poly_addend_vars,
             &challenge_var,
         )?;

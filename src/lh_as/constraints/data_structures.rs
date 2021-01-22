@@ -1,11 +1,11 @@
 use crate::lh_as::{InputInstance, SingleProof};
 use ark_ec::AffineCurve;
-use ark_ff::{Field, PrimeField, ToConstraintField};
+use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{R1CSVar, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;

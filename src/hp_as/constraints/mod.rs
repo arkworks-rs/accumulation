@@ -1,16 +1,12 @@
 use ark_ec::AffineCurve;
 use ark_ff::Field;
-use ark_nonnative_field::NonNativeFieldMulResultVar;
 use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::FieldElementSize;
-use ark_std::ops::Mul;
 use std::marker::PhantomData;
 
 mod data_structures;
@@ -94,7 +90,7 @@ where
 
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        verifier_key: &VerifierKeyVar,
+        _verifier_key: &VerifierKeyVar,
         input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
         accumulator_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
         new_accumulator_instance: &InputInstanceVar<G, C>,
@@ -172,7 +168,6 @@ pub mod tests {
     use crate::hp_as::HPAidedAccumulationScheme;
     use crate::tests::AccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;

@@ -13,12 +13,12 @@ use ark_poly_commit::{
     lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
     PolynomialLabel, UVPolynomial,
 };
+use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use rand_core::RngCore;
 use std::ops::Mul;
 
 mod data_structures;
-use ark_relations::r1cs::ToConstraintField;
 pub use data_structures::*;
 
 #[cfg(feature = "r1cs")]
@@ -549,7 +549,6 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use ark_std::UniformRand;
-    use rand::distributions::Distribution;
     use rand_core::RngCore;
 
     pub struct LHAidedAccumulationSchemeTestInput {}
