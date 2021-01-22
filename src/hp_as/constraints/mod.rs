@@ -88,7 +88,7 @@ where
         })
     }
 
-    fn verify<'a>(
+    pub fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         _verifier_key: &VerifierKeyVar,
         input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,

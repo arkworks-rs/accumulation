@@ -24,12 +24,9 @@ use rand_core::RngCore;
 #[macro_use]
 extern crate derivative;
 
-#[cfg(feature = "std")]
 #[macro_use]
-extern crate std;
+extern crate bench_utils;
 
-#[cfg(not(feature = "std"))]
-#[macro_use]
 extern crate ark_std as std;
 
 /// Common data structures used by `AccumulationScheme` and `AidedAccumulationScheme`.
@@ -47,6 +44,9 @@ pub mod dl_as;
 pub mod lh_as;
 
 pub mod hp_as;
+
+/// A simple non-interactive argument of knowledge for R1CS
+pub mod r1cs_nark;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
