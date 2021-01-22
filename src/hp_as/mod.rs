@@ -1,5 +1,5 @@
 use crate::data_structures::{Accumulator, Input};
-use crate::error::BoxedError;
+use crate::error::{ASError, BoxedError};
 use crate::hp_as::data_structures::{InputInstance, InputWitness, Proof};
 use crate::AidedAccumulationScheme;
 use ark_ec::group::Group;
@@ -42,6 +42,15 @@ where
     CF: PrimeField,
     S: CryptographicSponge<CF>,
 {
+    fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
+        let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
+        for (a, b) in a_vec.iter().zip(b_vec.iter()) {
+            product.push(a.clone() * b);
+        }
+
+        product
+    }
+
     // Assumes the length of a_vec and b_vec is hp_vec_len or below.
     fn compute_t_vecs(
         input_witnesses: &[&InputWitness<G>],
@@ -84,8 +93,10 @@ where
             let product_polynomial = a_poly.naive_mul(&b_poly);
             let mut product_polynomial_coeffs = product_polynomial.coeffs;
 
-            assert!(product_polynomial_coeffs.len() <= 2 * num_inputs - 1);
-            product_polynomial_coeffs.resize_with(2 * num_inputs - 1, || G::ScalarField::zero());
+            if product_polynomial_coeffs.len() < 2 * num_inputs - 1 {
+                product_polynomial_coeffs
+                    .resize_with(2 * num_inputs - 1, || G::ScalarField::zero());
+            }
 
             for i in 0..(2 * num_inputs - 1) {
                 t_vecs[i].push(product_polynomial_coeffs[i].clone());
@@ -95,15 +106,25 @@ where
         t_vecs
     }
 
-    /// Outputs commitments to each t_vec, excluding the `n-1`th t_vec
-    /// The commitments are split into two, one computed on everything
+    /// Outputs commitments and randomizers to each t_vec, excluding the `n-1`th t_vec
+    /// The commitments and randomizers are split into two, one computed on everything
     /// before the `n-1`th t_vec and one computed on everything after the `n-1`th t_vec.
     fn compute_t_comms(
         ck: &PedersenCommitmentCK<G>,
         t_vecs: &Vec<Vec<G::ScalarField>>,
-    ) -> Result<(Vec<G>, Vec<G>), BoxedError> {
+        mut rng: Option<&mut dyn RngCore>,
+    ) -> Result<
+        (
+            (Vec<G>, Vec<G>),
+            Option<(Vec<G::ScalarField>, Vec<G::ScalarField>)>,
+        ),
+        BoxedError,
+    > {
         if t_vecs.len() == 0 {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok((
+                (Vec::new(), Vec::new()),
+                rng.map(|_| (Vec::new(), Vec::new())),
+            ));
         }
 
         let num_inputs = (t_vecs.len() + 1) / 2;
@@ -113,12 +134,22 @@ where
             Vec::with_capacity(num_inputs - 1),
         );
 
+        let mut t_randomizers = if rng.is_some() {
+            Some((
+                Vec::with_capacity(num_inputs - 1),
+                Vec::with_capacity(num_inputs - 1),
+            ))
+        } else {
+            None
+        };
+
         for (i, t_vec) in t_vecs.iter().enumerate() {
             if i == num_inputs - 1 {
                 continue;
             }
 
-            let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), None)
+            let randomizer = rng.as_mut().map(|rng| G::ScalarField::rand(rng));
+            let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), randomizer)
                 .map_err(BoxedError::new)?
                 .0;
 
@@ -127,10 +158,19 @@ where
             } else {
                 &mut t_comms.1
             })
-            .push(comm)
+            .push(comm);
+
+            t_randomizers.as_mut().map(|mut randomizers| {
+                (if i < num_inputs - 1 {
+                    &mut randomizers.0
+                } else {
+                    &mut randomizers.1
+                })
+                .push(randomizer.unwrap());
+            });
         }
 
-        Ok(t_comms)
+        Ok((t_comms, t_randomizers))
     }
 
     fn combine_commitments<'a>(
@@ -139,7 +179,7 @@ where
     ) -> G::Projective {
         let mut combined_commitment = G::Projective::zero();
         for (i, commitment) in commitments.into_iter().enumerate() {
-            combined_commitment += &commitment.mul(challenges[i].clone());
+            combined_commitment += &commitment.mul(challenges[i].into());
         }
 
         combined_commitment
@@ -191,7 +231,7 @@ where
         }
     }
 
-    fn sum_vectors<'a>(
+    fn combine_vectors<'a>(
         vectors: impl IntoIterator<Item = &'a Vec<G::ScalarField>>,
         challenges: &[G::ScalarField],
     ) -> Vec<G::ScalarField> {
@@ -210,34 +250,82 @@ where
         output
     }
 
+    fn combine_randomness<'a>(
+        randomness: impl IntoIterator<Item = Option<&'a G::ScalarField>>,
+        challenges: &[G::ScalarField],
+    ) -> G::ScalarField {
+        let mut combined_randomness = G::ScalarField::zero();
+        for (i, rand) in randomness.into_iter().enumerate() {
+            if rand.is_some() {
+                combined_randomness += &rand.unwrap().mul(challenges[i].clone());
+            }
+        }
+
+        combined_randomness
+    }
+
     fn compute_combined_hp_openings(
         input_witnesses: &[&InputWitness<G>],
+        t_randomizers: &Option<(Vec<G::ScalarField>, Vec<G::ScalarField>)>,
+        mu_challenges: &[G::ScalarField],
         nu_challenges: &[G::ScalarField],
         combined_challenges: &[G::ScalarField],
     ) -> InputWitness<G> {
-        let a_opening_vec = Self::sum_vectors(
+        let num_inputs = input_witnesses.len();
+
+        let a_opening_vec = Self::combine_vectors(
             input_witnesses.iter().map(|witness| &witness.a_vec),
             combined_challenges,
         );
 
-        let b_opening_vec = Self::sum_vectors(
+        let b_opening_vec = Self::combine_vectors(
             input_witnesses.iter().map(|witness| &witness.b_vec).rev(),
             nu_challenges,
         );
 
+        let randomness = t_randomizers.as_ref().map(|t_randomizers| {
+            let a_randomness = Self::combine_randomness(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.0)),
+                combined_challenges,
+            );
+
+            let b_randomness = Self::combine_randomness(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.1))
+                    .rev(),
+                nu_challenges,
+            );
+
+            let product_randomness = {
+                let t_rand_low_addend =
+                    Self::combine_randomness(t_randomizers.0.iter().map(Some), &nu_challenges);
+                let t_rand_high_addend = Self::combine_randomness(
+                    t_randomizers.1.iter().map(Some),
+                    &nu_challenges[num_inputs..],
+                );
+
+                let product_rand_addend = Self::combine_randomness(
+                    input_witnesses
+                        .iter()
+                        .map(|witness| witness.randomness.as_ref().map(|r| &r.2)),
+                    &mu_challenges,
+                )
+                .mul(&nu_challenges[num_inputs - 1]);
+
+                t_rand_low_addend + &t_rand_high_addend + &product_rand_addend
+            };
+
+            (a_randomness, b_randomness, product_randomness)
+        });
+
         InputWitness {
             a_vec: a_opening_vec,
             b_vec: b_opening_vec,
+            randomness,
         }
-    }
-
-    fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
-        let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
-        for (a, b) in a_vec.iter().zip(b_vec.iter()) {
-            product.push(a.clone() * b);
-        }
-
-        product
     }
 }
 
@@ -280,12 +368,11 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = &'a Input<Self>>,
         accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
-        _rng: Option<&mut dyn RngCore>,
+        mut rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        // TODO: What if there are no inputs
         let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
         let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();
 
@@ -296,11 +383,32 @@ where
             .chain(accumulators.iter().map(|accumulator| &accumulator.instance))
             .collect::<Vec<_>>();
 
+        if input_instances.len() == 0 {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate".to_string(),
+            )));
+        }
+
         let input_witnesses = inputs
             .iter()
             .map(|input| &input.witness)
             .chain(accumulators.iter().map(|accumulator| &accumulator.witness))
             .collect::<Vec<_>>();
+
+        let has_hiding = input_witnesses.iter().fold(false, |has_hiding, witness| {
+            has_hiding || witness.randomness.is_some()
+        });
+
+        // Set rng.is_some() = has_hiding;
+        if has_hiding {
+            if rng.is_none() {
+                return Err(BoxedError::new(ASError::MissingRng(
+                    "Accumulating inputs with hiding requires rng.".to_string(),
+                )));
+            }
+        } else {
+            rng = None;
+        }
 
         let mut challenges_sponge = S::new();
         // TODO: Absorb vk
@@ -315,14 +423,13 @@ where
         let mu_challenges: Vec<G::ScalarField> =
             challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
 
-        // Matrix of dimension hp_vec_len x num_inputs
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
             input_witnesses.as_slice(),
             mu_challenges.as_slice(),
             hp_vec_len,
         );
 
-        let t_comms = Self::compute_t_comms(prover_key, &t_vecs)?;
+        let (t_comms, t_randomizers) = Self::compute_t_comms(prover_key, &t_vecs, rng)?;
         let proof = Proof { t_comms };
 
         challenges_sponge.absorb(&proof);
@@ -354,6 +461,8 @@ where
 
         let accumulator_witness = Self::compute_combined_hp_openings(
             input_witnesses.as_slice(),
+            &t_randomizers,
+            mu_challenges.as_slice(),
             nu_challenges.as_slice(),
             combined_challenges.as_slice(),
         );
@@ -381,6 +490,11 @@ where
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
+
+        if input_instances.len() == 0 {
+            return Ok(false);
+        }
+
         let num_inputs = input_instances.len();
 
         let mut challenges_sponge = S::new();
@@ -431,21 +545,25 @@ where
     ) -> Result<bool, Self::Error> {
         let instance = &accumulator.instance;
         let witness = &accumulator.witness;
+        let randomness = witness.randomness.as_ref();
 
         let a_vec = &witness.a_vec;
         let b_vec = &witness.b_vec;
         let mut product = Self::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
-        let test_comm_1 = PedersenCommitment::commit(decider_key, a_vec.as_slice(), None)
-            .map_err(BoxedError::new)?;
-        let test_comm_2 = PedersenCommitment::commit(decider_key, b_vec.as_slice(), None)
-            .map_err(BoxedError::new)?;
-        let test_comm_3 = PedersenCommitment::commit(decider_key, product.as_slice(), None)
-            .map_err(BoxedError::new)?;
+        let test_comm_1 =
+            PedersenCommitment::commit(decider_key, a_vec.as_slice(), randomness.map(|r| r.0))
+                .map_err(BoxedError::new)?;
+        let test_comm_2 =
+            PedersenCommitment::commit(decider_key, b_vec.as_slice(), randomness.map(|r| r.1))
+                .map_err(BoxedError::new)?;
+        let test_comm_3 =
+            PedersenCommitment::commit(decider_key, product.as_slice(), randomness.map(|r| r.2))
+                .map_err(BoxedError::new)?;
 
-        assert!(test_comm_1.0.eq(&instance.comm_1));
-        assert!(test_comm_2.0.eq(&instance.comm_2));
-        let result = test_comm_3.0.eq(&instance.comm_3);
+        let result = test_comm_1.0.eq(&instance.comm_1)
+            && test_comm_2.0.eq(&instance.comm_2)
+            && test_comm_3.0.eq(&instance.comm_3);
 
         Ok(result)
     }
@@ -479,8 +597,8 @@ pub mod tests {
         CF: PrimeField,
         S: CryptographicSponge<CF>,
     {
-        type TestParams = usize;
-        type InputParams = PedersenCommitmentCK<G>;
+        type TestParams = (usize, bool);
+        type InputParams = (PedersenCommitmentCK<G>, bool);
 
         fn setup(
             test_params: &Self::TestParams,
@@ -491,9 +609,9 @@ pub mod tests {
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             let mut rng = test_rng();
-            let pp = PedersenCommitment::setup(*test_params, &mut rng).unwrap();
-            let ck = PedersenCommitment::trim(&pp, *test_params).unwrap();
-            (ck, pp, *test_params)
+            let pp = PedersenCommitment::setup(test_params.0, &mut rng).unwrap();
+            let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
+            ((ck, test_params.1), pp, test_params.0)
         }
 
         fn generate_inputs(
@@ -502,7 +620,7 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> Vec<Input<HPAidedAccumulationScheme<G, CF, S>>> {
             let mut rng = test_rng();
-            let vector_len = input_params.supported_elems_len();
+            let vector_len = input_params.0.supported_elems_len();
 
             (0..num_inputs)
                 .map(|_| {
@@ -513,15 +631,36 @@ pub mod tests {
                         b_vec.as_slice(),
                     );
 
-                    let comm_1 = PedersenCommitment::commit(input_params, a_vec.as_slice(), None)
-                        .unwrap()
-                        .0;
-                    let comm_2 = PedersenCommitment::commit(input_params, b_vec.as_slice(), None)
-                        .unwrap()
-                        .0;
-                    let comm_3 = PedersenCommitment::commit(input_params, product.as_slice(), None)
-                        .unwrap()
-                        .0;
+                    let randomness = if input_params.1 {
+                        let rand_1 = G::ScalarField::rand(&mut rng);
+                        let rand_2 = G::ScalarField::rand(&mut rng);
+                        let rand_3 = G::ScalarField::rand(&mut rng);
+                        Some((rand_1, rand_2, rand_3))
+                    } else {
+                        None
+                    };
+
+                    let comm_1 = PedersenCommitment::commit(
+                        &input_params.0,
+                        a_vec.as_slice(),
+                        randomness.as_ref().map(|r| r.0),
+                    )
+                    .unwrap()
+                    .0;
+                    let comm_2 = PedersenCommitment::commit(
+                        &input_params.0,
+                        b_vec.as_slice(),
+                        randomness.as_ref().map(|r| r.1),
+                    )
+                    .unwrap()
+                    .0;
+                    let comm_3 = PedersenCommitment::commit(
+                        &input_params.0,
+                        product.as_slice(),
+                        randomness.as_ref().map(|r| r.2),
+                    )
+                    .unwrap()
+                    .0;
 
                     let instance = InputInstance {
                         comm_1,
@@ -529,7 +668,11 @@ pub mod tests {
                         comm_3,
                     };
 
-                    let witness = InputWitness { a_vec, b_vec };
+                    let witness = InputWitness {
+                        a_vec,
+                        b_vec,
+                        randomness,
+                    };
                     Input { instance, witness }
                 })
                 .collect::<Vec<_>>()
@@ -550,7 +693,7 @@ pub mod tests {
 
     #[test]
     pub fn hp_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&8)
+        multiple_inputs_test::<AS, I>(&(8, false))
     }
 
     /*

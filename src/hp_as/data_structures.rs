@@ -35,7 +35,7 @@ pub struct InputWitness<G: AffineCurve> {
     pub a_vec: Vec<G::ScalarField>,
     pub b_vec: Vec<G::ScalarField>,
     // TODO: Add hiding
-    //pub randomness: Option<(G::ScalarField, G::ScalarField, G::ScalarField)>,
+    pub randomness: Option<(G::ScalarField, G::ScalarField, G::ScalarField)>,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]

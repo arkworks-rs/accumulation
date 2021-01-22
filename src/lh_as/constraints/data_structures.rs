@@ -83,7 +83,6 @@ where
                 _affine: PhantomData,
             })
         })
-        
     }
 }
 
@@ -149,7 +148,6 @@ where
                 _affine: PhantomData,
             })
         })
-        
     }
 }
 

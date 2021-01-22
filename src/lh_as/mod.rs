@@ -245,7 +245,11 @@ where
     where
         Self: 'a,
     {
-        let rng = rng.expect("RngCore required for lh_as prove");
+        let rng = rng.ok_or_else(|| {
+            BoxedError::new(ASError::MissingRng(
+                "RngCore required for lh_as prove".to_string(),
+            ))
+        })?;
 
         let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
         let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();

@@ -47,7 +47,8 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|verifier_key| {
-            let mut succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
+            let mut succinct_verifier_key =
+                SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
             let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(succinct_verifier_key),
@@ -122,8 +123,6 @@ where
                 ipa_proof_var,
             })
         })
-
-        
     }
 }
 
@@ -150,7 +149,6 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|proof| {
-
             let random_linear_polynomial_coeffs = &proof.borrow().random_linear_polynomial.coeffs();
             assert!(random_linear_polynomial_coeffs.len() <= 2);
 
