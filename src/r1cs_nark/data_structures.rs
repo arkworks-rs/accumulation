@@ -19,6 +19,8 @@ pub struct IndexInfo {
     /// Hash of the matrices.
     pub matrices_hash: [u8; 32],
 }
+
+/// The index for our NARK.
 pub struct Index<G: AffineCurve> {
     /// Information about the index.
     pub index_info: IndexInfo,
@@ -32,4 +34,10 @@ pub struct Index<G: AffineCurve> {
 
     /// The group elements required by the Pedersen commitment.
     pub ck: Vec<G>,
+}
+
+
+/// The proof for our NARK.
+pub struct Proof<G: AffineCurve> {
+    comm_a: G
 }

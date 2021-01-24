@@ -24,18 +24,22 @@ where
     _sponge: PhantomData<S>,
 }
 
-
-
 impl<G, S> SimpleNARK<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
+    fn commit(scalars: &[G::ScalarField], group_elements: &[G]) -> G {
+        scalars
+
+
+    }
+
     pub fn setup() -> PublicParameters {
         ()
     }
 
-    pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(pp: &PublicParameters, r1cs_instance: C) -> R1CSResult<Index<G>> {
+    pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(_pp: &PublicParameters, r1cs_instance: C) -> R1CSResult<Index<G>> {
         let constraint_time = start_timer!(|| "Generating constraints");
 
         let ics = ConstraintSystem::new_ref();
@@ -96,8 +100,75 @@ where
         })
     }
 
-    pub fn prove() {
+    pub fn prove<C: ConstraintSynthesizer<G::ScalarField>>(
+        index: &Index<G>,
+        r1cs: C,
+        make_zk: bool,
+        rng: Option<dyn RngCore>
+    ) -> R1CSResult<Proof<G>> {
+        let init_time = start_timer!(|| "NARK::Prover::Init");
 
+        let constraint_time = start_timer!(|| "Generating constraints and witnesses");
+        let pcs = ConstraintSystem::new_ref();
+        pcs.set_optimization_goal(OptimizationGoal::Weight);
+        pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
+            construct_matrices: false,
+        });
+        r1cs.generate_constraints(pcs.clone())?;
+        end_timer!(constraint_time);
+
+        pcs.finalize();
+        let (formatted_input_assignment, witness_assignment, num_constraints) = {
+            let pcs = pcs.borrow().unwrap();
+            (
+                pcs.instance_assignment.as_slice().to_vec(),
+                pcs.witness_assignment.as_slice().to_vec(),
+                pcs.num_constraints,
+            )
+        };
+
+        let num_input_variables = formatted_input_assignment.len();
+        let num_witness_variables = witness_assignment.len();
+        assert_eq!(index.index_info.num_variables, num_variables);
+        assert_eq!(index.index_info.num_constraints, num_constraints);
+
+        // Perform matrix multiplications
+        let inner_prod_fn = |row: &[(G::ScalarField, usize)]| {
+            let mut acc = G::ScalarField::zero();
+            for &(ref coeff, i) in row {
+                let tmp = if i < num_input_variables {
+                    formatted_input_assignment[i]
+                } else {
+                    witness_assignment[i - num_input_variables]
+                };
+
+                acc += &(if coeff.is_one() { tmp } else { tmp * coeff });
+            }
+            acc
+        };
+
+        let eval_z_a_time = start_timer!(|| "Evaluating z_A");
+        let z_a = ark_std::cfg_iter!(index.a).map(|row| inner_prod_fn(row)).collect();
+        end_timer!(eval_z_a_time);
+
+        let eval_z_b_time = start_timer!(|| "Evaluating z_B");
+        let z_b = ark_std::cfg_iter!(index.b).map(|row| inner_prod_fn(row)).collect();
+        end_timer!(eval_z_b_time);
+
+        let eval_z_c_time = start_timer!(|| "Evaluating z_C");
+        let z_c = ark_std::cfg_iter!(index.c).map(|row| inner_prod_fn(row)).collect();
+        end_timer!(eval_z_c_time);
+
+
+        let (r, rng) = if make_zk {
+            let rng = rng.unwrap()
+            let r = Vec::with_capacity(num_witness_variables);
+            for _ in 0..num_witness_variables {
+                r.push(G::ScalarField::rand(&))
+            }
+        }
+
+        end_timer!(init_time);
     }
 
     pub fn verify() {
