@@ -36,6 +36,22 @@ pub struct Index<G: AffineCurve> {
     pub ck: Vec<G>,
 }
 
+pub struct SigmaProtocolCommitment<G: AffineCurve> {
+    pub comm_a: G,
+    pub comm_b: G,
+    pub comm_c: G,
+    pub comm_rand_a: G,
+    pub comm_rand_b: G,
+    pub comm_rand_c: G,
+    pub comm_1: G,
+    pub comm_2: G,
+}
+
+pub struct SigmaProtocolResponse<G: AffineCurve> {
+    pub blinded_witness: Vec<G::ScalarField>,
+    pub blinded_lin_comb_rand: G::ScalarField,
+    pub blinded_cross_term_rand: G::ScalarField,
+}
 
 /// The proof for our NARK.
 pub struct Proof<G: AffineCurve> {
