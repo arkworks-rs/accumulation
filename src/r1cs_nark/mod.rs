@@ -4,9 +4,10 @@ use ark_snark::*;
 use ark_sponge::*;
 use ark_std::{UniformRand, marker::PhantomData};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{Field, ToConstraintField};
+use ark_ff::{Field, ToConstraintField, Zero, One};
+use ark_poly_commit::pedersen::*;
 use blake2::{VarBlake2b, Blake2s, digest::{Digest, VariableOutput}};
-use rand_core::SeedableRng;
+use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
 use data_structures::*;
@@ -29,17 +30,11 @@ where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
-    fn commit(scalars: &[G::ScalarField], group_elements: &[G]) -> G {
-        scalars
-
-
+    pub fn setup(max_num_constraints: usize) -> PublicParameters {
+        PedersenCommitment::setup(max_num_constraints).unwrap().into()
     }
 
-    pub fn setup() -> PublicParameters {
-        ()
-    }
-
-    pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(_pp: &PublicParameters, r1cs_instance: C) -> R1CSResult<Index<G>> {
+    pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(pp: &PublicParameters, r1cs_instance: C) -> R1CSResult<Index<G>> {
         let constraint_time = start_timer!(|| "Generating constraints");
 
         let ics = ConstraintSystem::new_ref();
@@ -80,31 +75,15 @@ where
             num_instance_variables: num_formatted_input_variables,
             matrices_hash,
         };
-        let ck = ark_std::cfg_into_iter!(0..num_constraints).map(|i| {
-            let mut hasher = Blake2s::new();
-            hasher.update(&matrices_hash);
-            hasher.update(&i.to_le_bytes());
-            let hash = hasher.finalize();
-            let mut seed = [0u8; 32];
-            seed.copy_from_slice(&hash);
-            let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-            G::Projective::rand(&mut rng)
-        }).collect::<Vec<_>>();
-        let ck = G::Projective::batch_normalization_into_affine(ck.as_slice());
-        Ok(Index {
-            index_info,
-            a,
-            b,
-            c,
-            ck,
-        })
+        let ck = PedersenCommitment::trim(&pp, num_constraints).unwrap();
+        Ok(Index { index_info, a, b, c, ck })
     }
 
     pub fn prove<C: ConstraintSynthesizer<G::ScalarField>>(
         index: &Index<G>,
         r1cs: C,
         make_zk: bool,
-        rng: Option<dyn RngCore>
+        rng: Option<&mut dyn RngCore>
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover::Init");
 
@@ -129,6 +108,7 @@ where
 
         let num_input_variables = formatted_input_assignment.len();
         let num_witness_variables = witness_assignment.len();
+        let num_variables = num_input_variables + num_witness_variables;
         assert_eq!(index.index_info.num_variables, num_variables);
         assert_eq!(index.index_info.num_constraints, num_constraints);
 
@@ -161,12 +141,15 @@ where
 
 
         let (r, rng) = if make_zk {
-            let rng = rng.unwrap()
+            let rng = rng.unwrap();
             let r = Vec::with_capacity(num_witness_variables);
             for _ in 0..num_witness_variables {
-                r.push(G::ScalarField::rand(&))
+                r.push(G::ScalarField::rand(&mut rng))
             }
-        }
+            (Some(r), Some(rng))
+        } else {
+            (None, None)
+        };
 
         end_timer!(init_time);
     }

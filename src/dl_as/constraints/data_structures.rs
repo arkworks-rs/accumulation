@@ -30,8 +30,8 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub(crate) ipa_vk_var: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
-    pub(crate) ipa_ck_linear_var: ipa_pc::constraints::VerifierKeyVar<G, C>,
+    pub(crate) ipa_vk: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
+    pub(crate) ipa_ck_linear: ipa_pc::constraints::VerifierKeyVar<G, C>,
 }
 
 impl<G, C> AllocVar<VerifierKey<G>, ConstraintF<G>> for VerifierKeyVar<G, C>
@@ -47,21 +47,21 @@ where
         let ns = cs.into();
         f().and_then(|verifier_key| {
             let succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
-            let ipa_vk_var = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
+            let ipa_vk = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(succinct_verifier_key),
                 mode,
             )?;
 
-            let ipa_ck_linear_var = ipa_pc::constraints::VerifierKeyVar::<G, C>::new_variable(
+            let ipa_ck_linear = ipa_pc::constraints::VerifierKeyVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(&verifier_key.borrow().ipa_ck_linear),
                 mode,
             )?;
 
             Ok(Self {
-                ipa_vk_var,
-                ipa_ck_linear_var,
+                ipa_vk,
+                ipa_ck_linear,
             })
         })
     }
@@ -72,10 +72,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub(crate) ipa_commitment_var: ipa_pc::constraints::CommitmentVar<G, C>,
-    pub(crate) point_var: NNFieldVar<G>,
-    pub(crate) evaluation_var: NNFieldVar<G>,
-    pub(crate) ipa_proof_var: ipa_pc::constraints::ProofVar<G, C>,
+    pub(crate) ipa_commitment: ipa_pc::constraints::CommitmentVar<G, C>,
+    pub(crate) point: NNFieldVar<G>,
+    pub(crate) evaluation: NNFieldVar<G>,
+    pub(crate) ipa_proof: ipa_pc::constraints::ProofVar<G, C>,
 }
 
 impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>> for InputInstanceVar<G, C>
@@ -90,35 +90,35 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|input_instance| {
-            let ipa_commitment_var = ipa_pc::constraints::CommitmentVar::<G, C>::new_variable(
+            let ipa_commitment = ipa_pc::constraints::CommitmentVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().ipa_commitment),
                 mode,
             )?;
 
-            let point_var = NNFieldVar::<G>::new_variable(
+            let point = NNFieldVar::<G>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().point),
                 mode,
             )?;
 
-            let evaluation_var = NNFieldVar::<G>::new_variable(
+            let evaluation = NNFieldVar::<G>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().evaluation),
                 mode,
             )?;
 
-            let ipa_proof_var = ipa_pc::constraints::ProofVar::<G, C>::new_variable(
+            let ipa_proof = ipa_pc::constraints::ProofVar::<G, C>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().ipa_proof),
                 mode,
             )?;
 
             Ok(Self {
-                ipa_commitment_var,
-                point_var,
-                evaluation_var,
-                ipa_proof_var,
+                ipa_commitment,
+                point,
+                evaluation,
+                ipa_proof,
             })
         })
     }
@@ -129,9 +129,9 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub(crate) random_linear_polynomial_coeff_vars: [NNFieldVar<G>; 2],
-    pub(crate) random_linear_polynomial_commitment_var: C,
-    pub(crate) commitment_randomness_var: Vec<Boolean<ConstraintF<G>>>,
+    pub(crate) random_linear_polynomial_coeffs: [NNFieldVar<G>; 2],
+    pub(crate) random_linear_polynomial_commitment: C,
+    pub(crate) commitment_randomness: Vec<Boolean<ConstraintF<G>>>,
 }
 
 impl<G, C, P> AllocVar<Proof<G, P>, ConstraintF<G>> for ProofVar<G, C>
@@ -150,7 +150,7 @@ where
             let random_linear_polynomial_coeffs = &proof.borrow().random_linear_polynomial.coeffs();
             assert!(random_linear_polynomial_coeffs.len() <= 2);
 
-            let random_linear_polynomial_coeff_vars = [
+            let random_linear_polynomial_coeffs = [
                 NNFieldVar::<G>::new_variable(
                     ns.clone(),
                     || {
@@ -175,22 +175,22 @@ where
                 )?,
             ];
 
-            let random_linear_polynomial_commitment_var = C::new_variable(
+            let random_linear_polynomial_commitment = C::new_variable(
                 ns.clone(),
                 || Ok(proof.borrow().random_linear_polynomial_commitment),
                 mode,
             )?;
 
-            let commitment_randomness_var = BitIteratorLE::without_trailing_zeros(
+            let commitment_randomness = BitIteratorLE::without_trailing_zeros(
                 (&proof.borrow().commitment_randomness).into_repr(),
             )
             .map(|b| Boolean::new_variable(ns.clone(), || Ok(b), mode))
             .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             Ok(Self {
-                random_linear_polynomial_coeff_vars,
-                random_linear_polynomial_commitment_var,
-                commitment_randomness_var,
+                random_linear_polynomial_coeffs,
+                random_linear_polynomial_commitment,
+                commitment_randomness,
             })
         })
     }
@@ -203,7 +203,7 @@ pub struct DomainSeparatedSpongeVar<
     S: CryptographicSpongeVar<ConstraintF<G>>,
     I: IsSpongeForAccSchemeParam,
 > {
-    sponge_var: S,
+    sponge: S,
     absorbed_bit: bool,
 
     _affine: PhantomData<G>,
@@ -222,7 +222,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
                 FpVar::zero()
             };
 
-            self.sponge_var.absorb(&[is_for_sponge])?;
+            self.sponge.absorb(&[is_for_sponge])?;
 
             self.absorbed_bit = true;
         }
@@ -236,7 +236,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
 {
     fn new(cs: ConstraintSystemRef<ConstraintF<G>>) -> Self {
         Self {
-            sponge_var: S::new(cs),
+            sponge: S::new(cs),
             absorbed_bit: false,
             _affine: PhantomData,
             _sponge: PhantomData,
@@ -245,12 +245,12 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
     }
 
     fn cs(&self) -> ConstraintSystemRef<ConstraintF<G>> {
-        self.sponge_var.cs()
+        self.sponge.cs()
     }
 
     fn absorb(&mut self, input: &[FpVar<ConstraintF<G>>]) -> Result<(), SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.absorb(input)
+        self.sponge.absorb(input)
     }
 
     fn squeeze_bytes(
@@ -258,7 +258,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
         num_bytes: usize,
     ) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_bytes(num_bytes)
+        self.sponge.squeeze_bytes(num_bytes)
     }
 
     fn squeeze_bits(
@@ -266,7 +266,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
         num_bits: usize,
     ) -> Result<Vec<Boolean<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_bits(num_bits)
+        self.sponge.squeeze_bits(num_bits)
     }
 
     fn squeeze_field_elements(
@@ -274,7 +274,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
         num_elements: usize,
     ) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         self.try_absorb_domain_bit()?;
-        self.sponge_var.squeeze_field_elements(num_elements)
+        self.sponge.squeeze_field_elements(num_elements)
     }
 
     fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
@@ -288,7 +288,7 @@ impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAc
         SynthesisError,
     > {
         self.try_absorb_domain_bit()?;
-        self.sponge_var
+        self.sponge
             .squeeze_nonnative_field_elements_with_sizes(sizes)
     }
 }

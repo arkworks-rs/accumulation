@@ -40,35 +40,35 @@ where
         + ToConstraintFieldGadget<ConstraintF<G>>,
     S: CryptographicSpongeVar<ConstraintF<G>>,
 {
-    #[tracing::instrument(target = "r1cs", skip(ck_var, linear_polynomial_var))]
-    fn deterministic_commit_to_linear_polynomial_var(
-        ck_var: &ipa_pc::constraints::CommitterKeyVar<G, C>,
-        linear_polynomial_var: &[NNFieldVar<G>; 2],
+    #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
+    fn deterministic_commit_to_linear_polynomial(
+        ck: &ipa_pc::constraints::CommitterKeyVar<G, C>,
+        linear_polynomial: &[NNFieldVar<G>; 2],
     ) -> Result<FinalCommKeyVar<C>, SynthesisError> {
-        let linear_polynomial_bits_var = linear_polynomial_var
+        let linear_polynomial_bits = linear_polynomial
             .into_iter()
             .map(|f| f.to_bits_le())
             .collect::<Result<Vec<_>, SynthesisError>>()?;
         CMCommitGadget::<G, C>::commit(
-            ck_var.comm_key_var.as_slice(),
-            linear_polynomial_bits_var.as_slice(),
+            ck.comm_key.as_slice(),
+            linear_polynomial_bits.as_slice(),
             None,
         )
     }
 
-    #[tracing::instrument(target = "r1cs", skip(linear_polynomial_var, point_var))]
-    fn evaluate_linear_polynomial_var(
-        linear_polynomial_var: &[NNFieldVar<G>; 2],
-        point_var: &NNFieldVar<G>,
+    #[tracing::instrument(target = "r1cs", skip(linear_polynomial, point))]
+    fn evaluate_linear_polynomial(
+        linear_polynomial: &[NNFieldVar<G>; 2],
+        point: &NNFieldVar<G>,
     ) -> NNFieldVar<G> {
-        (&linear_polynomial_var[1]).mul(point_var) + &linear_polynomial_var[0]
+        (&linear_polynomial[1]).mul(point) + &linear_polynomial[0]
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, input_vars))]
-    fn succinct_check_input_vars<'a>(
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, inputs))]
+    fn succinct_check_inputs<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        ipa_vk_var: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
-        input_vars: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
+        inputs: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
     ) -> Result<
         Vec<(
             Boolean<ConstraintF<G>>,
@@ -78,63 +78,63 @@ where
         SynthesisError,
     > {
         let _test = SpongeVarForPC::<G, S>::new(cs.clone());
-        input_vars
+        inputs
             .into_iter()
-            .map(|input_var| {
-                let ipa_commitment_var = &input_var.ipa_commitment_var;
-                let (succinct_check_result_var, check_polynomial_var) =
+            .map(|input| {
+                let ipa_commitment = &input.ipa_commitment;
+                let (succinct_check_result, check_polynomial) =
                     InnerProductArgPCGadget::<G, C, SpongeVarForPC<G, S>>::succinct_check(
                         ns!(cs, "succinct_check").cs(),
-                        ipa_vk_var,
-                        vec![ipa_commitment_var],
-                        &input_var.point_var,
-                        vec![&input_var.evaluation_var],
-                        &input_var.ipa_proof_var,
+                        ipa_vk,
+                        vec![ipa_commitment],
+                        &input.point,
+                        vec![&input.evaluation],
+                        &input.ipa_proof,
                         &|_| NNFieldVar::<G>::one(),
                     )?;
 
                 Ok((
-                    succinct_check_result_var,
-                    check_polynomial_var,
-                    &input_var.ipa_proof_var.final_comm_key_var,
+                    succinct_check_result,
+                    check_polynomial,
+                    &input.ipa_proof.final_comm_key,
                 ))
             })
             .collect::<Result<Vec<_>, SynthesisError>>()
     }
 
-    #[tracing::instrument(target = "r1cs", skip(sponge_var, check_polynomial_var))]
-    fn absorb_check_polynomial_var_into_sponge_var(
-        sponge_var: &mut SpongeVarForAccScheme<G, S>,
-        check_polynomial_var: &SuccinctCheckPolynomialVar<G>,
+    #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
+    fn absorb_check_polynomial_into_sponge(
+        sponge: &mut SpongeVarForAccScheme<G, S>,
+        check_polynomial: &SuccinctCheckPolynomialVar<G>,
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
-        assert!(check_polynomial_var.0.len() <= log_supported_degree);
-        let mut bytes_input_var = Vec::new();
+        assert!(check_polynomial.0.len() <= log_supported_degree);
+        let mut bytes_input = Vec::new();
 
-        let elem_vars = &check_polynomial_var.0;
+        let elems = &check_polynomial.0;
         for i in 0..(log_supported_degree + 1) {
-            if i < elem_vars.len() {
-                bytes_input_var.append(&mut (elem_vars[i].to_bytes()?));
+            if i < elems.len() {
+                bytes_input.append(&mut (elems[i].to_bytes()?));
             } else {
                 // Pad the check polynomial if necessary
-                bytes_input_var.append(&mut NNFieldVar::<G>::zero().to_bytes()?);
+                bytes_input.append(&mut NNFieldVar::<G>::zero().to_bytes()?);
             }
         }
 
-        sponge_var.absorb(bytes_input_var.to_constraint_field()?.as_slice())?;
+        sponge.absorb(bytes_input.to_constraint_field()?.as_slice())?;
         Ok(())
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk_var, succinct_check_vars, _proof_var))]
-    fn combine_succinct_check_vars_and_proof_var<'a>(
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, succinct_checks, _proof))]
+    fn combine_succinct_checks_and_proof<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        ipa_vk_var: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
-        succinct_check_vars: &'a Vec<(
+        ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
+        succinct_checks: &'a Vec<(
             Boolean<ConstraintF<G>>,
             SuccinctCheckPolynomialVar<G>,
             &FinalCommKeyVar<C>,
         )>,
-        _proof_var: &ProofVar<G, C>,
+        _proof: &ProofVar<G, C>,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -144,123 +144,123 @@ where
         ),
         SynthesisError,
     > {
-        let supported_degree = ipa_vk_var.supported_degree;
+        let supported_degree = ipa_vk.supported_degree;
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge_var = SpongeVarForAccScheme::<G, S>::new(
-            ns!(cs, "linear_combination_challenge_sponge_var").cs(),
+        let mut linear_combination_challenge_sponge = SpongeVarForAccScheme::<G, S>::new(
+            ns!(cs, "linear_combination_challenge_sponge").cs(),
         );
         // TODO: Reenable for hiding
         /*
-        let random_coeff_vars = &proof_var.random_linear_polynomial_coeff_vars;
-        linear_combination_challenge_sponge_var
-            .absorb_bytes(random_coeff_vars[0].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge_var
-            .absorb_bytes(random_coeff_vars[1].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge_var.absorb_bytes(
-            proof_var
-                .random_linear_polynomial_commitment_var
+        let random_coeffs = &proof.random_linear_polynomial_coeffs;
+        linear_combination_challenge_sponge
+            .absorb_bytes(random_coeffs[0].to_bytes()?.as_slice())?;
+        linear_combination_challenge_sponge
+            .absorb_bytes(random_coeffs[1].to_bytes()?.as_slice())?;
+        linear_combination_challenge_sponge.absorb_bytes(
+            proof
+                .random_linear_polynomial_commitment
                 .to_bytes()?
                 .as_slice(),
         )?;
          */
 
         let _cost_absorbing_succinct_check_polys = cs.num_constraints();
-        let mut combined_succinct_check_result_var = Boolean::TRUE;
-        for (_, check_polynomial_var, commitment_var) in succinct_check_vars {
-            if log_supported_degree > check_polynomial_var.0.len() {
-                combined_succinct_check_result_var = Boolean::FALSE;
+        let mut combined_succinct_check_result = Boolean::TRUE;
+        for (_, check_polynomial, commitment) in succinct_checks {
+            if log_supported_degree > check_polynomial.0.len() {
+                combined_succinct_check_result = Boolean::FALSE;
                 continue;
             }
 
-            Self::absorb_check_polynomial_var_into_sponge_var(
-                &mut linear_combination_challenge_sponge_var,
-                check_polynomial_var,
+            Self::absorb_check_polynomial_into_sponge(
+                &mut linear_combination_challenge_sponge,
+                check_polynomial,
                 log_supported_degree,
             )?;
 
-            linear_combination_challenge_sponge_var
-                .absorb(commitment_var.to_constraint_field()?.as_slice())?;
+            linear_combination_challenge_sponge
+                .absorb(commitment.to_constraint_field()?.as_slice())?;
         }
 
-        let (linear_combination_challenge_vars, linear_combination_challenge_bits_vars) =
-            linear_combination_challenge_sponge_var.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_check_vars.len()]
+        let (linear_combination_challenges, linear_combination_challenge_bitss) =
+            linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_checks.len()]
                     .as_slice(),
             )?;
 
         // TODO: Revert for hiding
-        //let mut combined_commitment_var = proof_var.random_linear_polynomial_commitment_var.clone();
-        let mut combined_commitment_var = C::zero();
+        //let mut combined_commitment = proof.random_linear_polynomial_commitment.clone();
+        let mut combined_commitment = C::zero();
 
-        let mut combined_check_polynomial_and_addend_vars =
-            Vec::with_capacity(succinct_check_vars.len());
-        let mut addend_bits_vars = Vec::with_capacity(succinct_check_vars.len());
+        let mut combined_check_polynomial_and_addends =
+            Vec::with_capacity(succinct_checks.len());
+        let mut addend_bitss = Vec::with_capacity(succinct_checks.len());
 
         for (
-            ((succinct_check_result_var, check_polynomial_var, commitment_var), cur_challenge_var),
-            cur_challenge_bits_var,
-        ) in succinct_check_vars
+            ((succinct_check_result, check_polynomial, commitment), cur_challenge),
+            cur_challenge_bits,
+        ) in succinct_checks
             .into_iter()
-            .zip(&linear_combination_challenge_vars)
-            .zip(&linear_combination_challenge_bits_vars)
+            .zip(&linear_combination_challenges)
+            .zip(&linear_combination_challenge_bitss)
         {
-            combined_succinct_check_result_var =
-                combined_succinct_check_result_var.and(&succinct_check_result_var)?;
+            combined_succinct_check_result =
+                combined_succinct_check_result.and(&succinct_check_result)?;
 
-            combined_commitment_var +=
-                &(commitment_var.scalar_mul_le(cur_challenge_bits_var.iter())?);
+            combined_commitment +=
+                &(commitment.scalar_mul_le(cur_challenge_bits.iter())?);
 
-            combined_check_polynomial_and_addend_vars
-                .push((cur_challenge_var.clone(), check_polynomial_var));
+            combined_check_polynomial_and_addends
+                .push((cur_challenge.clone(), check_polynomial));
 
-            addend_bits_vars.push(cur_challenge_bits_var);
+            addend_bitss.push(cur_challenge_bits);
         }
 
         // TODO: Reenable for hiding
         /*
-        let randomized_combined_commitment_var = ipa_vk_var
-            .s_var
-            .scalar_mul_le(proof_var.commitment_randomness_var.iter())?
-            + &combined_commitment_var;
+        let randomized_combined_commitment = ipa_vk
+            .s
+            .scalar_mul_le(proof.commitment_randomness.iter())?
+            + &combined_commitment;
          */
 
-        let randomized_combined_commitment_var = combined_commitment_var.clone();
+        let randomized_combined_commitment = combined_commitment.clone();
 
-        let mut challenge_point_sponge_var =
-            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge_var").cs());
-        challenge_point_sponge_var
-            .absorb(combined_commitment_var.to_constraint_field()?.as_slice())?;
+        let mut challenge_point_sponge =
+            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge").cs());
+        challenge_point_sponge
+            .absorb(combined_commitment.to_constraint_field()?.as_slice())?;
 
-        for ((_, check_polynomial_var), linear_combination_challenge_bits_var) in
-            combined_check_polynomial_and_addend_vars
+        for ((_, check_polynomial), linear_combination_challenge_bits) in
+            combined_check_polynomial_and_addends
                 .iter()
-                .zip(&addend_bits_vars)
+                .zip(&addend_bitss)
         {
-            if log_supported_degree > (*check_polynomial_var).0.len() {
-                combined_succinct_check_result_var = Boolean::FALSE;
+            if log_supported_degree > (*check_polynomial).0.len() {
+                combined_succinct_check_result = Boolean::FALSE;
                 continue;
             }
 
-            let linear_combination_challenge_bytes_var = linear_combination_challenge_bits_var
+            let linear_combination_challenge_bytes = linear_combination_challenge_bits
                 .chunks(8)
                 .map(UInt8::<ConstraintF<G>>::from_bits_le)
                 .collect::<Vec<_>>();
 
-            challenge_point_sponge_var.absorb(
-                linear_combination_challenge_bytes_var
+            challenge_point_sponge.absorb(
+                linear_combination_challenge_bytes
                     .to_constraint_field()?
                     .as_slice(),
             )?;
 
-            Self::absorb_check_polynomial_var_into_sponge_var(
-                &mut challenge_point_sponge_var,
-                *check_polynomial_var,
+            Self::absorb_check_polynomial_into_sponge(
+                &mut challenge_point_sponge,
+                *check_polynomial,
                 log_supported_degree,
             )?;
         }
 
-        let challenge_point_var = challenge_point_sponge_var
+        let challenge_point = challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
                 num_bits: 180,
             }])?
@@ -269,55 +269,55 @@ where
             .unwrap();
 
         Ok((
-            combined_succinct_check_result_var,
-            randomized_combined_commitment_var,
-            combined_check_polynomial_and_addend_vars,
-            challenge_point_var,
+            combined_succinct_check_result,
+            randomized_combined_commitment,
+            combined_check_polynomial_and_addends,
+            challenge_point,
         ))
     }
 
     #[tracing::instrument(
         target = "r1cs",
-        skip(combined_check_polynomial_addend_vars, point_var)
+        skip(combined_check_polynomial_addends, point)
     )]
-    fn evaluate_combined_check_polynomial_vars<'a>(
-        combined_check_polynomial_addend_vars: impl IntoIterator<
+    fn evaluate_combined_check_polynomials<'a>(
+        combined_check_polynomial_addends: impl IntoIterator<
             Item = (NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>),
         >,
-        point_var: &NNFieldVar<G>,
+        point: &NNFieldVar<G>,
     ) -> Result<NNFieldVar<G>, SynthesisError> {
-        let mut eval_var = NNFieldVar::<G>::zero();
-        for (scalar_var, polynomial_var) in combined_check_polynomial_addend_vars {
-            eval_var += &polynomial_var.evaluate(point_var)?.mul(&scalar_var);
+        let mut eval = NNFieldVar::<G>::zero();
+        for (scalar, polynomial) in combined_check_polynomial_addends {
+            eval += &polynomial.evaluate(point)?.mul(&scalar);
         }
 
-        Ok(eval_var)
+        Ok(eval)
     }
 
     #[tracing::instrument(
         target = "r1cs",
         skip(
             cs,
-            verifier_key_var,
-            input_instance_vars,
-            accumulator_instance_vars,
-            new_accumulator_instance_var,
-            proof_var
+            verifier_key,
+            input_instances,
+            accumulator_instances,
+            new_accumulator_instance,
+            proof
         )
     )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        verifier_key_var: &VerifierKeyVar<G, C>,
-        input_instance_vars: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        accumulator_instance_vars: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        new_accumulator_instance_var: &InputInstanceVar<G, C>,
-        proof_var: &ProofVar<G, C>,
+        verifier_key: &VerifierKeyVar<G, C>,
+        input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        accumulator_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        new_accumulator_instance: &InputInstanceVar<G, C>,
+        proof: &ProofVar<G, C>,
     ) -> Result<Boolean<<G::BaseField as Field>::BasePrimeField>, SynthesisError> {
-        let mut verify_result_var = Boolean::TRUE;
+        let mut verify_result = Boolean::TRUE;
 
-        if new_accumulator_instance_var
-            .ipa_commitment_var
-            .shifted_comm_var
+        if new_accumulator_instance
+            .ipa_commitment
+            .shifted_comm
             .is_some()
         {
             return Ok(Boolean::FALSE);
@@ -325,67 +325,67 @@ where
 
         // TODO: Revert for hiding
         /*
-        let linear_polynomial_commitment_var = Self::deterministic_commit_to_linear_polynomial_var(
-            &verifier_key_var.ipa_ck_linear_var,
-            &proof_var.random_linear_polynomial_coeff_vars,
+        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
+            &verifier_key.ipa_ck_linear,
+            &proof.random_linear_polynomial_coeffs,
         )?;
 
-        verify_result_var = verify_result_var.and(
-            &linear_polynomial_commitment_var
-                .is_eq(&proof_var.random_linear_polynomial_commitment_var)?,
+        verify_result = verify_result.and(
+            &linear_polynomial_commitment
+                .is_eq(&proof.random_linear_polynomial_commitment)?,
         )?;
 
          */
 
         let _cost = cs.num_constraints();
-        let succinct_check_result_var = Self::succinct_check_input_vars(
-            ns!(cs, "succinct_check_results_var").cs(),
-            &verifier_key_var.ipa_vk_var,
-            input_instance_vars
+        let succinct_check_result = Self::succinct_check_inputs(
+            ns!(cs, "succinct_check_results").cs(),
+            &verifier_key.ipa_vk,
+            input_instances
                 .into_iter()
-                .chain(accumulator_instance_vars),
+                .chain(accumulator_instances),
         )?;
         /*
         println!(
-            "Cost of succinct_check_input_vars: {:?}",
+            "Cost of succinct_check_inputs: {:?}",
             cs.num_constraints() - cost
         );
          */
 
         let _cost = cs.num_constraints();
         let (
-            combined_succinct_check_result_var,
-            combined_commitment_var,
-            combined_check_poly_addend_vars,
-            challenge_var,
-        ) = Self::combine_succinct_check_vars_and_proof_var(
-            ns!(cs, "combine_succinct_check_vars_and_proof_var").cs(),
-            &verifier_key_var.ipa_vk_var,
-            &succinct_check_result_var,
-            &proof_var,
+            combined_succinct_check_result,
+            combined_commitment,
+            combined_check_poly_addends,
+            challenge,
+        ) = Self::combine_succinct_checks_and_proof(
+            ns!(cs, "combine_succinct_checks_and_proof").cs(),
+            &verifier_key.ipa_vk,
+            &succinct_check_result,
+            &proof,
         )?;
         /*
         println!(
-            "Cost of combine_succinct_check_vars: {:?}",
+            "Cost of combine_succinct_checks: {:?}",
             cs.num_constraints() - cost
         );
 
          */
 
-        verify_result_var = verify_result_var.and(&combined_succinct_check_result_var)?;
+        verify_result = verify_result.and(&combined_succinct_check_result)?;
 
-        verify_result_var = verify_result_var.and(
-            &combined_commitment_var
-                .is_eq(&new_accumulator_instance_var.ipa_commitment_var.comm_var)?,
+        verify_result = verify_result.and(
+            &combined_commitment
+                .is_eq(&new_accumulator_instance.ipa_commitment.comm)?,
         )?;
 
-        verify_result_var = verify_result_var
-            .and(&challenge_var.is_eq(&new_accumulator_instance_var.point_var)?)?;
+        verify_result = verify_result
+            .and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
 
         let _cost = cs.num_constraints();
-        let eval_var = Self::evaluate_combined_check_polynomial_vars(
-            combined_check_poly_addend_vars,
-            &challenge_var,
+        let eval = Self::evaluate_combined_check_polynomials(
+            combined_check_poly_addends,
+            &challenge,
         )?;
         /*
         println!(
@@ -398,17 +398,17 @@ where
 
         // TODO: Revert for hiding
         /*
-        eval_var += Self::evaluate_linear_polynomial_var(
-            &proof_var.random_linear_polynomial_coeff_vars,
-            &challenge_var,
+        eval += Self::evaluate_linear_polynomial(
+            &proof.random_linear_polynomial_coeffs,
+            &challenge,
         );
 
          */
 
-        verify_result_var = verify_result_var
-            .and(&eval_var.is_eq(&new_accumulator_instance_var.evaluation_var)?)?;
+        verify_result = verify_result
+            .and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
 
-        Ok(verify_result_var)
+        Ok(verify_result)
     }
 }
 
@@ -494,21 +494,21 @@ pub mod tests {
 
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
-        let vk_var = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
+        let vk = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
         println!(
             "Cost of declaring verifier_key {:?}",
             cs.num_constraints() - cost
         );
 
         let cost = cs.num_constraints();
-        let new_input_instance_var = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
+        let new_input_instance = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
             Ok(new_input.instance.clone())
         })
         .unwrap();
         println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
 
         let cost = cs.num_constraints();
-        let old_accumulator_instance_var =
+        let old_accumulator_instance =
             InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
                 Ok(old_accumulator.instance.clone())
             })
@@ -520,7 +520,7 @@ pub mod tests {
         );
 
         let cost = cs.num_constraints();
-        let new_accumulator_instance_var =
+        let new_accumulator_instance =
             InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
                 Ok(new_accumulator.instance.clone())
             })
@@ -531,15 +531,15 @@ pub mod tests {
             cs.num_constraints() - cost
         );
 
-        let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
+        let proof = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
         DLAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             ns!(cs, "dl_as_verify").cs(),
-            &vk_var,
-            vec![&new_input_instance_var],
-            vec![&old_accumulator_instance_var],
-            &new_accumulator_instance_var,
-            &proof_var,
+            &vk,
+            vec![&new_input_instance],
+            vec![&old_accumulator_instance],
+            &new_accumulator_instance,
+            &proof,
         )
         .unwrap()
         .enforce_equal(&Boolean::TRUE)

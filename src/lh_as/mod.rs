@@ -7,7 +7,7 @@ use crate::std::vec::Vec;
 use crate::AidedAccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, PrimeField, Zero};
-use ark_poly_commit::lh_pc::error::LHPCError;
+use ark_poly_commit::lh_pc::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
     lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
