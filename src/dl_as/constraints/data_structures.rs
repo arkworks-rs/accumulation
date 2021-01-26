@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::dl_as::data_structures::{
     InputInstance, IsSpongeForAccSchemeParam, Proof, SpongeForAccSchemeParam, SpongeForPCParam,
     VerifierKey,

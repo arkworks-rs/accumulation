@@ -2,7 +2,6 @@ use crate::data_structures::{Accumulator, Input};
 use crate::error::{ASError, BoxedError};
 use crate::hp_as::data_structures::{InputInstance, InputWitness, Proof};
 use crate::AidedAccumulationScheme;
-use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::One;
 use ark_ff::Zero;
@@ -606,7 +605,7 @@ pub mod tests {
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
             let mut rng = test_rng();
-            let pp = PedersenCommitment::setup(test_params.0, &mut rng).unwrap();
+            let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
             ((ck, test_params.1), pp, test_params.0)
         }

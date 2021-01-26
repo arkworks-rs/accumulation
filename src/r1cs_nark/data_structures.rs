@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::Field;
+use ark_poly_commit::pedersen::*;
 use ark_relations::r1cs::*;
 
 /// The public parameters of this NARK.
@@ -20,8 +20,9 @@ pub struct IndexInfo {
     pub matrices_hash: [u8; 32],
 }
 
-/// The index for our NARK.
-pub struct Index<G: AffineCurve> {
+/// The index prover key for our NARK.
+#[derive(Clone)]
+pub struct IndexProverKey<G: AffineCurve> {
     /// Information about the index.
     pub index_info: IndexInfo,
 
@@ -33,27 +34,33 @@ pub struct Index<G: AffineCurve> {
     pub c: Matrix<G::ScalarField>,
 
     /// The group elements required by the Pedersen commitment.
-    pub ck: Vec<G>,
+    pub ck: CommitterKey<G>,
 }
 
-pub struct SigmaProtocolCommitment<G: AffineCurve> {
-    pub comm_a: G,
-    pub comm_b: G,
-    pub comm_c: G,
-    pub comm_rand_a: G,
-    pub comm_rand_b: G,
-    pub comm_rand_c: G,
-    pub comm_1: G,
-    pub comm_2: G,
+/// Index verifier key for our NARK. 
+pub type IndexVerifierKey<G> = IndexProverKey<G>;
+
+pub struct FirstRoundMessage<G: AffineCurve> {
+    pub comm_a: Commitment<G>,
+    pub comm_b: Commitment<G>,
+    pub comm_c: Commitment<G>,
+    pub comm_r_a: Option<Commitment<G>>,
+    pub comm_r_b: Option<Commitment<G>>,
+    pub comm_r_c: Option<Commitment<G>>,
+    pub comm_1: Option<Commitment<G>>,
+    pub comm_2: Option<Commitment<G>>,
 }
 
-pub struct SigmaProtocolResponse<G: AffineCurve> {
-    pub blinded_witness: Vec<G::ScalarField>,
-    pub blinded_lin_comb_rand: G::ScalarField,
-    pub blinded_cross_term_rand: G::ScalarField,
+pub struct SecondRoundMessage<F: Field> {
+    pub blinded_witness: Vec<F>,
+    pub sigma_a: Option<F>,
+    pub sigma_b: Option<F>,
+    pub sigma_c: Option<F>,
+    pub sigma_o: Option<F>,
 }
 
 /// The proof for our NARK.
 pub struct Proof<G: AffineCurve> {
-    comm_a: G
+    pub first_msg: FirstRoundMessage<G>,
+    pub second_msg: SecondRoundMessage<G::ScalarField>,
 }

@@ -1,10 +1,9 @@
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::marker::PhantomData;
@@ -176,7 +175,6 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSystem, TracingMode};
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 

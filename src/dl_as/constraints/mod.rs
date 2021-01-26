@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{Field, One};
+use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
@@ -9,7 +9,6 @@ use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
@@ -324,20 +323,17 @@ where
         }
 
         // TODO: Revert for hiding
-        /*
-        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-            &verifier_key.ipa_ck_linear,
-            &proof.random_linear_polynomial_coeffs,
-        )?;
+        // let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
+        //     &verifier_key.ipa_ck_linear,
+        //     &proof.random_linear_polynomial_coeffs,
+        // )?;
 
-        verify_result = verify_result.and(
-            &linear_polynomial_commitment
-                .is_eq(&proof.random_linear_polynomial_commitment)?,
-        )?;
+        // verify_result = verify_result.and(
+        //     &linear_polynomial_commitment
+        //         .is_eq(&proof.random_linear_polynomial_commitment)?,
+        // )?;
 
-         */
-
-        let _cost = cs.num_constraints();
+        // let cost = cs.num_constraints();
         let succinct_check_result = Self::succinct_check_inputs(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_vk,
@@ -345,14 +341,12 @@ where
                 .into_iter()
                 .chain(accumulator_instances),
         )?;
-        /*
-        println!(
-            "Cost of succinct_check_inputs: {:?}",
-            cs.num_constraints() - cost
-        );
-         */
+        // println!(
+        //     "Cost of succinct_check_inputs: {:?}",
+        //     cs.num_constraints() - cost
+        // );
 
-        let _cost = cs.num_constraints();
+        // let cost = cs.num_constraints();
         let (
             combined_succinct_check_result,
             combined_commitment,
@@ -382,7 +376,6 @@ where
         verify_result = verify_result
             .and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
 
-        let _cost = cs.num_constraints();
         let eval = Self::evaluate_combined_check_polynomials(
             combined_check_poly_addends,
             &challenge,
