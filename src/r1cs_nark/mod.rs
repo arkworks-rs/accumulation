@@ -33,6 +33,34 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
 {
+
+    pub fn compute_challenge(index_info: &IndexInfo, input: &[G::ScalarField], msg: &FirstRoundMessage<G>, make_zk: bool) -> G::ScalarField {
+        let mut sponge = S::new();
+        sponge.absorb(&index_info.matrices_hash.as_ref());
+        let input_bytes = input.iter().flat_map(|inp| inp.into_repr().to_bytes_le()).collect::<Vec<_>>();
+        sponge.absorb(&input_bytes);
+        absorb![
+            &mut sponge,
+            &msg.comm_a.0.to_field_elements().unwrap(),
+            &msg.comm_b.0.to_field_elements().unwrap(),
+            &msg.comm_c.0.to_field_elements().unwrap()
+        ];
+        if make_zk {
+            absorb![
+                &mut sponge,
+                &msg.comm_r_a.unwrap().0.to_field_elements().unwrap(),
+                &msg.comm_r_b.unwrap().0.to_field_elements().unwrap(),
+                &msg.comm_r_c.unwrap().0.to_field_elements().unwrap(),
+                &msg.comm_1.unwrap().0.to_field_elements().unwrap(),
+                &msg.comm_2.unwrap().0.to_field_elements().unwrap()
+            ];
+        }
+        let gamma: G::ScalarField = sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+            num_bits: 128,
+        }])[0];
+        gamma
+    }
+
     pub fn setup() -> PublicParameters {}
 
     pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(
@@ -138,7 +166,6 @@ where
         let comm_b = PedersenCommitment::commit(&ipk.ck, &z_b, b_blinder).unwrap();
         let comm_c = PedersenCommitment::commit(&ipk.ck, &z_c, c_blinder).unwrap();
 
-
         let mut r = None;
         let (mut comm_r_a, mut comm_r_b, mut comm_r_c) = (None, None, None);
         let (mut comm_1, mut comm_2) = (None, None);
@@ -183,29 +210,18 @@ where
             blinder_2 = Some(G::ScalarField::rand(rng));
             comm_2 = Some(PedersenCommitment::commit(&ipk.ck, &r_a_r_b_product, blinder_2).unwrap());
         }
-        let mut sponge = S::new();
-        sponge.absorb(&ipk.index_info.matrices_hash.as_ref());
-        let input_bytes = input.iter().flat_map(|inp| inp.into_repr().to_bytes_le()).collect::<Vec<_>>();
-        sponge.absorb(&input_bytes);
-        absorb![
-            &mut sponge,
-            &comm_a.0.to_field_elements().unwrap(),
-            &comm_b.0.to_field_elements().unwrap(),
-            &comm_c.0.to_field_elements().unwrap()
-        ];
-        if make_zk {
-            absorb![
-                &mut sponge,
-                &comm_r_a.unwrap().0.to_field_elements().unwrap(),
-                &comm_r_b.unwrap().0.to_field_elements().unwrap(),
-                &comm_r_c.unwrap().0.to_field_elements().unwrap(),
-                &comm_1.unwrap().0.to_field_elements().unwrap(),
-                &comm_2.unwrap().0.to_field_elements().unwrap()
-            ];
-        }
-        let gamma: G::ScalarField = sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-            num_bits: 128,
-        }])[0];
+        let first_msg = FirstRoundMessage {
+            comm_a,
+            comm_b,
+            comm_c,
+            comm_r_a,
+            comm_r_b,
+            comm_r_c,
+            comm_1,
+            comm_2,
+        };
+
+        let gamma = Self::compute_challenge(&ipk.index_info, &input, &first_msg, make_zk);
 
         let mut blinded_witness = witness;
         let (mut sigma_a, mut sigma_b, mut sigma_c) = (None, None, None);
@@ -218,16 +234,6 @@ where
             sigma_o = c_blinder.map(|c_blinder| c_blinder + gamma * blinder_1.unwrap() + gamma.square() * blinder_2.unwrap());
         }
 
-        let first_msg = FirstRoundMessage {
-            comm_a,
-            comm_b,
-            comm_c,
-            comm_r_a,
-            comm_r_b,
-            comm_r_c,
-            comm_1,
-            comm_2,
-        };
         let second_msg = SecondRoundMessage {
             blinded_witness,
             sigma_a,
@@ -243,34 +249,9 @@ where
 
     pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>) -> bool {
         let make_zk = proof.make_zk;
-        // Compute gamma
-        let mut sponge = S::new();
-        // Absorb matrices
-        sponge.absorb(&ivk.index_info.matrices_hash.as_ref());
-        // Absorb input
-        let input_bytes = input.iter().flat_map(|inp| inp.into_repr().to_bytes_le()).collect::<Vec<_>>();
-        sponge.absorb(&input_bytes);
+        
+        let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, make_zk);
 
-        // Absorb proof.
-        absorb![
-            &mut sponge,
-            &proof.first_msg.comm_a.0.to_field_elements().unwrap(),
-            &proof.first_msg.comm_b.0.to_field_elements().unwrap(),
-            &proof.first_msg.comm_c.0.to_field_elements().unwrap()
-        ];
-        if make_zk {
-            absorb![
-                &mut sponge,
-                &proof.first_msg.comm_r_a.unwrap().0.to_field_elements().unwrap(),
-                &proof.first_msg.comm_r_b.unwrap().0.to_field_elements().unwrap(),
-                &proof.first_msg.comm_r_c.unwrap().0.to_field_elements().unwrap(),
-                &proof.first_msg.comm_1.unwrap().0.to_field_elements().unwrap(),
-                &proof.first_msg.comm_2.unwrap().0.to_field_elements().unwrap()
-            ];
-        }
-        let gamma: G::ScalarField = sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-            num_bits: 128,
-        }])[0];
         let a_times_blinded_witness = matrix_vec_mul(&ivk.a, input, &proof.second_msg.blinded_witness);
         let b_times_blinded_witness = matrix_vec_mul(&ivk.b, input, &proof.second_msg.blinded_witness);
         let c_times_blinded_witness = matrix_vec_mul(&ivk.c, input, &proof.second_msg.blinded_witness);
