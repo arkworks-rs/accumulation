@@ -604,7 +604,6 @@ pub mod tests {
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateParams,
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let mut rng = test_rng();
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
             ((ck, test_params.1), pp, test_params.0)

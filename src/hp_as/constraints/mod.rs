@@ -184,7 +184,7 @@ pub mod tests {
     //type ConstraintF = ark_pallas::Fq;
     type G = ark_ed_on_bls12_381::EdwardsAffine;
     type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
+    // type F = ark_ed_on_bls12_381::Fr;
     type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type AS = HPAidedAccumulationScheme<G, ConstraintF, PoseidonSponge<ConstraintF>>;

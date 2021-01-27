@@ -1,9 +1,9 @@
-use ark_relations::r1cs::{ConstraintSystem, OptimizationGoal, SynthesisMode, SynthesisError, ConstraintSynthesizer};
+use ark_relations::r1cs::{Matrix, ConstraintSystem, OptimizationGoal, SynthesisMode, SynthesisError, ConstraintSynthesizer};
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::*;
-use ark_std::{UniformRand, marker::PhantomData, cfg_iter};
+use ark_std::{UniformRand, marker::PhantomData, cfg_iter, cfg_into_iter};
 use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, PrimeField, Field, ToConstraintField, Zero, One};
+use ark_ff::{BigInteger, PrimeField, Field, ToConstraintField, Zero};
 use ark_poly_commit::pedersen::*;
 use blake2::{VarBlake2b, digest::VariableOutput};
 use rand_core::RngCore;
@@ -118,25 +118,10 @@ where
         assert_eq!(ipk.index_info.num_variables, num_variables);
         assert_eq!(ipk.index_info.num_constraints, num_constraints);
 
-        // Perform matrix multiplications
-        let inner_prod_fn = |row: &[(G::ScalarField, usize)], input: &[G::ScalarField], witness: &[G::ScalarField]| {
-            let mut acc = G::ScalarField::zero();
-            for &(ref coeff, i) in row {
-                let tmp = if i < input.len() {
-                    input[i]
-                } else {
-                    witness[i - input.len()]
-                };
-
-                acc += &(if coeff.is_one() { tmp } else { tmp * coeff });
-            }
-            acc
-        };
-
         let eval_z_m_time = start_timer!(|| "Evaluating z_M");
-        let z_a = ark_std::cfg_iter!(ipk.a).map(|row| inner_prod_fn(row, &input, &witness)).collect::<Vec<_>>();
-        let z_b = ark_std::cfg_iter!(ipk.b).map(|row| inner_prod_fn(row, &input, &witness)).collect::<Vec<_>>();
-        let z_c = ark_std::cfg_iter!(ipk.c).map(|row| inner_prod_fn(row, &input, &witness)).collect::<Vec<_>>();
+        let z_a = matrix_vec_mul(&ipk.a, &input, &witness);
+        let z_b = matrix_vec_mul(&ipk.b, &input, &witness);
+        let z_c = matrix_vec_mul(&ipk.c, &input, &witness);
         end_timer!(eval_z_m_time);
 
         // Sample blinders for z_a, z_b, z_c.
@@ -171,9 +156,9 @@ where
 
             // Compute r_a, r_b, r_c.
             let eval_r_m_time = start_timer!(|| "Evaluating r_M");
-            let r_a = ark_std::cfg_iter!(ipk.a).map(|row| inner_prod_fn(row, &zeros, r_ref)).collect::<Vec<_>>();
-            let r_b = ark_std::cfg_iter!(ipk.b).map(|row| inner_prod_fn(row, &zeros, r_ref)).collect::<Vec<_>>();
-            let r_c = ark_std::cfg_iter!(ipk.c).map(|row| inner_prod_fn(row, &zeros, r_ref)).collect::<Vec<_>>();
+            let r_a = matrix_vec_mul(&ipk.a, &zeros, r_ref);
+            let r_b = matrix_vec_mul(&ipk.b, &zeros, r_ref);
+            let r_c = matrix_vec_mul(&ipk.c, &zeros, r_ref);
             end_timer!(eval_r_m_time);
 
             // Sample blinders for r_a, r_b, r_c.
@@ -251,12 +236,90 @@ where
             sigma_o,
         };
 
-        let proof = Proof { first_msg, second_msg };
+        let proof = Proof { first_msg, second_msg, make_zk };
         end_timer!(init_time);
         Ok(proof)
     }
 
-    pub fn verify() {
+    pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>) -> bool {
+        let make_zk = proof.make_zk;
+        // Compute gamma
+        let mut sponge = S::new();
+        // Absorb matrices
+        sponge.absorb(&ivk.index_info.matrices_hash.as_ref());
+        // Absorb input
+        let input_bytes = input.iter().flat_map(|inp| inp.into_repr().to_bytes_le()).collect::<Vec<_>>();
+        sponge.absorb(&input_bytes);
 
+        // Absorb proof.
+        absorb![
+            &mut sponge,
+            &proof.first_msg.comm_a.0.to_field_elements().unwrap(),
+            &proof.first_msg.comm_b.0.to_field_elements().unwrap(),
+            &proof.first_msg.comm_c.0.to_field_elements().unwrap()
+        ];
+        if make_zk {
+            absorb![
+                &mut sponge,
+                &proof.first_msg.comm_r_a.unwrap().0.to_field_elements().unwrap(),
+                &proof.first_msg.comm_r_b.unwrap().0.to_field_elements().unwrap(),
+                &proof.first_msg.comm_r_c.unwrap().0.to_field_elements().unwrap(),
+                &proof.first_msg.comm_1.unwrap().0.to_field_elements().unwrap(),
+                &proof.first_msg.comm_2.unwrap().0.to_field_elements().unwrap()
+            ];
+        }
+        let gamma: G::ScalarField = sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+            num_bits: 128,
+        }])[0];
+        let a_times_blinded_witness = matrix_vec_mul(&ivk.a, input, &proof.second_msg.blinded_witness);
+        let b_times_blinded_witness = matrix_vec_mul(&ivk.b, input, &proof.second_msg.blinded_witness);
+        let c_times_blinded_witness = matrix_vec_mul(&ivk.c, input, &proof.second_msg.blinded_witness);
+        let mut comm_a = proof.first_msg.comm_a.0.into_projective();
+        let mut comm_b = proof.first_msg.comm_b.0.into_projective();
+        let mut comm_c = proof.first_msg.comm_c.0.into_projective();
+        if make_zk {
+            comm_a += proof.first_msg.comm_r_a.unwrap().0.mul(gamma);
+            comm_b += proof.first_msg.comm_r_b.unwrap().0.mul(gamma);
+            comm_c += proof.first_msg.comm_r_c.unwrap().0.mul(gamma);
+        }
+
+        let reconstructed_comm_a = PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a).unwrap();
+        let reconstructed_comm_b = PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b).unwrap();
+        let reconstructed_comm_c = PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c).unwrap();
+        let a_equal = comm_a == reconstructed_comm_a.0.into_projective();
+        let b_equal = comm_b == reconstructed_comm_b.0.into_projective();
+        let c_equal = comm_c == reconstructed_comm_c.0.into_projective();
+        drop(c_times_blinded_witness);
+
+        let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness).zip(b_times_blinded_witness).map(|(a, b)| a * b).collect();
+        let reconstructed_had_prod_comm = PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o).unwrap();
+
+        let mut had_prod_comm = proof.first_msg.comm_c.0.into_projective();
+        if make_zk {
+            had_prod_comm += proof.first_msg.comm_1.unwrap().0.mul(gamma);
+            had_prod_comm += proof.first_msg.comm_2.unwrap().0.mul(gamma);
+        }
+        let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.0.into_projective();
+        a_equal & b_equal & c_equal & had_prod_equal
     }
+}
+
+// Computes `matrix * (input || witness)`.
+fn matrix_vec_mul<F: Field>(matrix: &Matrix<F>, input: &[F], witness: &[F]) -> Vec<F> {
+    ark_std::cfg_iter!(matrix).map(|row| inner_prod(row, input, witness)).collect()
+}
+
+// Computes the inner product of `row` and `input || witness`
+fn inner_prod<F: Field>(row: &[(F, usize)], input: &[F], witness: &[F]) -> F {
+    let mut acc = F::zero();
+    for &(ref coeff, i) in row {
+        let tmp = if i < input.len() {
+            input[i]
+        } else {
+            witness[i - input.len()]
+        };
+
+        acc += &(if coeff.is_one() { tmp } else { tmp * coeff });
+    }
+    acc
 }

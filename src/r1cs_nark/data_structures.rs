@@ -63,4 +63,5 @@ pub struct SecondRoundMessage<F: Field> {
 pub struct Proof<G: AffineCurve> {
     pub first_msg: FirstRoundMessage<G>,
     pub second_msg: SecondRoundMessage<G::ScalarField>,
+    pub make_zk: bool,
 }
