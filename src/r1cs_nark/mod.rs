@@ -89,7 +89,8 @@ where
 
         end_timer!(matrix_processing_time);
 
-        let mut serialized_matrices = Vec::new();
+        let mut serialized_matrices = b"Simple-R1CS-NARK-2020".to_vec();
+        serialized_matrices.reserve(3 * num_constraints);
         a.serialize(&mut serialized_matrices).unwrap();
         b.serialize(&mut serialized_matrices).unwrap();
         c.serialize(&mut serialized_matrices).unwrap();
