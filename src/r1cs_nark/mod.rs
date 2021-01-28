@@ -1,23 +1,28 @@
-use ark_relations::r1cs::{Matrix, ConstraintSystem, OptimizationGoal, SynthesisMode, SynthesisError, ConstraintSynthesizer};
+use ark_ec::AffineCurve;
+use ark_ff::{BigInteger, Field, PrimeField, ToConstraintField, Zero};
+use ark_poly_commit::pedersen::*;
+use ark_relations::r1cs::{
+    ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
+    SynthesisMode,
+};
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::*;
-use ark_std::{UniformRand, marker::PhantomData, cfg_iter, cfg_into_iter};
-use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, PrimeField, Field, ToConstraintField, Zero};
-use ark_poly_commit::pedersen::*;
-use blake2::{VarBlake2b, digest::VariableOutput};
+use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
+use blake2::{digest::VariableOutput, VarBlake2b};
 use rand_core::RngCore;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-mod data_structures;
+pub mod data_structures;
 use data_structures::*;
 
 type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 type R1CSResult<T> = Result<T, SynthesisError>;
 
-/// A simple non-interactive argument of knowledge for R1CS. 
+pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
+
+/// A simple non-interactive argument of knowledge for R1CS.
 pub struct SimpleNARK<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
@@ -33,31 +38,41 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
 {
-
-    pub fn compute_challenge(index_info: &IndexInfo, input: &[G::ScalarField], msg: &FirstRoundMessage<G>, make_zk: bool) -> G::ScalarField {
+    pub fn compute_challenge(
+        index_info: &IndexInfo,
+        input: &[G::ScalarField],
+        msg: &FirstRoundMessage<G>,
+        make_zk: bool,
+    ) -> G::ScalarField {
         let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
-        let input_bytes = input.iter().flat_map(|inp| inp.into_repr().to_bytes_le()).collect::<Vec<_>>();
+        let input_bytes = input
+            .iter()
+            .flat_map(|inp| inp.into_repr().to_bytes_le())
+            .collect::<Vec<_>>();
         sponge.absorb(&input_bytes);
         absorb![
             &mut sponge,
-            &msg.comm_a.0.to_field_elements().unwrap(),
-            &msg.comm_b.0.to_field_elements().unwrap(),
-            &msg.comm_c.0.to_field_elements().unwrap()
+            &msg.comm_a.to_field_elements().unwrap(),
+            &msg.comm_b.to_field_elements().unwrap(),
+            &msg.comm_c.to_field_elements().unwrap()
         ];
         if make_zk {
             absorb![
                 &mut sponge,
-                &msg.comm_r_a.unwrap().0.to_field_elements().unwrap(),
-                &msg.comm_r_b.unwrap().0.to_field_elements().unwrap(),
-                &msg.comm_r_c.unwrap().0.to_field_elements().unwrap(),
-                &msg.comm_1.unwrap().0.to_field_elements().unwrap(),
-                &msg.comm_2.unwrap().0.to_field_elements().unwrap()
+                &msg.comm_r_a.unwrap().to_field_elements().unwrap(),
+                &msg.comm_r_b.unwrap().to_field_elements().unwrap(),
+                &msg.comm_r_c.unwrap().to_field_elements().unwrap(),
+                &msg.comm_1.unwrap().to_field_elements().unwrap(),
+                &msg.comm_2.unwrap().to_field_elements().unwrap()
             ];
         }
-        let gamma: G::ScalarField = sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-            num_bits: 128,
-        }])[0];
+
+        let gamma: G::ScalarField =
+            sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 128,
+            }])[0];
+
         gamma
     }
 
@@ -79,7 +94,7 @@ where
         let matrix_processing_time = start_timer!(|| "Processing matrices");
         ics.finalize();
 
-        let matrices = ics.to_matrices().expect("should not be `None`");    
+        let matrices = ics.to_matrices().expect("should not be `None`");
         let (a, b, c) = (matrices.a, matrices.b, matrices.c);
         let (num_input_variables, num_witness_variables, num_constraints) = (
             ics.num_instance_variables(),
@@ -89,16 +104,7 @@ where
 
         end_timer!(matrix_processing_time);
 
-        let mut serialized_matrices = b"Simple-R1CS-NARK-2020".to_vec();
-        serialized_matrices.reserve(3 * num_constraints);
-        a.serialize(&mut serialized_matrices).unwrap();
-        b.serialize(&mut serialized_matrices).unwrap();
-        c.serialize(&mut serialized_matrices).unwrap();
-
-        let mut hasher = VarBlake2b::new(32).unwrap();
-        digest::Update::update(&mut hasher, &serialized_matrices);
-        let mut matrices_hash = [0u8; 32];
-        hasher.finalize_variable(|res| matrices_hash.copy_from_slice(res));
+        let matrices_hash = hash_matrices(PROTOCOL_NAME, &a, &b, &c);
 
         let num_variables = num_input_variables + num_witness_variables;
         let pp = PedersenCommitment::setup(num_constraints).unwrap();
@@ -109,7 +115,13 @@ where
             num_instance_variables: num_input_variables,
             matrices_hash,
         };
-        let ipk = IndexProverKey { index_info, a, b, c, ck };
+        let ipk = IndexProverKey {
+            index_info,
+            a,
+            b,
+            c,
+            ck,
+        };
         let ivk = ipk.clone();
         Ok((ipk, ivk))
     }
@@ -118,7 +130,7 @@ where
         ipk: &IndexProverKey<G>,
         r1cs: C,
         make_zk: bool,
-        mut rng: Option<&mut dyn RngCore>
+        mut rng: Option<&mut dyn RngCore>,
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover");
 
@@ -164,9 +176,15 @@ where
 
         let commit_time = start_timer!(|| "Committing to z_A, z_B, and z_C");
         // Compute hiding commitments to z_a, z_b, z_c.
-        let comm_a = PedersenCommitment::commit(&ipk.ck, &z_a, a_blinder).unwrap();
-        let comm_b = PedersenCommitment::commit(&ipk.ck, &z_b, b_blinder).unwrap();
-        let comm_c = PedersenCommitment::commit(&ipk.ck, &z_c, c_blinder).unwrap();
+        let comm_a = PedersenCommitment::commit(&ipk.ck, &z_a, a_blinder)
+            .unwrap()
+            .0;
+        let comm_b = PedersenCommitment::commit(&ipk.ck, &z_b, b_blinder)
+            .unwrap()
+            .0;
+        let comm_c = PedersenCommitment::commit(&ipk.ck, &z_c, c_blinder)
+            .unwrap()
+            .0;
         end_timer!(commit_time);
 
         let mut r = None;
@@ -200,27 +218,53 @@ where
 
             // Commit to r_a, r_b, r_c.
             let commit_time = start_timer!(|| "Committing to r_A, r_B, r_C");
-            comm_r_a = Some(PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder).unwrap());
-            comm_r_b = Some(PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder).unwrap());
-            comm_r_c = Some(PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder).unwrap());
+            comm_r_a = Some(
+                PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder)
+                    .unwrap()
+                    .0,
+            );
+            comm_r_b = Some(
+                PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder)
+                    .unwrap()
+                    .0,
+            );
+            comm_r_c = Some(
+                PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder)
+                    .unwrap()
+                    .0,
+            );
             end_timer!(commit_time);
 
             // Commit to z_a ○ r_b + z_b ○ r_a.
             let cross_prod_time = start_timer!(|| "Computing cross product z_a ○ r_b + z_b ○ r_a");
             let z_a_times_r_b = cfg_iter!(z_a).zip(&r_b);
             let z_b_times_r_a = cfg_iter!(z_b).zip(&r_a);
-            let cross_product: Vec<_> = z_a_times_r_b.zip(z_b_times_r_a).map(|((z_a, r_b), (z_b, r_a))| *z_a * r_b + *z_b * r_a).collect();
+            let cross_product: Vec<_> = z_a_times_r_b
+                .zip(z_b_times_r_a)
+                .map(|((z_a, r_b), (z_b, r_a))| *z_a * r_b + *z_b * r_a)
+                .collect();
             end_timer!(cross_prod_time);
             blinder_1 = Some(G::ScalarField::rand(rng));
             let commit_time = start_timer!(|| "Committing to cross product");
-            comm_1 = Some(PedersenCommitment::commit(&ipk.ck, &cross_product, blinder_1).unwrap());
+            comm_1 = Some(
+                PedersenCommitment::commit(&ipk.ck, &cross_product, blinder_1)
+                    .unwrap()
+                    .0,
+            );
             end_timer!(commit_time);
 
             // Commit to r_a ○ r_b.
             let commit_time = start_timer!(|| "Committing to r_a ○ r_b");
-            let r_a_r_b_product: Vec<_> = cfg_iter!(r_a).zip(r_b).map(|(r_a, r_b)| r_b * r_a).collect();
+            let r_a_r_b_product: Vec<_> = cfg_iter!(r_a)
+                .zip(r_b)
+                .map(|(r_a, r_b)| r_b * r_a)
+                .collect();
             blinder_2 = Some(G::ScalarField::rand(rng));
-            comm_2 = Some(PedersenCommitment::commit(&ipk.ck, &r_a_r_b_product, blinder_2).unwrap());
+            comm_2 = Some(
+                PedersenCommitment::commit(&ipk.ck, &r_a_r_b_product, blinder_2)
+                    .unwrap()
+                    .0,
+            );
             end_timer!(commit_time);
         }
         let first_msg = FirstRoundMessage {
@@ -240,11 +284,15 @@ where
         let (mut sigma_a, mut sigma_b, mut sigma_c) = (None, None, None);
         let mut sigma_o = None;
         if make_zk {
-            ark_std::cfg_iter_mut!(blinded_witness).zip(r.unwrap()).for_each(|(s, r)| *s += gamma * r);
+            ark_std::cfg_iter_mut!(blinded_witness)
+                .zip(r.unwrap())
+                .for_each(|(s, r)| *s += gamma * r);
             sigma_a = a_blinder.map(|a_blinder| a_blinder + gamma * r_a_blinder.unwrap());
             sigma_b = b_blinder.map(|b_blinder| b_blinder + gamma * r_b_blinder.unwrap());
             sigma_c = c_blinder.map(|c_blinder| c_blinder + gamma * r_c_blinder.unwrap());
-            sigma_o = c_blinder.map(|c_blinder| c_blinder + gamma * blinder_1.unwrap() + gamma.square() * blinder_2.unwrap());
+            sigma_o = c_blinder.map(|c_blinder| {
+                c_blinder + gamma * blinder_1.unwrap() + gamma.square() * blinder_2.unwrap()
+            });
         }
 
         let second_msg = SecondRoundMessage {
@@ -255,7 +303,11 @@ where
             sigma_o,
         };
 
-        let proof = Proof { first_msg, second_msg, make_zk };
+        let proof = Proof {
+            first_msg,
+            second_msg,
+            make_zk,
+        };
         end_timer!(init_time);
         Ok(proof)
     }
@@ -263,52 +315,92 @@ where
     pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
-        
+
         let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, make_zk);
 
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
-        let a_times_blinded_witness = matrix_vec_mul(&ivk.a, input, &proof.second_msg.blinded_witness);
-        let b_times_blinded_witness = matrix_vec_mul(&ivk.b, input, &proof.second_msg.blinded_witness);
-        let c_times_blinded_witness = matrix_vec_mul(&ivk.c, input, &proof.second_msg.blinded_witness);
+        let a_times_blinded_witness =
+            matrix_vec_mul(&ivk.a, input, &proof.second_msg.blinded_witness);
+        let b_times_blinded_witness =
+            matrix_vec_mul(&ivk.b, input, &proof.second_msg.blinded_witness);
+        let c_times_blinded_witness =
+            matrix_vec_mul(&ivk.c, input, &proof.second_msg.blinded_witness);
         end_timer!(mat_vec_mul_time);
-        let mut comm_a = proof.first_msg.comm_a.0.into_projective();
-        let mut comm_b = proof.first_msg.comm_b.0.into_projective();
-        let mut comm_c = proof.first_msg.comm_c.0.into_projective();
+        let mut comm_a = proof.first_msg.comm_a.into_projective();
+        let mut comm_b = proof.first_msg.comm_b.into_projective();
+        let mut comm_c = proof.first_msg.comm_c.into_projective();
         if make_zk {
-            comm_a += proof.first_msg.comm_r_a.unwrap().0.mul(gamma);
-            comm_b += proof.first_msg.comm_r_b.unwrap().0.mul(gamma);
-            comm_c += proof.first_msg.comm_r_c.unwrap().0.mul(gamma);
+            comm_a += proof.first_msg.comm_r_a.unwrap().mul(gamma);
+            comm_b += proof.first_msg.comm_r_b.unwrap().mul(gamma);
+            comm_c += proof.first_msg.comm_r_c.unwrap().mul(gamma);
         }
 
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
-        let reconstructed_comm_a = PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a).unwrap();
-        let reconstructed_comm_b = PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b).unwrap();
-        let reconstructed_comm_c = PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c).unwrap();
-        let a_equal = comm_a == reconstructed_comm_a.0.into_projective();
-        let b_equal = comm_b == reconstructed_comm_b.0.into_projective();
-        let c_equal = comm_c == reconstructed_comm_c.0.into_projective();
+        let reconstructed_comm_a =
+            PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a)
+                .unwrap()
+                .0;
+        let reconstructed_comm_b =
+            PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b)
+                .unwrap()
+                .0;
+        let reconstructed_comm_c =
+            PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c)
+                .unwrap()
+                .0;
+        let a_equal = comm_a == reconstructed_comm_a.into_projective();
+        let b_equal = comm_b == reconstructed_comm_b.into_projective();
+        let c_equal = comm_c == reconstructed_comm_c.into_projective();
         drop(c_times_blinded_witness);
         end_timer!(commit_time);
 
         let had_prod_time = start_timer!(|| "Computing Hadamard product and commitment to it");
-        let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness).zip(b_times_blinded_witness).map(|(a, b)| a * b).collect();
-        let reconstructed_had_prod_comm = PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o).unwrap();
+        let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness)
+            .zip(b_times_blinded_witness)
+            .map(|(a, b)| a * b)
+            .collect();
+        let reconstructed_had_prod_comm =
+            PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o)
+                .unwrap()
+                .0;
         end_timer!(had_prod_time);
 
-        let mut had_prod_comm = proof.first_msg.comm_c.0.into_projective();
+        let mut had_prod_comm = proof.first_msg.comm_c.into_projective();
         if make_zk {
-            had_prod_comm += proof.first_msg.comm_1.unwrap().0.mul(gamma);
-            had_prod_comm += proof.first_msg.comm_2.unwrap().0.mul(gamma);
+            had_prod_comm += proof.first_msg.comm_1.unwrap().mul(gamma);
+            had_prod_comm += proof.first_msg.comm_2.unwrap().mul(gamma);
         }
-        let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.0.into_projective();
+        let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }
 }
 
+pub(crate) fn hash_matrices<F: Field>(
+    domain_separator: &[u8],
+    a: &Matrix<F>,
+    b: &Matrix<F>,
+    c: &Matrix<F>,
+) -> [u8; 32] {
+    let mut serialized_matrices = domain_separator.to_vec();
+    a.serialize(&mut serialized_matrices).unwrap();
+    b.serialize(&mut serialized_matrices).unwrap();
+    c.serialize(&mut serialized_matrices).unwrap();
+
+    let mut hasher = VarBlake2b::new(32).unwrap();
+    digest::Update::update(&mut hasher, &serialized_matrices);
+
+    let mut matrices_hash = [0u8; 32];
+    hasher.finalize_variable(|res| matrices_hash.copy_from_slice(res));
+
+    matrices_hash
+}
+
 // Computes `matrix * (input || witness)`.
-fn matrix_vec_mul<F: Field>(matrix: &Matrix<F>, input: &[F], witness: &[F]) -> Vec<F> {
-    ark_std::cfg_iter!(matrix).map(|row| inner_prod(row, input, witness)).collect()
+pub(crate) fn matrix_vec_mul<F: Field>(matrix: &Matrix<F>, input: &[F], witness: &[F]) -> Vec<F> {
+    ark_std::cfg_iter!(matrix)
+        .map(|row| inner_prod(row, input, witness))
+        .collect()
 }
 
 // Computes the inner product of `row` and `input || witness`

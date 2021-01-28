@@ -355,10 +355,10 @@ where
     Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
-    type PredicateParams = ipa_pc::UniversalParams<G>;
-    type PredicateIndex = PredicateIndex;
-
     type UniversalParams = ();
+    type PredicateParams = ipa_pc::UniversalParams<G>;
+
+    type PredicateIndex = PredicateIndex;
     type ProverKey = ProverKey<G>;
     type VerifierKey = VerifierKey<G>;
     type DeciderKey = DeciderKey<G>;

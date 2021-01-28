@@ -190,9 +190,9 @@ where
     Vec<CF>: Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
+    type UniversalParams = ();
     type PredicateParams = lh_pc::UniversalParameters<G>;
     type PredicateIndex = usize;
-    type UniversalParams = ();
 
     type ProverKey = ProverKey<G, CF>;
     type VerifierKey = CF;

@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, PrimeField};
+use ark_ff::{to_bytes, PrimeField, Field};
 use ark_relations::r1cs::ToConstraintField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;
@@ -30,11 +30,11 @@ where
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct InputWitness<G: AffineCurve> {
-    pub a_vec: Vec<G::ScalarField>,
-    pub b_vec: Vec<G::ScalarField>,
+pub struct InputWitness<F: Field> {
+    pub a_vec: Vec<F>,
+    pub b_vec: Vec<F>,
     // TODO: Add hiding
-    pub randomness: Option<(G::ScalarField, G::ScalarField, G::ScalarField)>,
+    pub randomness: Option<(F, F, F)>,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]

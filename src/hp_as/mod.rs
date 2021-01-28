@@ -50,7 +50,7 @@ where
 
     // Assumes the length of a_vec and b_vec is hp_vec_len or below.
     fn compute_t_vecs(
-        input_witnesses: &[&InputWitness<G>],
+        input_witnesses: &[&InputWitness<G::ScalarField>],
         mu_challenges: &[G::ScalarField],
         hp_vec_len: usize,
     ) -> Vec<Vec<G::ScalarField>> {
@@ -262,12 +262,12 @@ where
     }
 
     fn compute_combined_hp_openings(
-        input_witnesses: &[&InputWitness<G>],
+        input_witnesses: &[&InputWitness<G::ScalarField>],
         t_randomizers: &Option<(Vec<G::ScalarField>, Vec<G::ScalarField>)>,
         mu_challenges: &[G::ScalarField],
         nu_challenges: &[G::ScalarField],
         combined_challenges: &[G::ScalarField],
-    ) -> InputWitness<G> {
+    ) -> InputWitness<G::ScalarField> {
         let num_inputs = input_witnesses.len();
 
         let a_opening_vec = Self::combine_vectors(
@@ -333,17 +333,18 @@ where
     S: CryptographicSponge<CF>,
 {
     type UniversalParams = ();
-    type PredicateParams = PedersenCommitmentPP<G>;
+    type PredicateParams = ();
     type PredicateIndex = usize;
 
     type ProverKey = PedersenCommitmentCK<G>;
+    // TODO: Change to size
     type VerifierKey = ();
     type DeciderKey = PedersenCommitmentCK<G>;
 
     type InputInstance = InputInstance<G>;
-    type InputWitness = InputWitness<G>;
+    type InputWitness = InputWitness<G::ScalarField>;
     type AccumulatorInstance = InputInstance<G>;
-    type AccumulatorWitness = InputWitness<G>;
+    type AccumulatorWitness = InputWitness<G::ScalarField>;
     type Proof = Proof<G>;
     type Error = BoxedError;
 
@@ -353,11 +354,11 @@ where
 
     fn index(
         _universal_params: &Self::UniversalParams,
-        predicate_params: &Self::PredicateParams,
+        _predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let ck = PedersenCommitment::trim(&predicate_params, *predicate_index)
-            .map_err(BoxedError::new)?;
+        let pp = PedersenCommitment::setup(*predicate_index).map_err(BoxedError::new)?;
+        let ck = PedersenCommitment::trim(&pp, *predicate_index).map_err(BoxedError::new)?;
         Ok((ck.clone(), (), ck))
     }
 
@@ -606,7 +607,7 @@ pub mod tests {
         ) {
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
-            ((ck, test_params.1), pp, test_params.0)
+            ((ck, test_params.1), (), test_params.0)
         }
 
         fn generate_inputs(

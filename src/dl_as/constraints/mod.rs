@@ -146,9 +146,8 @@ where
         let supported_degree = ipa_vk.supported_degree;
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge = SpongeVarForAccScheme::<G, S>::new(
-            ns!(cs, "linear_combination_challenge_sponge").cs(),
-        );
+        let mut linear_combination_challenge_sponge =
+            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "linear_combination_challenge_sponge").cs());
         // TODO: Reenable for hiding
         /*
         let random_coeffs = &proof.random_linear_polynomial_coeffs;
@@ -192,8 +191,7 @@ where
         //let mut combined_commitment = proof.random_linear_polynomial_commitment.clone();
         let mut combined_commitment = C::zero();
 
-        let mut combined_check_polynomial_and_addends =
-            Vec::with_capacity(succinct_checks.len());
+        let mut combined_check_polynomial_and_addends = Vec::with_capacity(succinct_checks.len());
         let mut addend_bitss = Vec::with_capacity(succinct_checks.len());
 
         for (
@@ -207,11 +205,9 @@ where
             combined_succinct_check_result =
                 combined_succinct_check_result.and(&succinct_check_result)?;
 
-            combined_commitment +=
-                &(commitment.scalar_mul_le(cur_challenge_bits.iter())?);
+            combined_commitment += &(commitment.scalar_mul_le(cur_challenge_bits.iter())?);
 
-            combined_check_polynomial_and_addends
-                .push((cur_challenge.clone(), check_polynomial));
+            combined_check_polynomial_and_addends.push((cur_challenge.clone(), check_polynomial));
 
             addend_bitss.push(cur_challenge_bits);
         }
@@ -228,8 +224,7 @@ where
 
         let mut challenge_point_sponge =
             SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge").cs());
-        challenge_point_sponge
-            .absorb(combined_commitment.to_constraint_field()?.as_slice())?;
+        challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
 
         for ((_, check_polynomial), linear_combination_challenge_bits) in
             combined_check_polynomial_and_addends
@@ -275,10 +270,7 @@ where
         ))
     }
 
-    #[tracing::instrument(
-        target = "r1cs",
-        skip(combined_check_polynomial_addends, point)
-    )]
+    #[tracing::instrument(target = "r1cs", skip(combined_check_polynomial_addends, point))]
     fn evaluate_combined_check_polynomials<'a>(
         combined_check_polynomial_addends: impl IntoIterator<
             Item = (NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>),
@@ -337,9 +329,7 @@ where
         let succinct_check_result = Self::succinct_check_inputs(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_vk,
-            input_instances
-                .into_iter()
-                .chain(accumulator_instances),
+            input_instances.into_iter().chain(accumulator_instances),
         )?;
         // println!(
         //     "Cost of succinct_check_inputs: {:?}",
@@ -368,18 +358,13 @@ where
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
-        verify_result = verify_result.and(
-            &combined_commitment
-                .is_eq(&new_accumulator_instance.ipa_commitment.comm)?,
-        )?;
-
         verify_result = verify_result
-            .and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
+            .and(&combined_commitment.is_eq(&new_accumulator_instance.ipa_commitment.comm)?)?;
 
-        let eval = Self::evaluate_combined_check_polynomials(
-            combined_check_poly_addends,
-            &challenge,
-        )?;
+        verify_result = verify_result.and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
+
+        let eval =
+            Self::evaluate_combined_check_polynomials(combined_check_poly_addends, &challenge)?;
         /*
         println!(
             "Cost of evaluate_combined_check_polynomial: {:?}",
@@ -398,8 +383,7 @@ where
 
          */
 
-        verify_result = verify_result
-            .and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
+        verify_result = verify_result.and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
 
         Ok(verify_result)
     }
@@ -513,11 +497,10 @@ pub mod tests {
         );
 
         let cost = cs.num_constraints();
-        let new_accumulator_instance =
-            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
-                Ok(new_accumulator.instance.clone())
-            })
-            .unwrap();
+        let new_accumulator_instance = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
+            Ok(new_accumulator.instance.clone())
+        })
+        .unwrap();
 
         println!(
             "Cost of declaring new accumulator {:?}",

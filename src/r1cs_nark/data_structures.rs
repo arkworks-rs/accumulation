@@ -37,18 +37,18 @@ pub struct IndexProverKey<G: AffineCurve> {
     pub ck: CommitterKey<G>,
 }
 
-/// Index verifier key for our NARK. 
+/// Index verifier key for our NARK.
 pub type IndexVerifierKey<G> = IndexProverKey<G>;
 
 pub struct FirstRoundMessage<G: AffineCurve> {
-    pub comm_a: Commitment<G>,
-    pub comm_b: Commitment<G>,
-    pub comm_c: Commitment<G>,
-    pub comm_r_a: Option<Commitment<G>>,
-    pub comm_r_b: Option<Commitment<G>>,
-    pub comm_r_c: Option<Commitment<G>>,
-    pub comm_1: Option<Commitment<G>>,
-    pub comm_2: Option<Commitment<G>>,
+    pub comm_a: G,
+    pub comm_b: G,
+    pub comm_c: G,
+    pub comm_r_a: Option<G>,
+    pub comm_r_b: Option<G>,
+    pub comm_r_c: Option<G>,
+    pub comm_1: Option<G>,
+    pub comm_2: Option<G>,
 }
 
 pub struct SecondRoundMessage<F: Field> {
