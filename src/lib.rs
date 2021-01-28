@@ -17,7 +17,7 @@
 )]
 #![forbid(unsafe_code)]
 
-use crate::data_structures::{Accumulator, Input};
+use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rand_core::RngCore;
 
@@ -39,16 +39,16 @@ pub mod error;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-//pub mod dl_as;
+pub mod dl_as;
 
-//pub mod lh_as;
+pub mod lh_as;
 
-//pub mod hp_as;
+pub mod hp_as;
 
 //pub mod r1cs_nark_as;
 
 /// A simple non-interactive argument of knowledge for R1CS
-pub mod r1cs_nark;
+//pub mod r1cs_nark;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
@@ -121,8 +121,8 @@ pub trait AidedAccumulationScheme: Sized {
     /// that that the new accumulator was computed properly from the inputs and old accumulators.
     fn prove<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = &'a Input<Self>>,
-        accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
         rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
@@ -142,9 +142,9 @@ pub trait AidedAccumulationScheme: Sized {
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
-    fn decide(
+    fn decide<'a>(
         decider_key: &Self::DeciderKey,
-        accumulator: &Accumulator<Self>,
+        accumulator: AccumulatorRef<'a, Self>,
     ) -> Result<bool, Self::Error>;
 }
 
@@ -214,13 +214,17 @@ pub mod tests {
                 let inputs = &inputs[inputs_start..(inputs_start + num_inputs)];
                 inputs_start += num_inputs;
 
-                let (accumulator, proof) =
-                    A::prove(&pk, inputs, &old_accumulators, Some(&mut rng))?;
+                let (accumulator, proof) = A::prove(
+                    &pk,
+                    Input::<A>::map_to_refs(inputs),
+                    Accumulator::<A>::map_to_refs(&old_accumulators),
+                    Some(&mut rng),
+                )?;
 
                 if !A::verify(
                     &vk,
-                    Input::instances(inputs),
-                    Accumulator::instances(&old_accumulators),
+                    Input::<A>::instances(inputs),
+                    Accumulator::<A>::instances(&old_accumulators),
                     &accumulator.instance,
                     &proof,
                 )? {
@@ -232,7 +236,7 @@ pub mod tests {
             }
 
             assert!(old_accumulators.len() > 0);
-            if !A::decide(&dk, old_accumulators.last().unwrap())? {
+            if !A::decide(&dk, old_accumulators.last().unwrap().as_ref())? {
                 println!("Decide failed");
                 return Ok(false);
             }

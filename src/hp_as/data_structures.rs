@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, PrimeField, Field};
+use ark_ff::{to_bytes, Field, PrimeField};
 use ark_relations::r1cs::ToConstraintField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;

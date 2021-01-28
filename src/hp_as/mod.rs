@@ -1,4 +1,4 @@
-use crate::data_structures::{Accumulator, Input};
+use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::hp_as::data_structures::{InputInstance, InputWitness, Proof};
 use crate::AidedAccumulationScheme;
@@ -364,21 +364,21 @@ where
 
     fn prove<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = &'a Input<Self>>,
-        accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
         mut rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();
+        let inputs: Vec<InputRef<'a, Self>> = inputs.into_iter().collect();
+        let accumulators: Vec<AccumulatorRef<'a, Self>> = accumulators.into_iter().collect();
 
         // Combine inputs and accumulators to be processed together
         let input_instances = inputs
             .iter()
-            .map(|input| &input.instance)
-            .chain(accumulators.iter().map(|accumulator| &accumulator.instance))
+            .map(|input| input.instance)
+            .chain(accumulators.iter().map(|accumulator| accumulator.instance))
             .collect::<Vec<_>>();
 
         if input_instances.len() == 0 {
@@ -389,8 +389,8 @@ where
 
         let input_witnesses = inputs
             .iter()
-            .map(|input| &input.witness)
-            .chain(accumulators.iter().map(|accumulator| &accumulator.witness))
+            .map(|input| input.witness)
+            .chain(accumulators.iter().map(|accumulator| accumulator.witness))
             .collect::<Vec<_>>();
 
         let has_hiding = input_witnesses.iter().fold(false, |has_hiding, witness| {
@@ -465,7 +465,7 @@ where
             combined_challenges.as_slice(),
         );
 
-        let accumulator = Accumulator {
+        let accumulator = Accumulator::<Self> {
             instance: accumulator_instance,
             witness: accumulator_witness,
         };
@@ -539,10 +539,10 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: &Accumulator<Self>,
+        accumulator: AccumulatorRef<Self>,
     ) -> Result<bool, Self::Error> {
-        let instance = &accumulator.instance;
-        let witness = &accumulator.witness;
+        let instance = accumulator.instance;
+        let witness = accumulator.witness;
         let randomness = witness.randomness.as_ref();
 
         let a_vec = &witness.a_vec;
@@ -669,7 +669,7 @@ pub mod tests {
                         b_vec,
                         randomness,
                     };
-                    Input { instance, witness }
+                    Input::<HPAidedAccumulationScheme<G, CF, S>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }

@@ -1,4 +1,4 @@
-use crate::data_structures::{Accumulator, Input};
+use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
@@ -92,8 +92,8 @@ where
 
     fn compute_witness_polynomials_and_commitments<'a>(
         ck: &lh_pc::CommitterKey<G>,
-        inputs: &[&'a Input<Self>],
-        accumulators: &[&'a Accumulator<Self>],
+        inputs: &[InputRef<'a, Self>],
+        accumulators: &[AccumulatorRef<'a, Self>],
         rng: &mut dyn RngCore,
     ) -> Result<
         (
@@ -108,8 +108,8 @@ where
         let mut witness_polynomials = Vec::new();
         let mut witness_commitments = Vec::new();
 
-        let input_instances = inputs.into_iter().map(|i| &i.instance);
-        let input_witnesses = inputs.into_iter().map(|i| &i.witness);
+        let input_instances = inputs.into_iter().map(|i| i.instance);
+        let input_witnesses = inputs.into_iter().map(|i| i.witness);
 
         Self::compute_witness_polynomials_and_witnesses_from_inputs(
             ck,
@@ -122,8 +122,8 @@ where
 
         assert_eq!(witness_polynomials.len(), witness_commitments.len());
 
-        let accumulator_instances = accumulators.into_iter().map(|a| &a.instance);
-        let accumulator_witnesses = accumulators.into_iter().map(|a| &a.witness);
+        let accumulator_instances = accumulators.into_iter().map(|a| a.instance);
+        let accumulator_witnesses = accumulators.into_iter().map(|a| a.witness);
 
         Self::compute_witness_polynomials_and_witnesses_from_inputs(
             ck,
@@ -238,8 +238,8 @@ where
 
     fn prove<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = &'a Input<Self>>,
-        accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
         rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
@@ -251,8 +251,8 @@ where
             ))
         })?;
 
-        let inputs: Vec<&Input<Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<&Accumulator<Self>> = accumulators.into_iter().collect();
+        let inputs: Vec<InputRef<'a, Self>> = inputs.into_iter().collect();
+        let accumulators: Vec<AccumulatorRef<'a, Self>> = accumulators.into_iter().collect();
 
         for (instance, witness, is_accumulator) in inputs
             .iter()
@@ -292,14 +292,14 @@ where
 
         let input_instances: Vec<&InputInstance<G>> = inputs
             .iter()
-            .map(|input| &input.instance)
-            .chain(accumulators.iter().map(|accumulator| &accumulator.instance))
+            .map(|input| input.instance)
+            .chain(accumulators.iter().map(|accumulator| accumulator.instance))
             .collect();
 
         let input_witnesses: Vec<&Self::InputWitness> = inputs
             .iter()
-            .map(|input| &input.witness)
-            .chain(accumulators.iter().map(|accumulator| &accumulator.witness))
+            .map(|input| input.witness)
+            .chain(accumulators.iter().map(|accumulator| accumulator.witness))
             .collect();
 
         let (witness_polynomials, witness_commitments) =
@@ -398,7 +398,7 @@ where
             eval: combined_eval,
         };
 
-        let new_accumulator = Accumulator {
+        let new_accumulator = Accumulator::<Self> {
             instance: new_accumulator_instance,
             witness: combined_polynomial,
         };
@@ -511,9 +511,9 @@ where
         Ok(true)
     }
 
-    fn decide(
+    fn decide<'a>(
         decider_key: &Self::DeciderKey,
-        accumulator: &Accumulator<Self>,
+        accumulator: AccumulatorRef<'a, Self>,
     ) -> Result<bool, Self::Error> {
         let check = LinearHashPC::check_individual_opening_challenges(
             decider_key,
@@ -624,7 +624,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input {
+                    Input::<LHAidedAccumulationScheme<G, P, CF, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }

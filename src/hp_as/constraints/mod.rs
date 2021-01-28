@@ -199,16 +199,17 @@ pub mod tests {
             <I as AccumulationSchemeTestInput<AS>>::setup(&(8, true), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
+        let mut inputs =
+            <I as AccumulationSchemeTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 
         let (old_accumulator, _) =
-            AS::prove(&pk, vec![&old_input], vec![], Some(&mut rng)).unwrap();
+            AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
         let (new_accumulator, proof) = AS::prove(
             &pk,
-            vec![&new_input],
-            vec![&old_accumulator],
+            vec![new_input.as_ref()],
+            vec![old_accumulator.as_ref()],
             Some(&mut rng),
         )
         .unwrap();

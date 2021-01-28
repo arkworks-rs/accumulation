@@ -2,68 +2,95 @@ use crate::{AccumulationScheme, AidedAccumulationScheme};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
 
-/// The accumulator of an aided accumulation scheme.
-#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
-#[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
-pub struct Accumulator<A: AidedAccumulationScheme> {
-    /// The instance of the accumulator.
-    pub instance: A::AccumulatorInstance,
-
-    /// The witness of the accumulator
-    pub witness: A::AccumulatorWitness,
+pub struct InstanceWitnessPairRef<
+    'a,
+    Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
+    Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
+> {
+    pub instance: &'a Instance,
+    pub witness: &'a Witness,
 }
 
-impl<A: AidedAccumulationScheme> Accumulator<A> {
+impl<'a, Instance, Witness> InstanceWitnessPairRef<'a, Instance, Witness>
+where
+    Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
+    Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
+{
+    /// Extract the accumulator instances out of a list of accumulators.
+    pub fn instances(pairs: impl IntoIterator<Item = Self>) -> impl Iterator<Item = &'a Instance>
+    where
+        Self: 'a,
+    {
+        pairs.into_iter().map(|p| p.instance)
+    }
+}
+
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
+#[derivative(Clone(bound = "
+    Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
+    Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
+"))]
+pub struct InstanceWitnessPair<
+    Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
+    Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
+> {
+    pub instance: Instance,
+    pub witness: Witness,
+}
+
+impl<Instance, Witness> InstanceWitnessPair<Instance, Witness>
+where
+    Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
+    Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
+{
     /// Extract the accumulator instances out of a list of accumulators.
     pub fn instances<'a>(
-        accumulators: impl IntoIterator<Item = &'a Self>,
-    ) -> impl Iterator<Item = &'a A::AccumulatorInstance>
+        pairs: impl IntoIterator<Item = &'a Self>,
+    ) -> impl Iterator<Item = &'a Instance>
     where
-        A: 'a,
+        Self: 'a,
     {
-        accumulators.into_iter().map(|a| &a.instance)
+        pairs.into_iter().map(|p| &p.instance)
     }
-}
 
-impl<A: AccumulationScheme> Accumulator<A> {
-    /// Obtain an accumulator from the accumulator instance for accumulation schemes.
-    pub fn from_instance(instance: A::AccumulatorInstance) -> Self {
-        Accumulator {
-            instance,
-            witness: (),
+    pub fn map_to_refs<'a>(
+        pairs: impl IntoIterator<Item = &'a Self>,
+    ) -> impl Iterator<Item = InstanceWitnessPairRef<'a, Instance, Witness>>
+    where
+        Self: 'a,
+    {
+        pairs.into_iter().map(|p| InstanceWitnessPairRef {
+            instance: &p.instance,
+            witness: &p.witness,
+        })
+    }
+
+    pub fn as_ref<'a>(&self) -> InstanceWitnessPairRef<Instance, Witness> {
+        InstanceWitnessPairRef {
+            instance: &self.instance,
+            witness: &self.witness,
         }
     }
 }
 
-/// The input of an aided accumulation scheme.
-#[derive(Derivative)]
-#[derivative(Clone(bound = "A: AidedAccumulationScheme"))]
-pub struct Input<A: AidedAccumulationScheme> {
-    /// The instance of the input.
-    pub instance: A::InputInstance,
+pub type Accumulator<A> = InstanceWitnessPair<
+    <A as AidedAccumulationScheme>::AccumulatorInstance,
+    <A as AidedAccumulationScheme>::AccumulatorWitness,
+>;
 
-    /// The witness of the input.
-    pub witness: A::InputWitness,
-}
+pub type AccumulatorRef<'a, A> = InstanceWitnessPairRef<
+    'a,
+    <A as AidedAccumulationScheme>::AccumulatorInstance,
+    <A as AidedAccumulationScheme>::AccumulatorWitness,
+>;
 
-impl<A: AidedAccumulationScheme> Input<A> {
-    /// Extract the input instances out of a list of inputs.
-    pub fn instances<'a>(
-        inputs: impl IntoIterator<Item = &'a Self>,
-    ) -> impl Iterator<Item = &'a A::InputInstance>
-    where
-        A: 'a,
-    {
-        inputs.into_iter().map(|i| &i.instance)
-    }
-}
+pub type Input<A> = InstanceWitnessPair<
+    <A as AidedAccumulationScheme>::InputInstance,
+    <A as AidedAccumulationScheme>::InputWitness,
+>;
 
-impl<A: AccumulationScheme> Input<A> {
-    /// Obtain input from the input instance for accumulation schemes.
-    pub fn from_instance(instance: A::InputInstance) -> Self {
-        Input {
-            instance,
-            witness: (),
-        }
-    }
-}
+pub type InputRef<'a, A> = InstanceWitnessPairRef<
+    'a,
+    <A as AidedAccumulationScheme>::InputInstance,
+    <A as AidedAccumulationScheme>::InputWitness,
+>;

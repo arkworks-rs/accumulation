@@ -1,4 +1,4 @@
-use crate::data_structures::{Accumulator, Input};
+use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::ops::Mul;
 use crate::std::string::ToString;
@@ -409,8 +409,8 @@ where
 
     fn prove<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = &'a Input<Self>>,
-        accumulators: impl IntoIterator<Item = &'a Accumulator<Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
         rng: Option<&mut dyn RngCore>,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
@@ -418,8 +418,8 @@ where
     {
         let rng = rng.expect("dl_as prover requires rng");
 
-        let inputs = Input::instances(inputs);
-        let accumulators = Accumulator::instances(accumulators);
+        let inputs = InputRef::<'a, Self>::instances(inputs);
+        let accumulators = AccumulatorRef::<'a, Self>::instances(accumulators);
 
         let random_linear_polynomial =
             P::from_coefficients_slice(&[G::ScalarField::rand(rng), G::ScalarField::rand(rng)]);
@@ -467,7 +467,10 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let accumulator = Accumulator::from_instance(accumulator);
+        let accumulator = Accumulator::<Self> {
+            instance: accumulator,
+            witness: (),
+        };
 
         Ok((accumulator, proof))
     }
@@ -548,9 +551,9 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: &Accumulator<Self>,
+        accumulator: AccumulatorRef<Self>,
     ) -> Result<bool, Self::Error> {
-        let accumulator = &accumulator.instance;
+        let accumulator = accumulator.instance;
 
         let ipa_check = PCDL::<G, P, D, CF, S>::check_individual_opening_challenges(
             &decider_key.0,
@@ -695,7 +698,11 @@ pub mod tests {
                         evaluation,
                         ipa_proof,
                     };
-                    Input::from_instance(input)
+
+                    Input::<DLAccumulationScheme<G, P, D, R, CF, S>> {
+                        instance: input,
+                        witness: (),
+                    }
                 })
                 .collect();
 

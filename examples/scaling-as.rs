@@ -88,22 +88,34 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
         // Initially start with empty accumulators
         let mut old_accumulators = Vec::with_capacity(1);
 
-        let (accumulator, _) = AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
+        let (accumulator, _) = AS::prove(
+            &pk,
+            Input::<AS>::map_to_refs(&inputs),
+            Accumulator::<AS>::map_to_refs(&old_accumulators),
+            Some(rng),
+        )
+        .unwrap();
 
         // Use the same accumulator as input
         old_accumulators.push(accumulator.clone());
         old_accumulators.push(accumulator.clone());
 
         let start = Instant::now();
-        let (accumulator, proof) = AS::prove(&pk, &inputs, &old_accumulators, Some(rng)).unwrap();
+        let (accumulator, proof) = AS::prove(
+            &pk,
+            Input::<AS>::map_to_refs(&inputs),
+            Accumulator::<AS>::map_to_refs(&old_accumulators),
+            Some(rng),
+        )
+        .unwrap();
         let prover_time = start.elapsed();
         println!("Prover: {:?}", prover_time.as_millis());
 
         let start = Instant::now();
         let verification_result = AS::verify(
             &vk,
-            Input::instances(&inputs),
-            Accumulator::instances(&old_accumulators),
+            Input::<AS>::instances(&inputs),
+            Accumulator::<AS>::instances(&old_accumulators),
             &accumulator.instance,
             &proof,
         )
@@ -112,7 +124,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
         println!("Verifier: {:?}", verifier_time.as_millis());
 
         let start = Instant::now();
-        let decision_result = AS::decide(&dk, &accumulator).unwrap();
+        let decision_result = AS::decide(&dk, accumulator.as_ref()).unwrap();
         let decider_time = start.elapsed();
         println!("Decider: {:?}\n", decider_time.as_millis());
         println!("Accumulator size: {}", accumulator.serialized_size());
@@ -179,7 +191,7 @@ fn lh_input_gen<R: RngCore>(
                 eval,
             };
 
-            Input {
+            Input::<AS_LH> {
                 instance,
                 witness: labeled_polynomial,
             }
@@ -262,7 +274,11 @@ fn dl_input_gen<R: RngCore>(
                 evaluation: eval,
                 ipa_proof,
             };
-            Input::from_instance(input)
+
+            Input::<AS_DL> {
+                instance: input,
+                witness: (),
+            }
         })
         .collect();
 
