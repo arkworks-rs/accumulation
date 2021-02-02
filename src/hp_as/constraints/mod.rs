@@ -1,14 +1,16 @@
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_r1cs_std::bits::boolean::Boolean;
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::marker::PhantomData;
 
 mod data_structures;
+use ark_r1cs_std::fields::fp::FpVar;
 pub use data_structures::*;
 
 pub struct HPAidedAccumulationSchemeGadget<G, C, S>
@@ -33,10 +35,15 @@ where
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
+        hiding_comms: Option<&C>,
     ) -> Result<C, SynthesisError> {
         let mut combined_commitment = C::zero();
         for (commitment, challenge) in commitments.into_iter().zip(challenges) {
             combined_commitment += &commitment.scalar_mul_le(challenge.iter())?;
+        }
+
+        if let Some(hiding_comms) = hiding_comms {
+            combined_commitment += hiding_comms;
         }
 
         Ok(combined_commitment)
@@ -51,10 +58,27 @@ where
     ) -> Result<InputInstanceVar<G, C>, SynthesisError> {
         let num_inputs = input_instances.len();
 
+        let hiding_comm_addend_1 = proof
+            .hiding_comms
+            .as_ref()
+            .map(|hiding_comms| {
+                hiding_comms
+                    .comm_1
+                    .scalar_mul_le(mu_challenges[num_inputs].iter())
+            })
+            .transpose()?;
+
         let comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
             combined_challenges,
+            hiding_comm_addend_1.as_ref(),
         )?;
+
+        let hiding_comm_addend_2 = proof
+            .hiding_comms
+            .as_ref()
+            .map(|hiding_comms| hiding_comms.comm_2.scalar_mul_le(mu_challenges[1].iter()))
+            .transpose()?;
 
         let comm_2 = Self::combine_commitments(
             input_instances
@@ -62,17 +86,32 @@ where
                 .map(|instance| &instance.comm_2)
                 .rev(),
             nu_challenges,
+            hiding_comm_addend_2.as_ref(),
         )?;
 
         let comm_3 = {
             let t_comm_low_addend =
-                Self::combine_commitments(proof.t_comms.0.iter(), &nu_challenges)?;
-            let t_comm_high_addend =
-                Self::combine_commitments(proof.t_comms.1.iter(), &nu_challenges[num_inputs..])?;
+                Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None)?;
+            let t_comm_high_addend = Self::combine_commitments(
+                proof.t_comms.high.iter(),
+                &nu_challenges[num_inputs..],
+                None,
+            )?;
+
+            let hiding_comm_addend_3 = proof
+                .hiding_comms
+                .as_ref()
+                .map(|hiding_comms| {
+                    hiding_comms
+                        .comm_3
+                        .scalar_mul_le(mu_challenges[num_inputs].iter())
+                })
+                .transpose()?;
 
             let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
                 &mu_challenges,
+                hiding_comm_addend_3.as_ref(),
             )?
             .scalar_mul_le(nu_challenges[num_inputs - 1].iter())?;
 
@@ -89,7 +128,7 @@ where
 
     pub fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        _verifier_key: &VerifierKeyVar,
+        verifier_key: &VerifierKeyVar<ConstraintF<G>>,
         input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
         accumulator_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
         new_accumulator_instance: &InputInstanceVar<G, C>,
@@ -103,21 +142,33 @@ where
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
+
         let num_inputs = input_instances.len();
+        let has_hiding = proof.hiding_comms.is_some();
 
         let mut challenges_sponge = S::new(cs.clone());
-        // TODO: Absorb vk
+        challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()]);
         for input_instance in input_instances.iter() {
             input_instance.absorb_into_sponge(&mut challenges_sponge)?;
+        }
+
+        challenges_sponge
+            .absorb(&[FpVar::from(Boolean::constant(proof.hiding_comms.is_some()))])?;
+        if let Some(t_comms) = proof.hiding_comms.as_ref() {
+            t_comms.absorb_into_sponge(&mut challenges_sponge)?;
         }
 
         // TODO: Squeeze shorter bits
         // TODO: make the first element of `mu_challenges` be `1`, and skip
         // the scalar multiplication for it.
-        let (mu_challenges_fe, mu_challenges_bits) =
+        let (mut mu_challenges_fe, mut mu_challenges_bits) =
             challenges_sponge.squeeze_nonnative_field_elements(num_inputs)?;
+        if has_hiding {
+            mu_challenges_fe.push(mu_challenges_fe[1].clone() * &mu_challenges_fe[num_inputs - 1]);
+            mu_challenges_bits.push(mu_challenges_fe.last().unwrap().to_bits_le()?);
+        }
 
-        proof.absorb_into_sponge(&mut challenges_sponge)?;
+        proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
 
         let (mut nu_challenge_fe, _) = challenges_sponge.squeeze_nonnative_field_elements(1)?;
         let nu_challenge = nu_challenge_fe.pop().unwrap();
@@ -144,6 +195,7 @@ where
             &nu_challenges_bits,
             combined_challenges.as_slice(),
         )?;
+
         let result1 = accumulator_instance
             .comm_1
             .is_eq(&new_accumulator_instance.comm_1)?;
@@ -160,6 +212,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::data_structures::Input;
     use crate::hp_as::constraints::{
         HPAidedAccumulationSchemeGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
@@ -175,6 +228,7 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSystem, TracingMode};
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
+    use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 
@@ -184,7 +238,7 @@ pub mod tests {
     //type ConstraintF = ark_pallas::Fq;
     type G = ark_ed_on_bls12_381::EdwardsAffine;
     type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    // type F = ark_ed_on_bls12_381::Fr;
+    type F = ark_ed_on_bls12_381::Fr;
     type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type AS = HPAidedAccumulationScheme<G, ConstraintF, PoseidonSponge<ConstraintF>>;
@@ -198,14 +252,20 @@ pub mod tests {
         let (input_params, predicate_params, predicate_index) =
             <I as AccumulationSchemeTestInput<AS>>::setup(&(8, true), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
-        let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
+        let (pk, vk, dk) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
         let mut inputs =
-            <I as AccumulationSchemeTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
+            <I as AccumulationSchemeTestInput<AS>>::generate_inputs(&input_params, 3, &mut rng);
         let old_input = inputs.pop().unwrap();
+        let old_input_2 = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 
-        let (old_accumulator, _) =
-            AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
+        let (old_accumulator, _) = AS::prove(
+            &pk,
+            vec![old_input.as_ref(), old_input_2.as_ref()],
+            vec![],
+            Some(&mut rng),
+        )
+        .unwrap();
         let (new_accumulator, proof) = AS::prove(
             &pk,
             vec![new_input.as_ref()],
@@ -222,6 +282,8 @@ pub mod tests {
             &proof
         )
         .unwrap());
+
+        assert!(AS::decide(&dk, new_accumulator.as_ref(),).unwrap());
 
         let mut layer = ConstraintLayer::default();
         layer.mode = TracingMode::OnlyConstraints;

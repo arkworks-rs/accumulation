@@ -1,5 +1,7 @@
 use crate::{AccumulationScheme, AidedAccumulationScheme};
+use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_sponge::Absorbable;
 use ark_std::io::{Read, Write};
 
 pub struct InstanceWitnessPairRef<

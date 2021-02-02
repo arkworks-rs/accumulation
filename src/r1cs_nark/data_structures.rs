@@ -1,6 +1,9 @@
 use ark_ec::AffineCurve;
+use ark_ff::Field;
 use ark_poly_commit::pedersen::*;
-use ark_relations::r1cs::*;
+use ark_relations::r1cs::Matrix;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
 /// The public parameters of this NARK.
 pub type PublicParameters = ();
@@ -40,6 +43,7 @@ pub struct IndexProverKey<G: AffineCurve> {
 /// Index verifier key for our NARK.
 pub type IndexVerifierKey<G> = IndexProverKey<G>;
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct FirstRoundMessage<G: AffineCurve> {
     pub comm_a: G,
     pub comm_b: G,
@@ -51,6 +55,7 @@ pub struct FirstRoundMessage<G: AffineCurve> {
     pub comm_2: Option<G>,
 }
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SecondRoundMessage<F: Field> {
     pub blinded_witness: Vec<F>,
     pub sigma_a: Option<F>,

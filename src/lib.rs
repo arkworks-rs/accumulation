@@ -48,7 +48,7 @@ pub mod hp_as;
 //pub mod r1cs_nark_as;
 
 /// A simple non-interactive argument of knowledge for R1CS
-//pub mod r1cs_nark;
+pub mod r1cs_nark;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
@@ -142,9 +142,9 @@ pub trait AidedAccumulationScheme: Sized {
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
-    fn decide<'a>(
+    fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'a, Self>,
+        accumulator: AccumulatorRef<Self>,
     ) -> Result<bool, Self::Error>;
 }
 

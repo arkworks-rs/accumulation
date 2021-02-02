@@ -1,9 +1,11 @@
-use crate::hp_as::data_structures::Proof;
+use crate::hp_as::data_structures::{Proof, ProofHidingCommitments, ProofTCommitments};
 use crate::hp_as::InputInstance;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::bits::boolean::Boolean;
+use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToConstraintFieldGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
@@ -18,15 +20,26 @@ pub(crate) type NNFieldVar<G> = NonNativeFieldVar<
 >;
 
 /// Represents the verifier key that is used when accumulating instances and old accumulators.
-pub struct VerifierKeyVar;
+pub struct VerifierKeyVar<CF: PrimeField> {
+    pub num_supported_elems: FpVar<CF>,
+}
 
-impl<CF: PrimeField> AllocVar<(), CF> for VerifierKeyVar {
-    fn new_variable<T: Borrow<()>>(
-        _cs: impl Into<Namespace<CF>>,
-        _f: impl FnOnce() -> Result<T, SynthesisError>,
-        _mode: AllocationMode,
+impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
+    fn new_variable<T: Borrow<usize>>(
+        cs: impl Into<Namespace<CF>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
-        Ok(VerifierKeyVar)
+        let ns = cs.into();
+        f().and_then(|vk| {
+            Ok(VerifierKeyVar {
+                num_supported_elems: FpVar::new_variable(
+                    ns.clone(),
+                    || Ok(CF::from(*vk.borrow() as u64)),
+                    mode,
+                )?,
+            })
+        })
     }
 }
 
@@ -91,11 +104,92 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub t_comms: (Vec<C>, Vec<C>),
+    pub t_comms: ProofTCommitmentsVar<G, C>,
+    pub hiding_comms: Option<ProofHidingCommitmentsVar<G, C>>,
     pub(crate) _curve: PhantomData<G>,
 }
 
-impl<G, C> ProofVar<G, C>
+impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<Proof<G>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|proof| {
+            let t_comms = ProofTCommitmentsVar::new_variable(
+                ns.clone(),
+                || Ok(&proof.borrow().t_comms),
+                mode,
+            )?;
+            let hiding_comms = proof
+                .borrow()
+                .hiding_comms
+                .as_ref()
+                .map(|hiding_comms| {
+                    ProofHidingCommitmentsVar::new_variable(ns.clone(), || Ok(hiding_comms), mode)
+                })
+                .transpose()?;
+
+            Ok(Self {
+                t_comms,
+                hiding_comms,
+                _curve: PhantomData,
+            })
+        })
+    }
+}
+
+pub struct ProofTCommitmentsVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+{
+    pub low: Vec<C>,
+    pub high: Vec<C>,
+    pub(crate) _curve: PhantomData<G>,
+}
+
+impl<G, C> AllocVar<ProofTCommitments<G>, ConstraintF<G>> for ProofTCommitmentsVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<ProofTCommitments<G>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|t_comms| {
+            let t_comms_low = t_comms
+                .borrow()
+                .low
+                .iter()
+                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
+                .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+            let t_comms_high = t_comms
+                .borrow()
+                .high
+                .iter()
+                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
+                .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+            Ok(Self {
+                low: t_comms_low,
+                high: t_comms_high,
+                _curve: PhantomData,
+            })
+        })
+    }
+}
+
+impl<G, C> ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -105,50 +199,68 @@ where
     where
         S: CryptographicSpongeVar<ConstraintF<G>>,
     {
-        for t_0 in &self.t_comms.0 {
+        for t_0 in &self.low {
             sponge.absorb(&t_0.to_constraint_field()?)?;
         }
 
-        for t_1 in &self.t_comms.1 {
+        for t_1 in &self.high {
             sponge.absorb(&t_1.to_constraint_field()?)?;
         }
+
         Ok(())
     }
 }
 
-impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
+pub struct ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    fn new_variable<T: Borrow<Proof<G>>>(
+    pub comm_1: C,
+    pub comm_2: C,
+    pub comm_3: C,
+    pub(crate) _curve: PhantomData<G>,
+}
+
+impl<G, C> AllocVar<ProofHidingCommitments<G>, ConstraintF<G>> for ProofHidingCommitmentsVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<ProofHidingCommitments<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        f().and_then(|proof| {
-            let t_comms_low = proof
-                .borrow()
-                .t_comms
-                .0
-                .iter()
-                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
-                .collect::<Result<Vec<_>, SynthesisError>>()?;
-
-            let t_comms_high = proof
-                .borrow()
-                .t_comms
-                .1
-                .iter()
-                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
-                .collect::<Result<Vec<_>, SynthesisError>>()?;
+        f().and_then(|hiding_comms| {
+            let comm_1 = C::new_variable(ns.clone(), || Ok(hiding_comms.borrow().comm_1), mode)?;
+            let comm_2 = C::new_variable(ns.clone(), || Ok(hiding_comms.borrow().comm_2), mode)?;
+            let comm_3 = C::new_variable(ns.clone(), || Ok(hiding_comms.borrow().comm_3), mode)?;
 
             Ok(Self {
-                t_comms: (t_comms_low, t_comms_high),
+                comm_1,
+                comm_2,
+                comm_3,
                 _curve: PhantomData,
             })
         })
+    }
+}
+
+impl<G, C> ProofHidingCommitmentsVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+{
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    where
+        S: CryptographicSpongeVar<ConstraintF<G>>,
+    {
+        sponge.absorb(&self.comm_1.to_constraint_field()?)?;
+        sponge.absorb(&self.comm_2.to_constraint_field()?)?;
+        sponge.absorb(&self.comm_3.to_constraint_field()?)?;
+        Ok(())
     }
 }
