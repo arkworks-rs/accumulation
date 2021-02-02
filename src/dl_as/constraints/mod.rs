@@ -423,7 +423,6 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSystem, TracingMode};
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::CryptographicSponge;
     use ark_std::test_rng;
     use tracing_subscriber::layer::SubscriberExt;
 

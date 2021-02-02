@@ -575,7 +575,7 @@ pub mod tests {
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fq};
+    use ark_pallas::{Affine, Fq};
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
@@ -674,7 +674,7 @@ pub mod tests {
         }
     }
 
-    type AS = HPAidedAccumulationScheme<EdwardsAffine, Fq, PoseidonSponge<Fq>>;
+    type AS = HPAidedAccumulationScheme<Affine, Fq, PoseidonSponge<Fq>>;
 
     type I = HPAidedAccumulationSchemeTestInput;
 
