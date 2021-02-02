@@ -297,6 +297,9 @@ where
         let c_equal = comm_c == reconstructed_comm_c.0.into_projective();
         drop(c_times_blinded_witness);
         end_timer!(commit_time);
+        println!("a_equal: {:?}", a_equal);
+        println!("b_equal: {:?}", b_equal);
+        println!("c_equal: {:?}", c_equal);
 
         let had_prod_time = start_timer!(|| "Computing Hadamard product and commitment to it");
         let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness).zip(b_times_blinded_witness).map(|(a, b)| a * b).collect();
@@ -306,9 +309,10 @@ where
         let mut had_prod_comm = proof.first_msg.comm_c.0.into_projective();
         if make_zk {
             had_prod_comm += proof.first_msg.comm_1.unwrap().0.mul(gamma);
-            had_prod_comm += proof.first_msg.comm_2.unwrap().0.mul(gamma);
+            had_prod_comm += proof.first_msg.comm_2.unwrap().0.mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.0.into_projective();
+        println!("had_prod_equal: {:?}", had_prod_equal);
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }
