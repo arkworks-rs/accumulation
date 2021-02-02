@@ -594,7 +594,7 @@ pub mod tests {
     };
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
+    use ark_pallas::{Affine, Fq, Fr};
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
@@ -711,7 +711,7 @@ pub mod tests {
     }
 
     type AS = DLAccumulationScheme<
-        EdwardsAffine,
+        Affine,
         DensePolynomial<Fr>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,

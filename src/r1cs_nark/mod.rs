@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, Field, PrimeField, ToConstraintField, Zero};
+use ark_ff::{BigInteger, PrimeField, Field, One, ToConstraintField, Zero};
 use ark_poly_commit::pedersen::*;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
@@ -38,12 +38,7 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
 {
-    pub fn compute_challenge(
-        index_info: &IndexInfo,
-        input: &[G::ScalarField],
-        msg: &FirstRoundMessage<G>,
-        make_zk: bool,
-    ) -> G::ScalarField {
+    pub fn compute_challenge(index_info: &IndexInfo, input: &[G::ScalarField], msg: &FirstRoundMessage<G>, make_zk: bool) -> G::ScalarField {
         let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
         let input_bytes = input
@@ -197,9 +192,11 @@ where
             let randomizer_time = start_timer!(|| "Sampling randomizer r");
             let rng = rng.as_mut().unwrap();
             r = Some(Vec::with_capacity(num_witness_variables));
-            for _ in 0..num_witness_variables {
-                r.as_mut().map(|v| v.push(G::ScalarField::rand(rng)));
-            }
+            r.as_mut().map(|v| {
+                for _ in 0..num_witness_variables {
+                    v.push(G::ScalarField::rand(rng))
+                }
+            });
             end_timer!(randomizer_time);
             let r_ref = r.as_ref().unwrap();
             let zeros = vec![G::ScalarField::zero(); num_input_variables];
@@ -316,15 +313,19 @@ where
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
 
+        // format the input appropriately.
+        let input = {
+            let mut tmp = vec![G::ScalarField::one()];
+            tmp.extend_from_slice(&input);
+            tmp
+        };
+        
         let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, make_zk);
 
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
-        let a_times_blinded_witness =
-            matrix_vec_mul(&ivk.a, input, &proof.second_msg.blinded_witness);
-        let b_times_blinded_witness =
-            matrix_vec_mul(&ivk.b, input, &proof.second_msg.blinded_witness);
-        let c_times_blinded_witness =
-            matrix_vec_mul(&ivk.c, input, &proof.second_msg.blinded_witness);
+        let a_times_blinded_witness = matrix_vec_mul(&ivk.a, &input, &proof.second_msg.blinded_witness);
+        let b_times_blinded_witness = matrix_vec_mul(&ivk.b, &input, &proof.second_msg.blinded_witness);
+        let c_times_blinded_witness = matrix_vec_mul(&ivk.c, &input, &proof.second_msg.blinded_witness);
         end_timer!(mat_vec_mul_time);
         let mut comm_a = proof.first_msg.comm_a.into_projective();
         let mut comm_b = proof.first_msg.comm_b.into_projective();
@@ -353,6 +354,9 @@ where
         let c_equal = comm_c == reconstructed_comm_c.into_projective();
         drop(c_times_blinded_witness);
         end_timer!(commit_time);
+        println!("a_equal: {:?}", a_equal);
+        println!("b_equal: {:?}", b_equal);
+        println!("c_equal: {:?}", c_equal);
 
         let had_prod_time = start_timer!(|| "Computing Hadamard product and commitment to it");
         let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness)
@@ -368,9 +372,10 @@ where
         let mut had_prod_comm = proof.first_msg.comm_c.into_projective();
         if make_zk {
             had_prod_comm += proof.first_msg.comm_1.unwrap().mul(gamma);
-            had_prod_comm += proof.first_msg.comm_2.unwrap().mul(gamma);
+            had_prod_comm += proof.first_msg.comm_2.unwrap().mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
+        println!("had_prod_equal: {:?}", had_prod_equal);
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }
@@ -416,4 +421,78 @@ fn inner_prod<F: Field>(row: &[(F, usize)], input: &[F], witness: &[F]) -> F {
         acc += &(if coeff.is_one() { tmp } else { tmp * coeff });
     }
     acc
+}
+
+#[cfg(test)]
+mod test {
+    use ark_pallas::{Affine, Fr, Fq};
+    use ark_sponge::poseidon::PoseidonSponge;
+    use ark_ff::UniformRand;
+    use super::*;
+    use ark_relations::{
+        lc,
+        r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
+    };
+    const NUM_ITERS: usize = 10;
+
+    #[derive(Copy, Clone)]
+    struct DummyCircuit {
+        pub a: Option<Fr>,
+        pub b: Option<Fr>,
+        pub num_variables: usize,
+        pub num_constraints: usize,
+    }
+
+    impl ConstraintSynthesizer<Fr> for DummyCircuit {
+        fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+            let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+            let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
+            let c = cs.new_input_variable(|| {
+                let a = self.a.ok_or(SynthesisError::AssignmentMissing)?;
+                let b = self.b.ok_or(SynthesisError::AssignmentMissing)?;
+
+                Ok(a * b)
+            })?;
+
+            for _ in 0..(self.num_variables - 3) {
+                let _ = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+            }
+
+            for _ in 0..self.num_constraints - 1 {
+                cs.enforce_constraint(lc!() + a, lc!() + b, lc!() + c)?;
+            }
+
+            cs.enforce_constraint(lc!(), lc!(), lc!())?;
+
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_simple_circuit() {
+        let rng = &mut ark_std::test_rng();
+        let c = DummyCircuit {
+            a: Some(Fr::rand(rng)),
+            b: Some(Fr::rand(rng)),
+            num_variables: 10,
+            num_constraints: 65536,
+        };
+        let v = c.a.unwrap() * &c.b.unwrap();
+
+        let pp = SimpleNARK::<Affine, PoseidonSponge<Fq>>::setup();
+        let (ipk, ivk) = SimpleNARK::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
+
+        let start = ark_std::time::Instant::now();
+
+        for i in 0..NUM_ITERS {
+            let proof = SimpleNARK::<Affine, PoseidonSponge<Fq>>::prove(&ipk, c.clone(), i % 2 == 1, Some(rng)).unwrap();
+            assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(&ivk, &[v], &proof))
+        }
+
+        println!(
+            "per-constraint proving time for {}: {} ns/constraint",
+            stringify!($bench_pairing_engine),
+            start.elapsed().as_nanos() / NUM_ITERS as u128 / 65536u128
+        );
+    }
 }
