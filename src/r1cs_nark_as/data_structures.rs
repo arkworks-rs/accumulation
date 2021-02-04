@@ -65,13 +65,6 @@ pub struct AccumulatorInstance<G: AffineCurve> {
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct AccumulatorWitness<F: Field> {
-    pub r1cs_blinded_witness: Vec<F>,
-    pub hp_witness: HPInputWitness<F>,
-    pub randomness: Option<AccumulatorWitnessRandomness<F>>,
-}
-
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccumulatorWitnessRandomness<F: Field> {
     pub sigma_a: F,
     pub sigma_b: F,
@@ -79,9 +72,10 @@ pub struct AccumulatorWitnessRandomness<F: Field> {
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<G: AffineCurve> {
-    pub hp_proof: HPProof<G>,
-    pub randomness: Option<ProofRandomness<G>>,
+pub struct AccumulatorWitness<F: Field> {
+    pub r1cs_blinded_witness: Vec<F>,
+    pub hp_witness: HPInputWitness<F>,
+    pub randomness: Option<AccumulatorWitnessRandomness<F>>,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
@@ -90,4 +84,10 @@ pub struct ProofRandomness<G: AffineCurve> {
     pub comm_r_a: G,
     pub comm_r_b: G,
     pub comm_r_c: G,
+}
+
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct Proof<G: AffineCurve> {
+    pub hp_proof: HPProof<G>,
+    pub randomness: Option<ProofRandomness<G>>,
 }

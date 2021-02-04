@@ -27,11 +27,11 @@ pub mod data_structures;
 use crate::constraints::ConstraintF;
 use data_structures::*;
 
-//pub mod constraints;
+pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
-pub struct NARKVerifierAidedAccumulationScheme<G, S, CS>
+pub struct SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -44,7 +44,7 @@ where
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, S, CS> NARKVerifierAidedAccumulationScheme<G, S, CS>
+impl<G, S, CS> SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -450,7 +450,7 @@ where
     }
 }
 
-impl<G, S, CS> AidedAccumulationScheme for NARKVerifierAidedAccumulationScheme<G, S, CS>
+impl<G, S, CS> AidedAccumulationScheme for SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -784,7 +784,7 @@ pub mod tests {
     use crate::r1cs_nark::test::DummyCircuit;
     use crate::r1cs_nark::SimpleNARK;
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
-    use crate::r1cs_nark_as::NARKVerifierAidedAccumulationScheme;
+    use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use crate::Input;
@@ -797,12 +797,12 @@ pub mod tests {
     use rand_core::RngCore;
     use std::UniformRand;
 
-    pub struct NARKVerifierAidedAccumulationSchemeTestInput {}
+    pub struct SimpleNARKVerifierAidedAccumulationSchemeTestInput {}
 
     impl<G, S>
         AidedAccumulationSchemeTestInput<
-            NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
-        > for NARKVerifierAidedAccumulationSchemeTestInput
+            SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
+        > for SimpleNARKVerifierAidedAccumulationSchemeTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -817,8 +817,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateParams,
-            <NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateIndex,
+            <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateParams,
+            <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateIndex,
         ){
             let nark_pp = SimpleNARK::<G, S>::setup();
             let make_zk = test_params.clone();
@@ -837,7 +837,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>>>
+        ) -> Vec<Input<SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>>>
         {
             let (ipk, circuit, make_zk) = input_params;
             let make_zk = *make_zk;
@@ -874,7 +874,7 @@ pub mod tests {
                 };
 
                 inputs.push(Input::<
-                    NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
+                    SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
                 > {
                     instance,
                     witness,
@@ -885,9 +885,12 @@ pub mod tests {
         }
     }
 
-    type AS =
-        NARKVerifierAidedAccumulationScheme<EdwardsAffine, PoseidonSponge<Fq>, DummyCircuit<Fr>>;
-    type I = NARKVerifierAidedAccumulationSchemeTestInput;
+    type AS = SimpleNARKVerifierAidedAccumulationScheme<
+        EdwardsAffine,
+        PoseidonSponge<Fq>,
+        DummyCircuit<Fr>,
+    >;
+    type I = SimpleNARKVerifierAidedAccumulationSchemeTestInput;
 
     /*
     #[test]
