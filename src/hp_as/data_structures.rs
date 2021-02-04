@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, Field, PrimeField};
+use ark_ff::{to_bytes, Field, PrimeField, Zero};
 use ark_relations::r1cs::ToConstraintField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::Absorbable;
@@ -10,6 +10,16 @@ pub struct InputInstance<G: AffineCurve> {
     pub comm_1: G,
     pub comm_2: G,
     pub comm_3: G,
+}
+
+impl<G: AffineCurve> Default for InputInstance<G> {
+    fn default() -> Self {
+        Self {
+            comm_1: G::zero(),
+            comm_2: G::zero(),
+            comm_3: G::zero(),
+        }
+    }
 }
 
 impl<G, CF> Absorbable<CF> for InputInstance<G>
@@ -34,6 +44,16 @@ pub struct InputWitness<F: Field> {
     pub a_vec: Vec<F>,
     pub b_vec: Vec<F>,
     pub randomness: Option<InputWitnessRandomness<F>>,
+}
+
+impl<F: Field> Default for InputWitness<F> {
+    fn default() -> Self {
+        Self {
+            a_vec: vec![],
+            b_vec: vec![],
+            randomness: None
+        }
+    }
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]

@@ -42,7 +42,7 @@ impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     pub comm_1: C,
     pub comm_2: C,
@@ -80,7 +80,7 @@ where
 impl<G, C> InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+    C: CurveVar<G::Projective, ConstraintF<G>>
         + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
@@ -97,7 +97,7 @@ where
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     pub t_comms: ProofTCommitmentsVar<G, C>,
     pub hiding_comms: Option<ProofHidingCommitmentsVar<G, C>>,
@@ -142,7 +142,7 @@ where
 pub struct ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     pub low: Vec<C>,
     pub high: Vec<C>,
@@ -187,7 +187,7 @@ where
 impl<G, C> ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+    C: CurveVar<G::Projective, ConstraintF<G>>
         + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
@@ -209,7 +209,7 @@ where
 pub struct ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     pub comm_1: C,
     pub comm_2: C,
@@ -246,7 +246,7 @@ where
 impl<G, C> ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+    C: CurveVar<G::Projective, ConstraintF<G>>
         + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>

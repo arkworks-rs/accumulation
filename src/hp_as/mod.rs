@@ -414,7 +414,7 @@ where
         let accumulators = accumulators.into_iter().collect::<Vec<_>>();
 
         // Combine inputs and accumulators to be processed together
-        let input_instances = inputs
+        let mut input_instances = inputs
             .iter()
             .chain(&accumulators)
             .map(|input| input.instance)
@@ -426,7 +426,7 @@ where
             )));
         }
 
-        let input_witnesses = inputs
+        let mut input_witnesses = inputs
             .iter()
             .chain(&accumulators)
             .map(|input| input.witness)
@@ -436,8 +436,19 @@ where
             has_hiding || witness.randomness.is_some()
         });
 
-        let num_inputs = input_instances.len();
+        let mut num_inputs = input_instances.len();
         let hp_vec_len = prover_key.supported_elems_len();
+
+        let mut default_input_instance = None;
+        let mut default_input_witness = None;
+        if has_hiding && num_inputs == 1 {
+            default_input_instance = Some(InputInstance::default());
+            default_input_witness = Some(InputWitness::default());
+
+            num_inputs += 1;
+            input_instances.push(default_input_instance.as_ref().unwrap());
+            input_witnesses.push(default_input_witness.as_ref().unwrap());
+        };
 
         let (hiding_vecs, hiding_rands, hiding_comms) = if has_hiding {
             let rng = rng.ok_or(BoxedError::new(ASError::MissingRng(
@@ -584,7 +595,7 @@ where
         Self: 'a,
     {
         // TODO: Validate input instances
-        let input_instances = input_instances
+        let mut input_instances = input_instances
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
@@ -593,8 +604,16 @@ where
             return Ok(false);
         }
 
-        let num_inputs = input_instances.len();
+        let mut num_inputs = input_instances.len();
         let has_hiding = proof.hiding_comms.is_some();
+
+        let mut default_input_instance = None;
+        if has_hiding && num_inputs == 1 {
+            default_input_instance = Some(InputInstance::default());
+
+            num_inputs += 1;
+            input_instances.push(default_input_instance.as_ref().unwrap());
+        };
 
         let mut challenges_sponge = S::new();
         challenges_sponge.absorb(&CF::from(*verifier_key as u64));
@@ -798,17 +817,18 @@ pub mod tests {
 
     type I = HPAidedAccumulationSchemeTestInput;
 
-    /*
     #[test]
     pub fn hp_single_input_test() -> Result<(), BoxedError> {
         single_input_test::<AS, I>(&(8, true))
     }
-     */
 
+    /*
     #[test]
     pub fn hp_multiple_inputs_test() -> Result<(), BoxedError> {
         multiple_inputs_test::<AS, I>(&(8, true))
     }
+
+     */
 
     /*
     #[test]

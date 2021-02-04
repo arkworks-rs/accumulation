@@ -75,6 +75,19 @@ where
     }
 }
 
+impl<Instance, Witness> Default for InstanceWitnessPair<Instance, Witness>
+    where
+        Instance: Clone + CanonicalSerialize + CanonicalDeserialize + Default,
+        Witness: Clone + CanonicalSerialize + CanonicalDeserialize + Default,
+{
+    fn default() -> Self {
+        Self {
+            instance: Instance::default(),
+            witness: Witness::default(),
+        }
+    }
+}
+
 pub type Accumulator<A> = InstanceWitnessPair<
     <A as AidedAccumulationScheme>::AccumulatorInstance,
     <A as AidedAccumulationScheme>::AccumulatorWitness,

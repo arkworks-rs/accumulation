@@ -16,6 +16,8 @@ use crate::hp_as::HPAidedAccumulationScheme;
 use crate::AidedAccumulationScheme;
 use ark_sponge::{Absorbable, CryptographicSponge};
 pub use data_structures::*;
+use crate::hp_as::data_structures::InputInstance;
+use ark_r1cs_std::alloc::AllocVar;
 
 pub struct HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
@@ -161,13 +163,21 @@ where
         Self::AccumulatorInstance: 'a,
     {
         // TODO: Validate input instances
-        let input_instances = input_instances
+        let mut input_instances = input_instances
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
 
-        let num_inputs = input_instances.len();
+        let mut num_inputs = input_instances.len();
         let has_hiding = proof.hiding_comms.is_some();
+
+        let mut default_input_instance = None;
+        if has_hiding && num_inputs == 1 {
+            default_input_instance = Some(InputInstanceVar::new_constant(cs.clone(), InputInstance::default())?);
+
+            num_inputs += 1;
+            input_instances.push(default_input_instance.as_ref().unwrap());
+        };
 
         let mut challenges_sponge = SV::new(cs.clone());
         challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()]);
@@ -235,11 +245,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
-    use crate::hp_as::HPAidedAccumulationScheme;
-    use crate::hp_as::tests::HPAidedAccumulationSchemeTestInput;
     use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
+    use crate::hp_as::tests::HPAidedAccumulationSchemeTestInput;
+    use crate::hp_as::HPAidedAccumulationScheme;
+    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
+    use ark_sponge::poseidon::PoseidonSponge;
 
     //type G = ark_pallas::Affine;
     //type C = ark_pallas::constraints::GVar;
@@ -259,6 +269,6 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, false), 1);
+        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, true), 20);
     }
 }
