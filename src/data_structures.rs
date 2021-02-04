@@ -1,7 +1,5 @@
-use crate::{AccumulationScheme, AidedAccumulationScheme};
-use ark_ff::PrimeField;
+use crate::AidedAccumulationScheme;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::Absorbable;
 use ark_std::io::{Read, Write};
 
 pub struct InstanceWitnessPairRef<
@@ -67,7 +65,7 @@ where
         })
     }
 
-    pub fn as_ref<'a>(&self) -> InstanceWitnessPairRef<Instance, Witness> {
+    pub fn as_ref(&self) -> InstanceWitnessPairRef<Instance, Witness> {
         InstanceWitnessPairRef {
             instance: &self.instance,
             witness: &self.witness,

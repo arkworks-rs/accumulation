@@ -1,6 +1,9 @@
 use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
+use crate::hp_as::data_structures::InputInstance;
+use crate::hp_as::HPAidedAccumulationScheme;
 use ark_ec::AffineCurve;
-use ark_ff::{Field, ToConstraintField};
+use ark_ff::ToConstraintField;
+use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
@@ -9,12 +12,8 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
-use std::marker::PhantomData;
-use crate::hp_as::data_structures::InputInstance;
-use crate::hp_as::HPAidedAccumulationScheme;
-use crate::AidedAccumulationScheme;
-use ark_r1cs_std::alloc::AllocVar;
 use ark_sponge::{Absorbable, CryptographicSponge};
+use std::marker::PhantomData;
 
 pub mod data_structures;
 use data_structures::*;
@@ -183,7 +182,7 @@ where
         };
 
         let mut challenges_sponge = SV::new(cs.clone());
-        challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()]);
+        challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()])?;
         for input_instance in input_instances.iter() {
             input_instance.absorb_into_sponge(&mut challenges_sponge)?;
         }

@@ -1,4 +1,4 @@
-use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
+use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};

@@ -1,6 +1,5 @@
 use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF};
 use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
-use crate::AidedAccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -46,12 +45,12 @@ where
     type Proof = ProofVar<G, C>;
 
     fn verify<'a>(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
-        verifier_key: &Self::VerifierKey,
-        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator_instance: &Self::AccumulatorInstance,
-        proof: &Self::Proof,
+        _cs: ConstraintSystemRef<ConstraintF<G>>,
+        _verifier_key: &Self::VerifierKey,
+        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _new_accumulator_instance: &Self::AccumulatorInstance,
+        _proof: &Self::Proof,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,

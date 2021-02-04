@@ -1,5 +1,7 @@
 use crate::constraints::{ConstraintF, NNFieldVar};
-use crate::hp_as::constraints::data_structures::{InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar};
+use crate::hp_as::constraints::data_structures::{
+    InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar,
+};
 use crate::r1cs_nark::data_structures::{FirstRoundMessage, IndexInfo};
 use crate::r1cs_nark_as::data_structures::{
     AccumulatorInstance, InputInstance, Proof, ProofRandomness, VerifierKey,

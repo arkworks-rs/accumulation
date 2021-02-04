@@ -1,13 +1,11 @@
 use crate::hp_as::data_structures::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
 };
-use crate::hp_as::HPAidedAccumulationScheme;
 use crate::r1cs_nark::data_structures::{
     FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
 };
 use ark_ec::AffineCurve;
 use ark_ff::Field;
-use ark_poly_commit::pedersen::CommitterKey as PedersenCommitmentCK;
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};

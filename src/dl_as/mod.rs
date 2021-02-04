@@ -1,4 +1,4 @@
-use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
+use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::ops::Mul;
 use crate::std::string::ToString;
@@ -551,7 +551,7 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<Self>,
+        accumulator: AccumulatorRef<'_, Self>,
     ) -> Result<bool, Self::Error> {
         let accumulator = accumulator.instance;
 
@@ -584,8 +584,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::data_structures::Input;
     use crate::dl_as::data_structures::{InputInstance, PredicateIndex};
-    use crate::dl_as::{DLAccumulationScheme, Input, PCDL};
+    use crate::dl_as::{DLAccumulationScheme, PCDL};
     use crate::error::BoxedError;
     use crate::tests::{
         accumulators_only_test, multiple_accumulations_multiple_inputs_test,

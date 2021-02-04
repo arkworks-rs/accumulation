@@ -1,14 +1,11 @@
-use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
+use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::AidedAccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{to_bytes, One, PrimeField, ToConstraintField, Zero};
+use ark_ff::{One, PrimeField, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::pedersen::{
-    CommitterKey as PedersenCommitmentCK, PedersenCommitment,
-    UniversalParams as PedersenCommitmentPP,
-};
+use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{Absorbable, CryptographicSponge};
 use ark_std::UniformRand;
@@ -669,7 +666,7 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<Self>,
+        accumulator: AccumulatorRef<'_, Self>,
     ) -> Result<bool, Self::Error> {
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -738,7 +735,7 @@ pub mod tests {
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateParams,
             <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let mut rng = test_rng();
+            let _rng = test_rng();
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
             ((ck, test_params.1), (), test_params.0)

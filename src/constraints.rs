@@ -30,10 +30,9 @@ pub trait AidedAccumulationSchemeVerifierGadget<AS: AidedAccumulationScheme, CF:
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF};
+    use crate::constraints::AidedAccumulationSchemeVerifierGadget;
     use crate::tests::AidedAccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
-    use ark_ec::AffineCurve;
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;

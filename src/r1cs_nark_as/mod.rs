@@ -1,4 +1,5 @@
-use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
+use crate::constraints::ConstraintF;
+use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::hp_as::data_structures::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
@@ -9,20 +10,17 @@ use crate::r1cs_nark::data_structures::{
     FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
     SecondRoundMessage,
 };
-use crate::r1cs_nark::{
-    hash_matrices, matrix_vec_mul, SimpleNARK, PROTOCOL_NAME as NARK_PROTOCOL_NAME,
-};
+use crate::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
 use crate::std::UniformRand;
 use crate::AidedAccumulationScheme;
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
-use ark_ff::{PrimeField, ToConstraintField};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{Absorbable, CryptographicSponge};
 use rand_core::RngCore;
 use std::marker::PhantomData;
-use crate::constraints::ConstraintF;
 
 pub mod data_structures;
 use data_structures::*;
@@ -174,7 +172,7 @@ where
 
     fn compute_hp_input_witnesses<'a>(
         prover_key: &ProverKey<G>,
-        inputs: &Vec<InputRef<Self>>,
+        inputs: &Vec<InputRef<'_, Self>>,
     ) -> Vec<HPInputWitness<G::ScalarField>> {
         inputs
             .into_iter()
@@ -643,11 +641,11 @@ where
     }
 
     fn verify<'a>(
-        verifier_key: &Self::VerifierKey,
-        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator_instance: &Self::AccumulatorInstance,
-        proof: &Self::Proof,
+        _verifier_key: &Self::VerifierKey,
+        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _new_accumulator_instance: &Self::AccumulatorInstance,
+        _proof: &Self::Proof,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
@@ -701,7 +699,7 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<Self>,
+        accumulator: AccumulatorRef<'_, Self>,
     ) -> Result<bool, Self::Error> {
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -758,7 +756,7 @@ where
         .map_err(BoxedError::new)?
         .0;
 
-        let comm_check = comm_a.eq(&instance.comm_a)
+        let _comm_check = comm_a.eq(&instance.comm_a)
             && comm_b.eq(&instance.comm_b)
             && comm_c.eq(&instance.comm_c);
 
@@ -779,6 +777,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::ConstraintF;
+    use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::r1cs_nark::data_structures::IndexProverKey;
     use crate::r1cs_nark::test::DummyCircuit;
@@ -787,10 +786,9 @@ pub mod tests {
     use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
-    use crate::Input;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
-    use ark_ff::{PrimeField, ToConstraintField};
+    use ark_ff::ToConstraintField;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};

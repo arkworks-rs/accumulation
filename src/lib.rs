@@ -17,7 +17,7 @@
 )]
 #![forbid(unsafe_code)]
 
-use crate::data_structures::{Accumulator, AccumulatorRef, Input, InputRef};
+use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rand_core::RngCore;
 
@@ -146,7 +146,7 @@ pub trait AidedAccumulationScheme: Sized {
     /// the predicate.
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<Self>,
+        accumulator: AccumulatorRef<'_, Self>,
     ) -> Result<bool, Self::Error>;
 }
 
@@ -265,7 +265,7 @@ pub mod tests {
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
-            num_iterations: 1,
+            num_iterations: 50,
             num_inputs_per_iteration: vec![2],
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
