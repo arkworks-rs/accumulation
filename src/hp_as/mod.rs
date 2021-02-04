@@ -690,8 +690,8 @@ pub mod tests {
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_pallas::{Affine, Fq};
     use ark_ff::{PrimeField, ToConstraintField};
+    use ark_pallas::{Affine, Fq};
     use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};

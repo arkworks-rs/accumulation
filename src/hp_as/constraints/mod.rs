@@ -248,9 +248,8 @@ pub mod tests {
     #[test]
     pub fn basic() {
         let mut rng = test_rng();
-
         let (input_params, predicate_params, predicate_index) =
-            <I as AccumulationSchemeTestInput<AS>>::setup(&(8, true), &mut rng);
+            <I as AccumulationSchemeTestInput<AS>>::setup(&(8, false), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, dk) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
         let mut inputs =
@@ -266,6 +265,7 @@ pub mod tests {
             Some(&mut rng),
         )
         .unwrap();
+
         let (new_accumulator, proof) = AS::prove(
             &pk,
             vec![new_input.as_ref()],
@@ -285,27 +285,22 @@ pub mod tests {
 
         assert!(AS::decide(&dk, new_accumulator.as_ref(),).unwrap());
 
-        let mut layer = ConstraintLayer::default();
-        layer.mode = TracingMode::OnlyConstraints;
-        let subscriber = tracing_subscriber::Registry::default().with(layer);
-        tracing::subscriber::set_global_default(subscriber).unwrap();
-
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
 
         let cs_init = ns!(cs, "init var").cs();
         let cost = cs.num_constraints();
         let vk_var = VerifierKeyVar::new_constant(cs_init.clone(), vk.clone()).unwrap();
-        println!(
-            "Cost of declaring verifier_key {:?}",
-            cs.num_constraints() - cost
-        );
+        //println!(
+        //    "Cost of declaring verifier_key {:?}",
+        //    cs.num_constraints() - cost
+        //);
 
         let cost = cs.num_constraints();
         let new_input_instance_var = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
             Ok(new_input.instance.clone())
         })
         .unwrap();
-        println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
+        //println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
 
         let cost = cs.num_constraints();
         let old_accumulator_instance_var =
@@ -314,10 +309,10 @@ pub mod tests {
             })
             .unwrap();
 
-        println!(
-            "Cost of declaring old accumulator {:?}",
-            cs.num_constraints() - cost
-        );
+        //println!(
+        //    "Cost of declaring old accumulator {:?}",
+        //    cs.num_constraints() - cost
+        //);
 
         let cost = cs.num_constraints();
         let new_accumulator_instance_var =
@@ -326,10 +321,10 @@ pub mod tests {
             })
             .unwrap();
 
-        println!(
-            "Cost of declaring new accumulator {:?}",
-            cs.num_constraints() - cost
-        );
+        //println!(
+        //    "Cost of declaring new accumulator {:?}",
+        //    cs.num_constraints() - cost
+        //);
 
         let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
@@ -345,9 +340,9 @@ pub mod tests {
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
 
-        println!("Num constaints: {:}", cs.num_constraints());
-        println!("Num instance: {:}", cs.num_instance_variables());
-        println!("Num witness: {:}", cs.num_witness_variables());
+        //println!("Num constaints: {:}", cs.num_constraints());
+        //println!("Num instance: {:}", cs.num_instance_variables());
+        //println!("Num witness: {:}", cs.num_witness_variables());
 
         assert!(cs.is_satisfied().unwrap());
 

@@ -594,8 +594,8 @@ pub mod tests {
     };
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_pallas::{Affine, Fq, Fr};
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
+    use ark_pallas::{Affine, Fq, Fr};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};

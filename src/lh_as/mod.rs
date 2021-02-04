@@ -539,8 +539,8 @@ pub mod tests {
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_pallas::{Affine, Fq, Fr};
     use ark_ff::{PrimeField, ToConstraintField};
+    use ark_pallas::{Affine, Fq, Fr};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{

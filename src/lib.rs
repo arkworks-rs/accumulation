@@ -45,7 +45,7 @@ pub mod lh_as;
 
 pub mod hp_as;
 
-//pub mod r1cs_nark_as;
+pub mod r1cs_nark_as;
 
 /// A simple non-interactive argument of knowledge for R1CS
 pub mod r1cs_nark;
@@ -260,8 +260,8 @@ pub mod tests {
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
-            num_iterations: 50,
-            num_inputs_per_iteration: vec![5],
+            num_iterations: 1,
+            num_inputs_per_iteration: vec![2],
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);
         Ok(())

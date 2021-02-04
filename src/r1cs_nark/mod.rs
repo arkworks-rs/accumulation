@@ -1,5 +1,5 @@
-use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, PrimeField, Field, One, ToConstraintField, Zero};
+use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::{BigInteger, Field, One, PrimeField, ToConstraintField, Zero};
 use ark_poly_commit::pedersen::*;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
@@ -17,7 +17,7 @@ use rayon::prelude::*;
 pub mod data_structures;
 use data_structures::*;
 
-type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
+pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 type R1CSResult<T> = Result<T, SynthesisError>;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
@@ -38,7 +38,12 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
 {
-    pub fn compute_challenge(index_info: &IndexInfo, input: &[G::ScalarField], msg: &FirstRoundMessage<G>, make_zk: bool) -> G::ScalarField {
+    pub(crate) fn compute_challenge(
+        index_info: &IndexInfo,
+        input: &[G::ScalarField],
+        msg: &FirstRoundMessage<G>,
+        make_zk: bool,
+    ) -> G::ScalarField {
         let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
         let input_bytes = input
@@ -319,13 +324,16 @@ where
             tmp.extend_from_slice(&input);
             tmp
         };
-        
+
         let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, make_zk);
 
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
-        let a_times_blinded_witness = matrix_vec_mul(&ivk.a, &input, &proof.second_msg.blinded_witness);
-        let b_times_blinded_witness = matrix_vec_mul(&ivk.b, &input, &proof.second_msg.blinded_witness);
-        let c_times_blinded_witness = matrix_vec_mul(&ivk.c, &input, &proof.second_msg.blinded_witness);
+        let a_times_blinded_witness =
+            matrix_vec_mul(&ivk.a, &input, &proof.second_msg.blinded_witness);
+        let b_times_blinded_witness =
+            matrix_vec_mul(&ivk.b, &input, &proof.second_msg.blinded_witness);
+        let c_times_blinded_witness =
+            matrix_vec_mul(&ivk.c, &input, &proof.second_msg.blinded_witness);
         end_timer!(mat_vec_mul_time);
         let mut comm_a = proof.first_msg.comm_a.into_projective();
         let mut comm_b = proof.first_msg.comm_b.into_projective();
@@ -335,6 +343,8 @@ where
             comm_b += proof.first_msg.comm_r_b.unwrap().mul(gamma);
             comm_c += proof.first_msg.comm_r_c.unwrap().mul(gamma);
         }
+
+        println!("NARK {} {} {}", comm_a.into_affine(), comm_b.into_affine(), comm_c.into_affine());
 
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
         let reconstructed_comm_a =
@@ -424,27 +434,27 @@ fn inner_prod<F: Field>(row: &[(F, usize)], input: &[F], witness: &[F]) -> F {
 }
 
 #[cfg(test)]
-mod test {
-    use ark_pallas::{Affine, Fr, Fq};
-    use ark_sponge::poseidon::PoseidonSponge;
-    use ark_ff::UniformRand;
+pub(crate) mod test {
     use super::*;
+    use ark_ff::UniformRand;
+    use ark_pallas::{Affine, Fq, Fr};
     use ark_relations::{
         lc,
         r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
     };
+    use ark_sponge::poseidon::PoseidonSponge;
     const NUM_ITERS: usize = 10;
 
     #[derive(Copy, Clone)]
-    struct DummyCircuit {
-        pub a: Option<Fr>,
-        pub b: Option<Fr>,
+    pub(crate) struct DummyCircuit<F: PrimeField> {
+        pub a: Option<F>,
+        pub b: Option<F>,
         pub num_variables: usize,
         pub num_constraints: usize,
     }
 
-    impl ConstraintSynthesizer<Fr> for DummyCircuit {
-        fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+    impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
+        fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
             let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
             let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
             let c = cs.new_input_variable(|| {
@@ -455,7 +465,8 @@ mod test {
             })?;
 
             for _ in 0..(self.num_variables - 3) {
-                let _ = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+                let _ =
+                    cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
             }
 
             for _ in 0..self.num_constraints - 1 {
@@ -485,8 +496,18 @@ mod test {
         let start = ark_std::time::Instant::now();
 
         for i in 0..NUM_ITERS {
-            let proof = SimpleNARK::<Affine, PoseidonSponge<Fq>>::prove(&ipk, c.clone(), i % 2 == 1, Some(rng)).unwrap();
-            assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(&ivk, &[v], &proof))
+            let proof = SimpleNARK::<Affine, PoseidonSponge<Fq>>::prove(
+                &ipk,
+                c.clone(),
+                i % 2 == 1,
+                Some(rng),
+            )
+            .unwrap();
+            assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(
+                &ivk,
+                &[v],
+                &proof
+            ))
         }
 
         println!(

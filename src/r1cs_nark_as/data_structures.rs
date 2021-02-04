@@ -2,7 +2,9 @@ use crate::hp_as::data_structures::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
 };
 use crate::hp_as::HPAidedAccumulationScheme;
-use crate::r1cs_nark::data_structures::{FirstRoundMessage, SecondRoundMessage};
+use crate::r1cs_nark::data_structures::{
+    FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
+};
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::pedersen::CommitterKey as PedersenCommitmentCK;
@@ -24,50 +26,20 @@ pub struct PredicateIndex<F: Field> {
 
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
-    /// The A matrix for the R1CS instance.
-    pub a: Matrix<G::ScalarField>,
-    /// The B matrix for the R1CS instance.
-    pub b: Matrix<G::ScalarField>,
-    /// The C matrix for the R1CS instance.
-    pub c: Matrix<G::ScalarField>,
+    /// Underlying NARK prover key
+    pub nark_pk: IndexProverKey<G>,
 
-    /// Hash of the matrices.
+    /// Hash of the matrices for the accumulation scheme.
     pub as_matrices_hash: [u8; 32],
-
-    /// Hash of the matrices.
-    pub nark_matrices_hash: [u8; 32],
-
-    pub index: usize,
-
-    /// HP_AS pk
-    pub ck: PedersenCommitmentCK<G>,
 }
 
 #[derive(Clone)]
 pub struct VerifierKey {
-    /// Hash of the matrices.
+    /// Underlying NARK infex
+    pub nark_index: IndexInfo,
+
+    /// Hash of the matrices for the accumulation scheme.
     pub as_matrices_hash: [u8; 32],
-
-    /// Hash of the matrices.
-    pub nark_matrices_hash: [u8; 32],
-
-    /// Serves as HP_AS vk
-    pub index: usize,
-}
-
-#[derive(Clone)]
-pub struct DeciderKey<G: AffineCurve> {
-    /// The A matrix for the R1CS instance.
-    pub a: Matrix<G::ScalarField>,
-    /// The B matrix for the R1CS instance.
-    pub b: Matrix<G::ScalarField>,
-    /// The C matrix for the R1CS instance.
-    pub c: Matrix<G::ScalarField>,
-
-    pub index: usize,
-
-    /// HP_AS dk
-    pub ck: PedersenCommitmentCK<G>,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
