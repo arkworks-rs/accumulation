@@ -1,3 +1,4 @@
+use crate::constraints::ConstraintF;
 use crate::hp_as::data_structures::{Proof, ProofHidingCommitments, ProofTCommitments};
 use crate::hp_as::InputInstance;
 use ark_ec::AffineCurve;
@@ -12,12 +13,6 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-
-pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
-pub(crate) type NNFieldVar<G> = NonNativeFieldVar<
-    <G as AffineCurve>::ScalarField,
-    <<G as AffineCurve>::BaseField as Field>::BasePrimeField,
->;
 
 /// Represents the verifier key that is used when accumulating instances and old accumulators.
 pub struct VerifierKeyVar<CF: PrimeField> {

@@ -1,3 +1,4 @@
+use crate::constraints::{ConstraintF, NNFieldVar};
 use crate::lh_as::{InputInstance, SingleProof};
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
@@ -10,12 +11,6 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-
-pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
-pub(crate) type NNFieldVar<G> = NonNativeFieldVar<
-    <G as AffineCurve>::ScalarField,
-    <<G as AffineCurve>::BaseField as Field>::BasePrimeField,
->;
 
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 

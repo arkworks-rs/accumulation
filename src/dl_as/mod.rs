@@ -590,7 +590,7 @@ pub mod tests {
     use crate::tests::{
         accumulators_only_test, multiple_accumulations_multiple_inputs_test,
         multiple_accumulations_test, multiple_inputs_test, single_input_test,
-        AccumulationSchemeTestInput,
+        AidedAccumulationSchemeTestInput,
     };
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
@@ -606,7 +606,8 @@ pub mod tests {
 
     pub struct DLAccumulationSchemeTestInput {}
 
-    impl<G, P, D, R, CF, S> AccumulationSchemeTestInput<DLAccumulationScheme<G, P, D, R, CF, S>>
+    impl<G, P, D, R, CF, S>
+        AidedAccumulationSchemeTestInput<DLAccumulationScheme<G, P, D, R, CF, S>>
         for DLAccumulationSchemeTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,

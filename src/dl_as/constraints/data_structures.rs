@@ -1,4 +1,5 @@
 #![allow(unused)]
+use crate::constraints::{ConstraintF, NNFieldVar};
 use crate::dl_as::data_structures::{
     InputInstance, IsSpongeForAccSchemeParam, Proof, SpongeForAccSchemeParam, SpongeForPCParam,
     VerifierKey,
@@ -22,8 +23,6 @@ use ark_sponge::FieldElementSize;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
-pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
-pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 pub type FinalCommKeyVar<C> = C;
 
 pub struct VerifierKeyVar<G, C>

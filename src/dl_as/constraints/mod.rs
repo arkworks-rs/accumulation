@@ -1,3 +1,4 @@
+use crate::constraints::{ConstraintF, NNFieldVar};
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
@@ -396,7 +397,7 @@ pub mod tests {
     };
     use crate::dl_as::tests::DLAccumulationSchemeTestInput;
     use crate::dl_as::DLAccumulationScheme;
-    use crate::tests::AccumulationSchemeTestInput;
+    use crate::tests::AidedAccumulationSchemeTestInput;
     use crate::AidedAccumulationScheme;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
@@ -435,11 +436,14 @@ pub mod tests {
         let mut rng = test_rng();
 
         let (input_params, predicate_params, predicate_index) =
-            <I as AccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
+            <I as AidedAccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs =
-            <I as AccumulationSchemeTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
+        let mut inputs = <I as AidedAccumulationSchemeTestInput<AS>>::generate_inputs(
+            &input_params,
+            2,
+            &mut rng,
+        );
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 

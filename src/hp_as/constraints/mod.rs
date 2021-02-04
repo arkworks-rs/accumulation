@@ -1,7 +1,9 @@
+use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
 use ark_ec::AffineCurve;
-use ark_ff::Field;
+use ark_ff::{Field, ToConstraintField};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
@@ -10,27 +12,29 @@ use ark_sponge::constraints::CryptographicSpongeVar;
 use std::marker::PhantomData;
 
 mod data_structures;
-use ark_r1cs_std::fields::fp::FpVar;
+use crate::hp_as::HPAidedAccumulationScheme;
+use crate::AidedAccumulationScheme;
+use ark_sponge::{Absorbable, CryptographicSponge};
 pub use data_structures::*;
 
-pub struct HPAidedAccumulationSchemeGadget<G, C, S>
+pub struct HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
-    G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
     pub _affine: PhantomData<G>,
     pub _curve: PhantomData<C>,
-    pub _sponge: PhantomData<S>,
+    pub _sponge: PhantomData<SV>,
 }
 
-impl<G, C, S> HPAidedAccumulationSchemeGadget<G, C, S>
+impl<G, C, SV> HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
-    G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
@@ -125,17 +129,36 @@ where
             _curve: PhantomData,
         })
     }
+}
 
-    pub fn verify<'a>(
+impl<G, S, C, SV>
+    AidedAccumulationSchemeVerifierGadget<
+        HPAidedAccumulationScheme<G, ConstraintF<G>, S>,
+        ConstraintF<G>,
+    > for HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
+{
+    type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
+    type InputInstance = InputInstanceVar<G, C>;
+    type AccumulatorInstance = AccumulatorInstanceVar<G, C>;
+    type Proof = ProofVar<G, C>;
+
+    fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        verifier_key: &VerifierKeyVar<ConstraintF<G>>,
-        input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        accumulator_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        new_accumulator_instance: &InputInstanceVar<G, C>,
-        proof: &ProofVar<G, C>,
+        verifier_key: &Self::VerifierKey,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
+        proof: &Self::Proof,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
-        Self: 'a,
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a,
     {
         // TODO: Validate input instances
         let input_instances = input_instances
@@ -146,7 +169,7 @@ where
         let num_inputs = input_instances.len();
         let has_hiding = proof.hiding_comms.is_some();
 
-        let mut challenges_sponge = S::new(cs.clone());
+        let mut challenges_sponge = SV::new(cs.clone());
         challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()]);
         for input_instance in input_instances.iter() {
             input_instance.absorb_into_sponge(&mut challenges_sponge)?;
@@ -212,25 +235,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::data_structures::Input;
-    use crate::hp_as::constraints::{
-        HPAidedAccumulationSchemeGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
-    };
-    use crate::hp_as::tests::HPAidedAccumulationSchemeTestInput;
-    use crate::hp_as::HPAidedAccumulationScheme;
-    use crate::tests::AccumulationSchemeTestInput;
-    use crate::AidedAccumulationScheme;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::bits::boolean::Boolean;
-    use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::ns;
-    use ark_relations::r1cs::ConstraintLayer;
-    use ark_relations::r1cs::{ConstraintSystem, TracingMode};
-    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::CryptographicSponge;
-    use ark_std::test_rng;
-    use tracing_subscriber::layer::SubscriberExt;
+    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
+    use crate::hp_as::HPAidedAccumulationScheme;
+    use crate::hp_as::tests::HPAidedAccumulationSchemeTestInput;
+    use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
 
     //type G = ark_pallas::Affine;
     //type C = ark_pallas::constraints::GVar;
@@ -241,122 +250,15 @@ pub mod tests {
     type F = ark_ed_on_bls12_381::Fr;
     type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = HPAidedAccumulationScheme<G, ConstraintF, PoseidonSponge<ConstraintF>>;
+    type Sponge = PoseidonSponge<ConstraintF>;
+    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
+    type AS = HPAidedAccumulationScheme<G, ConstraintF, Sponge>;
     type I = HPAidedAccumulationSchemeTestInput;
+    type ASV = HPAidedAccumulationSchemeVerifierGadget<G, C, SpongeVar>;
 
     #[test]
-    pub fn basic() {
-        let mut rng = test_rng();
-        let (input_params, predicate_params, predicate_index) =
-            <I as AccumulationSchemeTestInput<AS>>::setup(&(8, false), &mut rng);
-        let pp = AS::generate(&mut rng).unwrap();
-        let (pk, vk, dk) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs =
-            <I as AccumulationSchemeTestInput<AS>>::generate_inputs(&input_params, 3, &mut rng);
-        let old_input = inputs.pop().unwrap();
-        let old_input_2 = inputs.pop().unwrap();
-        let new_input = inputs.pop().unwrap();
-
-        let (old_accumulator, _) = AS::prove(
-            &pk,
-            vec![old_input.as_ref(), old_input_2.as_ref()],
-            vec![],
-            Some(&mut rng),
-        )
-        .unwrap();
-
-        let (new_accumulator, proof) = AS::prove(
-            &pk,
-            vec![new_input.as_ref()],
-            vec![old_accumulator.as_ref()],
-            Some(&mut rng),
-        )
-        .unwrap();
-
-        assert!(AS::verify(
-            &vk,
-            vec![&new_input.instance],
-            vec![&old_accumulator.instance],
-            &new_accumulator.instance,
-            &proof
-        )
-        .unwrap());
-
-        assert!(AS::decide(&dk, new_accumulator.as_ref(),).unwrap());
-
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
-
-        let cs_init = ns!(cs, "init var").cs();
-        let cost = cs.num_constraints();
-        let vk_var = VerifierKeyVar::new_constant(cs_init.clone(), vk.clone()).unwrap();
-        //println!(
-        //    "Cost of declaring verifier_key {:?}",
-        //    cs.num_constraints() - cost
-        //);
-
-        let cost = cs.num_constraints();
-        let new_input_instance_var = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
-            Ok(new_input.instance.clone())
-        })
-        .unwrap();
-        //println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
-
-        let cost = cs.num_constraints();
-        let old_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
-                Ok(old_accumulator.instance.clone())
-            })
-            .unwrap();
-
-        //println!(
-        //    "Cost of declaring old accumulator {:?}",
-        //    cs.num_constraints() - cost
-        //);
-
-        let cost = cs.num_constraints();
-        let new_accumulator_instance_var =
-            InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
-                Ok(new_accumulator.instance.clone())
-            })
-            .unwrap();
-
-        //println!(
-        //    "Cost of declaring new accumulator {:?}",
-        //    cs.num_constraints() - cost
-        //);
-
-        let proof_var = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
-
-        HPAidedAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
-            ns!(cs, "dl_as_verify").cs(),
-            &vk_var,
-            vec![&new_input_instance_var],
-            vec![&old_accumulator_instance_var],
-            &new_accumulator_instance_var,
-            &proof_var,
-        )
-        .unwrap()
-        .enforce_equal(&Boolean::TRUE)
-        .unwrap();
-
-        //println!("Num constaints: {:}", cs.num_constraints());
-        //println!("Num instance: {:}", cs.num_instance_variables());
-        //println!("Num witness: {:}", cs.num_witness_variables());
-
-        assert!(cs.is_satisfied().unwrap());
-
-        /*
-        if !cs.is_satisfied().unwrap() {
-            println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        }
-
-         */
-
-        // println!("BEGIN");
-        // for constraint in cs.constraint_names().unwrap() {
-        //     println!("{:}", constraint)
-        // }
-        // println!("END");
+    pub fn basic_test() {
+        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, false), 1);
     }
 }

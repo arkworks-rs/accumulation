@@ -1,3 +1,4 @@
+use crate::constraints::ConstraintF;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{BigInteger, Field, One, PrimeField, ToConstraintField, Zero};
 use ark_poly_commit::pedersen::*;
@@ -17,7 +18,6 @@ use rayon::prelude::*;
 pub mod data_structures;
 use data_structures::*;
 
-pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 type R1CSResult<T> = Result<T, SynthesisError>;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
@@ -344,7 +344,12 @@ where
             comm_c += proof.first_msg.comm_r_c.unwrap().mul(gamma);
         }
 
-        println!("NARK {} {} {}", comm_a.into_affine(), comm_b.into_affine(), comm_c.into_affine());
+        println!(
+            "NARK {} {} {}",
+            comm_a.into_affine(),
+            comm_b.into_affine(),
+            comm_c.into_affine()
+        );
 
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
         let reconstructed_comm_a =

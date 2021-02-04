@@ -553,7 +553,7 @@ pub mod tests {
 
     pub struct LHAidedAccumulationSchemeTestInput {}
 
-    impl<G, P, CF, S> AccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, CF, S>>
+    impl<G, P, CF, S> AidedAccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, CF, S>>
         for LHAidedAccumulationSchemeTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,

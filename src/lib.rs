@@ -32,6 +32,8 @@ extern crate ark_std as std;
 /// Common data structures used by `AccumulationScheme` and `AidedAccumulationScheme`.
 pub mod data_structures;
 
+pub mod constraints;
+
 /// Common errors for `AccumulationScheme` and `AidedAccumulationScheme`.
 pub mod error;
 
@@ -156,7 +158,7 @@ pub mod tests {
     use rand_core::RngCore;
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
-    pub trait AccumulationSchemeTestInput<A: AidedAccumulationScheme> {
+    pub trait AidedAccumulationSchemeTestInput<A: AidedAccumulationScheme> {
         /// Parameters for setting up the test
         type TestParams;
 
@@ -189,7 +191,7 @@ pub mod tests {
     /// At the end of the iteration, the last accumulator is put through a single decider.
     /// The function will return whether all of the verifiers and deciders returned true
     /// from all of the iterations.
-    pub fn test_template<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn test_template<A: AidedAccumulationScheme, I: AidedAccumulationSchemeTestInput<A>>(
         template_params: &TemplateParams,
         test_params: &I::TestParams,
     ) -> Result<bool, A::Error> {
@@ -245,7 +247,7 @@ pub mod tests {
         Ok(true)
     }
 
-    pub fn single_input_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn single_input_test<A: AidedAccumulationScheme, I: AidedAccumulationSchemeTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -256,7 +258,10 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_inputs_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn multiple_inputs_test<
+        A: AidedAccumulationScheme,
+        I: AidedAccumulationSchemeTestInput<A>,
+    >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -269,7 +274,7 @@ pub mod tests {
 
     pub fn multiple_accumulations_test<
         A: AidedAccumulationScheme,
-        I: AccumulationSchemeTestInput<A>,
+        I: AidedAccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
@@ -283,7 +288,7 @@ pub mod tests {
 
     pub fn multiple_accumulations_multiple_inputs_test<
         A: AidedAccumulationScheme,
-        I: AccumulationSchemeTestInput<A>,
+        I: AidedAccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
@@ -296,7 +301,10 @@ pub mod tests {
     }
 
     // Only add this test if scheme is intended to support cases with accumulators but no inputs
-    pub fn accumulators_only_test<A: AidedAccumulationScheme, I: AccumulationSchemeTestInput<A>>(
+    pub fn accumulators_only_test<
+        A: AidedAccumulationScheme,
+        I: AidedAccumulationSchemeTestInput<A>,
+    >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let mut num_inputs_per_iteration = vec![0usize; 10];
@@ -315,7 +323,7 @@ pub mod tests {
     // Only add this test if scheme is intended to support cases with no accumulators or inputs
     pub fn no_accumulators_or_inputs_test<
         A: AidedAccumulationScheme,
-        I: AccumulationSchemeTestInput<A>,
+        I: AidedAccumulationSchemeTestInput<A>,
     >(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {

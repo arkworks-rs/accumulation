@@ -10,7 +10,7 @@ use crate::r1cs_nark::data_structures::{
     SecondRoundMessage,
 };
 use crate::r1cs_nark::{
-    hash_matrices, matrix_vec_mul, ConstraintF, SimpleNARK, PROTOCOL_NAME as NARK_PROTOCOL_NAME,
+    hash_matrices, matrix_vec_mul, SimpleNARK, PROTOCOL_NAME as NARK_PROTOCOL_NAME,
 };
 use crate::std::UniformRand;
 use crate::AidedAccumulationScheme;
@@ -24,9 +24,10 @@ use rand_core::RngCore;
 use std::marker::PhantomData;
 
 pub mod data_structures;
+use crate::constraints::ConstraintF;
 use data_structures::*;
 
-pub mod constraints;
+//pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
@@ -777,10 +778,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::ConstraintF;
     use crate::error::BoxedError;
     use crate::r1cs_nark::data_structures::IndexProverKey;
     use crate::r1cs_nark::test::DummyCircuit;
-    use crate::r1cs_nark::{ConstraintF, SimpleNARK};
+    use crate::r1cs_nark::SimpleNARK;
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
     use crate::r1cs_nark_as::NARKVerifierAidedAccumulationScheme;
     use crate::tests::*;
@@ -788,7 +790,7 @@ pub mod tests {
     use crate::Input;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
-    use ark_ff::{test_rng, PrimeField, ToConstraintField};
+    use ark_ff::{PrimeField, ToConstraintField};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
@@ -798,7 +800,7 @@ pub mod tests {
     pub struct NARKVerifierAidedAccumulationSchemeTestInput {}
 
     impl<G, S>
-        AccumulationSchemeTestInput<
+        AidedAccumulationSchemeTestInput<
             NARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
         > for NARKVerifierAidedAccumulationSchemeTestInput
     where
