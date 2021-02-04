@@ -22,9 +22,9 @@ use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{Absorbable, CryptographicSponge};
 use rand_core::RngCore;
 use std::marker::PhantomData;
+use crate::constraints::ConstraintF;
 
 pub mod data_structures;
-use crate::constraints::ConstraintF;
 use data_structures::*;
 
 pub mod constraints;

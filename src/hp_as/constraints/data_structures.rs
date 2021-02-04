@@ -80,8 +80,7 @@ where
 impl<G, C> InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
     where
@@ -187,8 +186,7 @@ where
 impl<G, C> ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
     where
@@ -246,8 +244,7 @@ where
 impl<G, C> ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
     pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
     where

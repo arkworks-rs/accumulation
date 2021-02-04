@@ -14,7 +14,7 @@ use ark_std::ops::Mul;
 use std::marker::PhantomData;
 
 pub mod data_structures;
-pub use data_structures::*;
+use data_structures::*;
 
 pub struct LHAccumulationSchemeGadget<G, C, S>
 where

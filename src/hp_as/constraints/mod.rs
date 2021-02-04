@@ -10,14 +10,14 @@ use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::marker::PhantomData;
-
-mod data_structures;
+use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HPAidedAccumulationScheme;
 use crate::AidedAccumulationScheme;
-use ark_sponge::{Absorbable, CryptographicSponge};
-pub use data_structures::*;
-use crate::hp_as::data_structures::InputInstance;
 use ark_r1cs_std::alloc::AllocVar;
+use ark_sponge::{Absorbable, CryptographicSponge};
+
+pub mod data_structures;
+use data_structures::*;
 
 pub struct HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
@@ -173,7 +173,10 @@ where
 
         let mut default_input_instance = None;
         if has_hiding && num_inputs == 1 {
-            default_input_instance = Some(InputInstanceVar::new_constant(cs.clone(), InputInstance::default())?);
+            default_input_instance = Some(InputInstanceVar::new_constant(
+                cs.clone(),
+                InputInstance::default(),
+            )?);
 
             num_inputs += 1;
             input_instances.push(default_input_instance.as_ref().unwrap());

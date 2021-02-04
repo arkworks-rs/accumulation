@@ -8,10 +8,10 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{Absorbable, CryptographicSponge};
+use std::marker::PhantomData;
 
 pub mod data_structures;
 use data_structures::*;
-use std::marker::PhantomData;
 
 pub struct SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where

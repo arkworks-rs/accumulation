@@ -51,7 +51,7 @@ impl<F: Field> Default for InputWitness<F> {
         Self {
             a_vec: vec![],
             b_vec: vec![],
-            randomness: None
+            randomness: None,
         }
     }
 }
