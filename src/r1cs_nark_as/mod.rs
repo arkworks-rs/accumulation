@@ -275,7 +275,7 @@ where
         all_blinded_comm_b: &Vec<G>,
         all_blinded_comm_c: &Vec<G>,
         accumulator_instances: &Vec<&AccumulatorInstance<G>>,
-        linear_combination_challenges: &Vec<G::ScalarField>,
+        beta_challenges: &Vec<G::ScalarField>,
         proof_randomness: Option<&ProofRandomness<G>>,
     ) -> (Vec<G::ScalarField>, G, G, G) {
         assert!(
@@ -288,7 +288,7 @@ where
             + accumulator_instances.len()
             + if proof_randomness.is_some() { 1 } else { 0 };
 
-        assert!(num_addends <= linear_combination_challenges.len());
+        assert!(num_addends <= beta_challenges.len());
 
         let r1cs_inputs = accumulator_instances
             .iter()
@@ -329,28 +329,28 @@ where
         let combined_r1cs_input =
             HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_vectors(
                 r1cs_inputs,
-                linear_combination_challenges,
+                beta_challenges,
                 None,
             );
 
         let combined_comm_a_proj =
             HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_commitments(
                 all_comm_a,
-                linear_combination_challenges,
+                beta_challenges,
                 None,
             );
 
         let combined_comm_b_proj =
             HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_commitments(
                 all_comm_b,
-                linear_combination_challenges,
+                beta_challenges,
                 None,
             );
 
         let combined_comm_c_proj =
             HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_commitments(
                 all_comm_c,
-                linear_combination_challenges,
+                beta_challenges,
                 None,
             );
 
@@ -375,7 +375,7 @@ where
     fn compute_accumulator_witness_components(
         input_witnesses: &Vec<&InputWitness<G::ScalarField>>,
         accumulator_witnesses: &Vec<&AccumulatorWitness<G::ScalarField>>,
-        linear_combination_challenges: &Vec<G::ScalarField>,
+        beta_challenges: &Vec<G::ScalarField>,
         prover_witness_randomness: Option<&(
             Vec<G::ScalarField>, // r_witness
             G::ScalarField,      // sigma_a
@@ -394,7 +394,7 @@ where
                 0
             };
 
-        assert!(num_addends <= linear_combination_challenges.len());
+        assert!(num_addends <= beta_challenges.len());
 
         let r1cs_blinded_witnesses = accumulator_witnesses
             .iter()
@@ -452,7 +452,7 @@ where
         let combined_r1cs_blinded_witness =
             HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_vectors(
                 r1cs_blinded_witnesses,
-                linear_combination_challenges,
+                beta_challenges,
                 None,
             );
 
@@ -460,21 +460,21 @@ where
             let combined_sigma_a =
                 HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_randomness(
                     all_sigma_a,
-                    linear_combination_challenges,
+                    beta_challenges,
                     None,
                 );
 
             let combined_sigma_b =
                 HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_randomness(
                     all_sigma_b,
-                    linear_combination_challenges,
+                    beta_challenges,
                     None,
                 );
 
             let combined_sigma_c =
                 HPAidedAccumulationScheme::<G, ConstraintF<G>, S>::combine_randomness(
                     all_sigma_c,
-                    linear_combination_challenges,
+                    beta_challenges,
                     None,
                 );
 
@@ -640,12 +640,12 @@ where
 
         // TODO: Challenge
         // TODO: Can these challenges be independent challenges?
-        let linear_combination_challenge = G::ScalarField::one() + G::ScalarField::one();
-        let mut linear_combination_challenges = Vec::with_capacity(num_addends);
+        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
+        let mut beta_challenges = Vec::with_capacity(num_addends);
         let mut cur_challenge = G::ScalarField::one();
         for _ in 0..num_addends {
-            linear_combination_challenges.push(cur_challenge);
-            cur_challenge *= linear_combination_challenge;
+            beta_challenges.push(cur_challenge);
+            cur_challenge *= beta_challenge;
         }
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
@@ -654,7 +654,7 @@ where
             &all_blinded_comm_b,
             &all_blinded_comm_c,
             &accumulator_instances,
-            &linear_combination_challenges,
+            &beta_challenges,
             proof_randomness.as_ref(),
         );
 
@@ -669,7 +669,7 @@ where
         let (r1cs_blinded_witness, randomness) = Self::compute_accumulator_witness_components(
             &input_witnesses,
             &accumulator_witnesses,
-            &linear_combination_challenges,
+            &beta_challenges,
             prover_witness_randomness.as_ref(),
         );
         let combined_acc_witness = AccumulatorWitness {
@@ -708,12 +708,12 @@ where
             + accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
-        let linear_combination_challenge = G::ScalarField::one() + G::ScalarField::one();
-        let mut linear_combination_challenges = Vec::with_capacity(num_addends);
+        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
+        let mut beta_challenges = Vec::with_capacity(num_addends);
         let mut cur_challenge = G::ScalarField::one();
         for _ in 0..num_addends {
-            linear_combination_challenges.push(cur_challenge);
-            cur_challenge *= linear_combination_challenge;
+            beta_challenges.push(cur_challenge);
+            cur_challenge *= beta_challenge;
         }
 
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
@@ -743,7 +743,7 @@ where
             &all_blinded_comm_b,
             &all_blinded_comm_c,
             &accumulator_instances,
-            &linear_combination_challenges,
+            &beta_challenges,
             proof.randomness.as_ref(),
         );
 

@@ -156,6 +156,7 @@ where
         let num_input_variables = input.len();
         let num_witness_variables = witness.len();
         let num_variables = num_input_variables + num_witness_variables;
+
         assert_eq!(ipk.index_info.num_variables, num_variables);
         assert_eq!(ipk.index_info.num_constraints, num_constraints);
 
@@ -344,13 +345,6 @@ where
             comm_c += proof.first_msg.comm_r_c.unwrap().mul(gamma);
         }
 
-        println!(
-            "NARK {} {} {}",
-            comm_a.into_affine(),
-            comm_b.into_affine(),
-            comm_c.into_affine()
-        );
-
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
         let reconstructed_comm_a =
             PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a)
@@ -364,14 +358,12 @@ where
             PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c)
                 .unwrap()
                 .0;
+
         let a_equal = comm_a == reconstructed_comm_a.into_projective();
         let b_equal = comm_b == reconstructed_comm_b.into_projective();
         let c_equal = comm_c == reconstructed_comm_c.into_projective();
         drop(c_times_blinded_witness);
         end_timer!(commit_time);
-        println!("a_equal: {:?}", a_equal);
-        println!("b_equal: {:?}", b_equal);
-        println!("c_equal: {:?}", c_equal);
 
         let had_prod_time = start_timer!(|| "Computing Hadamard product and commitment to it");
         let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness)
@@ -390,7 +382,6 @@ where
             had_prod_comm += proof.first_msg.comm_2.unwrap().mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
-        println!("had_prod_equal: {:?}", had_prod_equal);
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }
@@ -491,7 +482,7 @@ pub(crate) mod test {
             a: Some(Fr::rand(rng)),
             b: Some(Fr::rand(rng)),
             num_variables: 10,
-            num_constraints: 65536,
+            num_constraints: 10,
         };
         let v = c.a.unwrap() * &c.b.unwrap();
 

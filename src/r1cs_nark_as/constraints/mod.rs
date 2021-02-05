@@ -1,21 +1,30 @@
-use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF};
+use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
+use crate::hp_as::constraints::data_structures::{
+    InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
+};
 use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::bits::boolean::Boolean;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{Absorbable, CryptographicSponge};
 use std::marker::PhantomData;
 
 pub mod data_structures;
+use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
+use crate::hp_as::HPAidedAccumulationScheme;
+use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::eq::EqGadget;
 use data_structures::*;
 
 pub struct SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
@@ -23,6 +32,223 @@ where
     _affine_phantom: PhantomData<G>,
     _curve_phantom: PhantomData<C>,
     _sponge_phantom: PhantomData<SV>,
+}
+
+impl<G, C, SV> SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
+{
+    fn compute_blinded_commitments(
+        index_info: &IndexInfoVar<ConstraintF<G>>,
+        input_instances: &Vec<&InputInstanceVar<G, C>>,
+    ) -> Result<(Vec<C>, Vec<C>, Vec<C>, Vec<C>), SynthesisError> {
+        let mut all_blinded_comm_a = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_b = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_c = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
+
+        for instance in input_instances {
+            let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
+
+            let mut comm_a = first_round_message.comm_a.clone();
+            let mut comm_b = first_round_message.comm_b.clone();
+            let mut comm_c = first_round_message.comm_c.clone();
+            let mut comm_prod = first_round_message.comm_c.clone();
+
+            if instance.make_zk {
+                // TODO
+                let (mut challenge, challenge_bits) =
+                    (NNFieldVar::<G>::one(), vec![Boolean::Constant(true)]);
+                /*
+                let challenge: Vec<Boolean<ConstraintF<G>>> = SimpleNARK::<G, S>::compute_challenge(
+                    index_info,
+                    instance.r1cs_input.as_slice(),
+                    first_round_message,
+                    instance.make_zk,
+                );
+                 */
+
+                if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
+                    comm_a += &comm_r_a.scalar_mul_le(challenge_bits.iter())?;
+                }
+
+                if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
+                    comm_b += &comm_r_b.scalar_mul_le(challenge_bits.iter())?;
+                }
+
+                if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
+                    comm_c += &comm_r_c.scalar_mul_le(challenge_bits.iter())?;
+                }
+
+                if let Some(comm_1) = first_round_message.comm_1.as_ref() {
+                    comm_prod += &comm_1.scalar_mul_le(challenge_bits.iter())?;
+                }
+
+                if let Some(comm_2) = first_round_message.comm_2.as_ref() {
+                    comm_prod +=
+                        &comm_2.scalar_mul_le(challenge.square_in_place()?.to_bits_le()?.iter())?;
+                }
+            }
+
+            all_blinded_comm_a.push(comm_a);
+            all_blinded_comm_b.push(comm_b);
+            all_blinded_comm_c.push(comm_c);
+            all_blinded_comm_prod.push(comm_prod);
+        }
+
+        Ok((
+            all_blinded_comm_a,
+            all_blinded_comm_b,
+            all_blinded_comm_c,
+            all_blinded_comm_prod,
+        ))
+    }
+
+    fn compute_hp_input_instances(
+        all_blinded_comm_a: &Vec<C>,
+        all_blinded_comm_b: &Vec<C>,
+        all_blinded_comm_prod: &Vec<C>,
+    ) -> Vec<HPInputInstanceVar<G, C>> {
+        assert!(
+            all_blinded_comm_a.len() == all_blinded_comm_b.len()
+                && all_blinded_comm_b.len() == all_blinded_comm_prod.len()
+        );
+
+        let mut input_instances = Vec::with_capacity(all_blinded_comm_a.len());
+        all_blinded_comm_a
+            .into_iter()
+            .zip(all_blinded_comm_b)
+            .zip(all_blinded_comm_prod)
+            .for_each(|((comm_a, comm_b), comm_prod)| {
+                input_instances.push(HPInputInstanceVar {
+                    comm_1: comm_a.clone(),
+                    comm_2: comm_b.clone(),
+                    comm_3: comm_prod.clone(),
+                    _curve: PhantomData,
+                });
+            });
+
+        input_instances
+    }
+
+    fn combine_vectors<'a>(
+        vectors: impl IntoIterator<Item = &'a Vec<NNFieldVar<G>>>,
+        challenges: &[NNFieldVar<G>],
+    ) -> Result<Vec<NNFieldVar<G>>, SynthesisError> {
+        let mut output = Vec::new();
+        for (ni, vector) in vectors.into_iter().enumerate() {
+            for (li, elem) in vector.into_iter().enumerate() {
+                let product = challenges[ni].mul_without_reduce(elem)?;
+                if li >= output.len() {
+                    output.push(product);
+                } else {
+                    output[li] += &product;
+                }
+            }
+        }
+
+        let mut reduced_output = Vec::with_capacity(output.len());
+        for mul_result in output {
+            reduced_output.push(mul_result.reduce()?);
+        }
+
+        Ok(reduced_output)
+    }
+
+    fn compute_accumulator_instance_components(
+        input_instances: &Vec<&InputInstanceVar<G, C>>,
+        all_blinded_comm_a: &Vec<C>,
+        all_blinded_comm_b: &Vec<C>,
+        all_blinded_comm_c: &Vec<C>,
+        accumulator_instances: &Vec<&AccumulatorInstanceVar<G, C>>,
+        beta_challenges_fe: &Vec<NNFieldVar<G>>,
+        beta_challenges_bits: &Vec<Vec<Boolean<ConstraintF<G>>>>,
+        proof_randomness: Option<&ProofRandomnessVar<G, C>>,
+    ) -> Result<(Vec<NNFieldVar<G>>, C, C, C), SynthesisError> {
+        assert!(
+            input_instances.len() == all_blinded_comm_a.len()
+                && all_blinded_comm_a.len() == all_blinded_comm_b.len()
+                && all_blinded_comm_b.len() == all_blinded_comm_c.len()
+        );
+
+        let num_addends = input_instances.len()
+            + accumulator_instances.len()
+            + if proof_randomness.is_some() { 1 } else { 0 };
+
+        assert!(num_addends <= beta_challenges_fe.len());
+        assert_eq!(beta_challenges_fe.len(), beta_challenges_bits.len());
+
+        let r1cs_inputs = accumulator_instances
+            .iter()
+            .map(|instance| &instance.r1cs_input)
+            .chain(input_instances.iter().map(|instance| &instance.r1cs_input));
+
+        let all_comm_a = accumulator_instances
+            .iter()
+            .map(|instance| &instance.comm_a)
+            .chain(all_blinded_comm_a);
+
+        let all_comm_b = accumulator_instances
+            .iter()
+            .map(|instance| &instance.comm_b)
+            .chain(all_blinded_comm_b);
+
+        let all_comm_c = accumulator_instances
+            .iter()
+            .map(|instance| &instance.comm_c)
+            .chain(all_blinded_comm_c);
+
+        let (r1cs_inputs, all_comm_a, all_comm_b, all_comm_c) = if proof_randomness.is_some() {
+            (
+                r1cs_inputs.chain(vec![&proof_randomness.as_ref().unwrap().r1cs_r_input]),
+                all_comm_a.chain(vec![&proof_randomness.as_ref().unwrap().comm_r_a]),
+                all_comm_b.chain(vec![&proof_randomness.as_ref().unwrap().comm_r_b]),
+                all_comm_c.chain(vec![&proof_randomness.as_ref().unwrap().comm_r_c]),
+            )
+        } else {
+            (
+                r1cs_inputs.chain(vec![]),
+                all_comm_a.chain(vec![]),
+                all_comm_b.chain(vec![]),
+                all_comm_c.chain(vec![]),
+            )
+        };
+
+        let combined_r1cs_input =
+            Self::combine_vectors(r1cs_inputs, beta_challenges_fe.as_slice())?;
+
+        let combined_comm_a =
+            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
+                all_comm_a,
+                beta_challenges_bits.as_slice(),
+                None,
+            )?;
+
+        let combined_comm_b =
+            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
+                all_comm_b,
+                beta_challenges_bits.as_slice(),
+                None,
+            )?;
+
+        let combined_comm_c =
+            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
+                all_comm_c,
+                beta_challenges_bits.as_slice(),
+                None,
+            )?;
+
+        Ok((
+            combined_r1cs_input,
+            combined_comm_a,
+            combined_comm_b,
+            combined_comm_c,
+        ))
+    }
 }
 
 impl<G, S, CS, C, SV>
@@ -36,7 +262,7 @@ where
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
-    C: CurveVar<G::Projective, ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
@@ -45,18 +271,89 @@ where
     type Proof = ProofVar<G, C>;
 
     fn verify<'a>(
-        _cs: ConstraintSystemRef<ConstraintF<G>>,
-        _verifier_key: &Self::VerifierKey,
-        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        _new_accumulator_instance: &Self::AccumulatorInstance,
-        _proof: &Self::Proof,
+        cs: ConstraintSystemRef<ConstraintF<G>>,
+        verifier_key: &Self::VerifierKey,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
+        proof: &Self::Proof,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        unimplemented!()
+        let input_instances = input_instances.into_iter().collect::<Vec<_>>();
+        let accumulator_instances = accumulator_instances.into_iter().collect::<Vec<_>>();
+
+        let num_addends = input_instances.len()
+            + accumulator_instances.len()
+            + if proof.randomness.is_some() { 1 } else { 0 };
+
+        let beta_challenges_fe = vec![NNFieldVar::<G>::one(); num_addends];
+        let beta_challenges_bits = vec![vec![Boolean::constant(true)]; num_addends];
+        /*
+        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
+        let mut beta_challenges = Vec::with_capacity(num_addends);
+        let mut cur_challenge = G::ScalarField::one();
+        for _ in 0..num_addends {
+            beta_challenges.push(cur_challenge);
+            cur_challenge *= beta_challenge;
+        }
+         */
+
+        let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
+            Self::compute_blinded_commitments(&verifier_key.nark_index, &input_instances)?;
+
+        let hp_input_instances = Self::compute_hp_input_instances(
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_prod,
+        );
+
+        let hp_accumulator_instances = accumulator_instances
+            .iter()
+            .map(|instance| &instance.hp_instance);
+
+        let hp_vk = HPVerifierKeyVar::<ConstraintF<G>>::new_constant(
+            cs.clone(),
+            verifier_key.nark_index.num_constraints,
+        )?;
+
+        let hp_verify = HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::verify(
+            cs.clone(),
+            &hp_vk,
+            &hp_input_instances,
+            hp_accumulator_instances,
+            &new_accumulator_instance.hp_instance,
+            &proof.hp_proof,
+        )?;
+
+        let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
+            &input_instances,
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_c,
+            &accumulator_instances,
+            &beta_challenges_fe,
+            &beta_challenges_bits,
+            proof.randomness.as_ref(),
+        )?;
+
+        let mut verify_result = hp_verify;
+
+        if r1cs_input.len() != new_accumulator_instance.r1cs_input.len() {
+            return Ok(Boolean::FALSE);
+        }
+
+        for (input, claimed_input) in r1cs_input.iter().zip(&new_accumulator_instance.r1cs_input) {
+            verify_result = verify_result.and(&input.is_eq(claimed_input)?)?;
+        }
+
+        verify_result = verify_result.and(&comm_a.is_eq(&new_accumulator_instance.comm_a)?)?;
+        verify_result = verify_result.and(&comm_b.is_eq(&new_accumulator_instance.comm_b)?)?;
+        verify_result = verify_result.and(&comm_c.is_eq(&new_accumulator_instance.comm_c)?)?;
+
+        Ok(verify_result)
     }
 }
 

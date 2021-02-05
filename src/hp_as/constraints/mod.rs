@@ -37,7 +37,7 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
-    fn combine_commitments<'a>(
+    pub(crate) fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
         hiding_comms: Option<&C>,
