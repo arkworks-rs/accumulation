@@ -50,6 +50,163 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
+    fn compute_blinded_commitments(
+        index_info: &IndexInfo,
+        input_instances: &Vec<&InputInstance<G>>,
+    ) -> (Vec<G>, Vec<G>, Vec<G>, Vec<G>) {
+        let mut all_blinded_comm_a = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_b = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_c = Vec::with_capacity(input_instances.len());
+        let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
+
+        for instance in input_instances {
+            let first_round_message: &FirstRoundMessage<G> = &instance.first_round_message;
+
+            let mut comm_a = first_round_message.comm_a;
+            let mut comm_b = first_round_message.comm_b;
+            let mut comm_c = first_round_message.comm_c;
+            let mut comm_prod = first_round_message.comm_c;
+
+            if instance.make_zk {
+                let gamma_challenge = SimpleNARK::<G, S>::compute_challenge(
+                    index_info,
+                    instance.r1cs_input.as_slice(),
+                    first_round_message,
+                    instance.make_zk,
+                );
+
+                let mut comm_a_proj = comm_a.into_projective();
+                let mut comm_b_proj = comm_b.into_projective();
+                let mut comm_c_proj = comm_c.into_projective();
+                let mut comm_prod_proj = comm_prod.into_projective();
+
+                if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
+                    comm_a_proj += &comm_r_a.mul(gamma_challenge);
+                }
+
+                if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
+                    comm_b_proj += &comm_r_b.mul(gamma_challenge);
+                }
+
+                if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
+                    comm_c_proj += &comm_r_c.mul(gamma_challenge);
+                }
+
+                if let Some(comm_1) = first_round_message.comm_1.as_ref() {
+                    comm_prod_proj += &comm_1.mul(gamma_challenge);
+                }
+
+                if let Some(comm_2) = first_round_message.comm_2.as_ref() {
+                    comm_prod_proj += &comm_2.mul(gamma_challenge * &gamma_challenge);
+                }
+
+                let mut comms = G::Projective::batch_normalization_into_affine(&[
+                    comm_prod_proj,
+                    comm_c_proj,
+                    comm_b_proj,
+                    comm_a_proj,
+                ]);
+
+                comm_a = comms.pop().unwrap();
+                comm_b = comms.pop().unwrap();
+                comm_c = comms.pop().unwrap();
+                comm_prod = comms.pop().unwrap();
+            }
+
+            all_blinded_comm_a.push(comm_a);
+            all_blinded_comm_b.push(comm_b);
+            all_blinded_comm_c.push(comm_c);
+            all_blinded_comm_prod.push(comm_prod);
+        }
+
+        (
+            all_blinded_comm_a,
+            all_blinded_comm_b,
+            all_blinded_comm_c,
+            all_blinded_comm_prod,
+        )
+    }
+
+    fn compute_hp_input_instances(
+        all_blinded_comm_a: &Vec<G>,
+        all_blinded_comm_b: &Vec<G>,
+        all_blinded_comm_prod: &Vec<G>,
+    ) -> Vec<HPInputInstance<G>> {
+        assert!(
+            all_blinded_comm_a.len() == all_blinded_comm_b.len()
+                && all_blinded_comm_b.len() == all_blinded_comm_prod.len()
+        );
+
+        let mut input_instances = Vec::with_capacity(all_blinded_comm_a.len());
+        all_blinded_comm_a
+            .into_iter()
+            .zip(all_blinded_comm_b)
+            .zip(all_blinded_comm_prod)
+            .for_each(|((comm_a, comm_b), comm_prod)| {
+                input_instances.push(HPInputInstance {
+                    comm_1: comm_a.clone(),
+                    comm_2: comm_b.clone(),
+                    comm_3: comm_prod.clone(),
+                });
+            });
+
+        input_instances
+    }
+
+    fn compute_hp_input_witnesses<'a>(
+        prover_key: &ProverKey<G>,
+        inputs: &Vec<InputRef<'_, Self>>,
+    ) -> Vec<HPInputWitness<G::ScalarField>> {
+        inputs
+            .into_iter()
+            .map(|input| {
+                let instance = input.instance;
+                let witness = input.witness;
+
+                let second_round_message: &SecondRoundMessage<G::ScalarField> =
+                    &witness.second_round_message;
+
+                let a_vec = matrix_vec_mul(
+                    &prover_key.nark_pk.a,
+                    instance.r1cs_input.as_slice(),
+                    second_round_message.blinded_witness.as_slice(),
+                );
+
+                let b_vec = matrix_vec_mul(
+                    &prover_key.nark_pk.b,
+                    instance.r1cs_input.as_slice(),
+                    second_round_message.blinded_witness.as_slice(),
+                );
+
+                let randomness = if witness.make_zk {
+                    let rand_1 = second_round_message
+                        .sigma_a
+                        .unwrap_or(G::ScalarField::zero());
+                    let rand_2 = second_round_message
+                        .sigma_b
+                        .unwrap_or(G::ScalarField::zero());
+                    let rand_3 = second_round_message
+                        .sigma_o
+                        .unwrap_or(G::ScalarField::zero());
+
+                    Some(HPInputWitnessRandomness::<G::ScalarField> {
+                        rand_1,
+                        rand_2,
+                        rand_3,
+                    })
+                } else {
+                    None
+                };
+
+                HPInputWitness {
+                    a_vec,
+                    b_vec,
+                    randomness,
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
     fn compute_prover_randomness(
         prover_key: &ProverKey<G>,
         rng: &mut dyn RngCore,
@@ -112,127 +269,25 @@ where
         Ok((proof_randomness, (r1cs_r_witness, rand_1, rand_2, rand_3)))
     }
 
-    fn compute_hp_input_instances<'a>(
-        index_info: &IndexInfo,
-        input_instances: &Vec<&InputInstance<G>>,
-    ) -> Vec<HPInputInstance<G>> {
-        input_instances
-            .into_iter()
-            .map(|instance| {
-                let first_round_message: &FirstRoundMessage<G> = &instance.first_round_message;
-                let mut comm_1 = first_round_message.comm_a;
-                let mut comm_2 = first_round_message.comm_b;
-                let mut comm_3 = first_round_message.comm_c;
-
-                if instance.make_zk {
-                    let challenge = SimpleNARK::<G, S>::compute_challenge(
-                        index_info,
-                        instance.r1cs_input.as_slice(),
-                        first_round_message,
-                        instance.make_zk,
-                    );
-
-                    let mut comm_1_proj = comm_1.into_projective();
-                    let mut comm_2_proj = comm_2.into_projective();
-                    let mut comm_3_proj = comm_3.into_projective();
-
-                    if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
-                        comm_1_proj += &comm_r_a.mul(challenge);
-                    }
-
-                    if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
-                        comm_2_proj += &comm_r_b.mul(challenge);
-                    }
-
-                    if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
-                        comm_3_proj += &comm_r_c.mul(challenge);
-                    }
-
-                    let mut comms = G::Projective::batch_normalization_into_affine(&[
-                        comm_3_proj,
-                        comm_2_proj,
-                        comm_1_proj,
-                    ]);
-
-                    comm_1 = comms.pop().unwrap();
-                    comm_2 = comms.pop().unwrap();
-                    comm_3 = comms.pop().unwrap();
-
-                    println!("AS {} {} {}", comm_1, comm_2, comm_3);
-                }
-
-                HPInputInstance {
-                    comm_1,
-                    comm_2,
-                    comm_3,
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn compute_hp_input_witnesses<'a>(
-        prover_key: &ProverKey<G>,
-        inputs: &Vec<InputRef<'_, Self>>,
-    ) -> Vec<HPInputWitness<G::ScalarField>> {
-        inputs
-            .into_iter()
-            .map(|input| {
-                let instance = input.instance;
-                let witness = input.witness;
-
-                let second_round_message: &SecondRoundMessage<G::ScalarField> =
-                    &witness.second_round_message;
-
-                let a_vec = matrix_vec_mul(
-                    &prover_key.nark_pk.a,
-                    instance.r1cs_input.as_slice(),
-                    second_round_message.blinded_witness.as_slice(),
-                );
-
-                let b_vec = matrix_vec_mul(
-                    &prover_key.nark_pk.b,
-                    instance.r1cs_input.as_slice(),
-                    second_round_message.blinded_witness.as_slice(),
-                );
-
-                let randomness = if witness.make_zk {
-                    let rand_1 = second_round_message
-                        .sigma_a
-                        .unwrap_or(G::ScalarField::zero());
-                    let rand_2 = second_round_message
-                        .sigma_b
-                        .unwrap_or(G::ScalarField::zero());
-                    let rand_3 = second_round_message
-                        .sigma_c
-                        .unwrap_or(G::ScalarField::zero());
-
-                    Some(HPInputWitnessRandomness::<G::ScalarField> {
-                        rand_1,
-                        rand_2,
-                        rand_3,
-                    })
-                } else {
-                    None
-                };
-
-                HPInputWitness {
-                    a_vec,
-                    b_vec,
-                    randomness,
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
     fn compute_accumulator_instance_components(
         input_instances: &Vec<&InputInstance<G>>,
+        all_blinded_comm_a: &Vec<G>,
+        all_blinded_comm_b: &Vec<G>,
+        all_blinded_comm_c: &Vec<G>,
         accumulator_instances: &Vec<&AccumulatorInstance<G>>,
         linear_combination_challenges: &Vec<G::ScalarField>,
         proof_randomness: Option<&ProofRandomness<G>>,
     ) -> (Vec<G::ScalarField>, G, G, G) {
+        assert!(
+            input_instances.len() == all_blinded_comm_a.len()
+                && all_blinded_comm_a.len() == all_blinded_comm_b.len()
+                && all_blinded_comm_b.len() == all_blinded_comm_c.len()
+        );
+
         let num_addends = input_instances.len()
             + accumulator_instances.len()
             + if proof_randomness.is_some() { 1 } else { 0 };
+
         assert!(num_addends <= linear_combination_challenges.len());
 
         let r1cs_inputs = accumulator_instances
@@ -243,29 +298,17 @@ where
         let all_comm_a = accumulator_instances
             .iter()
             .map(|instance| &instance.comm_a)
-            .chain(
-                input_instances
-                    .iter()
-                    .map(|instance| &instance.first_round_message.comm_a),
-            );
+            .chain(all_blinded_comm_a);
 
         let all_comm_b = accumulator_instances
             .iter()
             .map(|instance| &instance.comm_b)
-            .chain(
-                input_instances
-                    .iter()
-                    .map(|instance| &instance.first_round_message.comm_b),
-            );
+            .chain(all_blinded_comm_b);
 
         let all_comm_c = accumulator_instances
             .iter()
             .map(|instance| &instance.comm_c)
-            .chain(
-                input_instances
-                    .iter()
-                    .map(|instance| &instance.first_round_message.comm_c),
-            );
+            .chain(all_blinded_comm_c);
 
         let (r1cs_inputs, all_comm_a, all_comm_b, all_comm_c) = if proof_randomness.is_some() {
             (
@@ -541,8 +584,13 @@ where
             input_instances.len() + accumulator_instances.len() + if make_zk { 1 } else { 0 };
 
         // Run HP AS
-        let combined_hp_input_instances =
-            Self::compute_hp_input_instances(&prover_key.nark_pk.index_info, &input_instances);
+        let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
+            Self::compute_blinded_commitments(&prover_key.nark_pk.index_info, &input_instances);
+        let combined_hp_input_instances = Self::compute_hp_input_instances(
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_prod,
+        );
         let combined_hp_input_witnesses = Self::compute_hp_input_witnesses(prover_key, &all_inputs);
 
         let combined_hp_inputs_iter = combined_hp_input_instances
@@ -602,6 +650,9 @@ where
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_c,
             &accumulator_instances,
             &linear_combination_challenges,
             proof_randomness.as_ref(),
@@ -641,16 +692,15 @@ where
     }
 
     fn verify<'a>(
-        _verifier_key: &Self::VerifierKey,
-        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        _new_accumulator_instance: &Self::AccumulatorInstance,
-        _proof: &Self::Proof,
+        verifier_key: &Self::VerifierKey,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
+        proof: &Self::Proof,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
     {
-        /*
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let accumulator_instances = accumulator_instances.into_iter().collect::<Vec<_>>();
 
@@ -666,35 +716,42 @@ where
             cur_challenge *= linear_combination_challenge;
         }
 
-        let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
-            &input_instances,
-            &accumulator_instances,
-            &linear_combination_challenges,
-            proof.randomness.as_ref(),
+        let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
+            Self::compute_blinded_commitments(&verifier_key.nark_index, &input_instances);
+
+        let hp_input_instances = Self::compute_hp_input_instances(
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_prod,
         );
 
-        let hp_input_instances = Self::compute_hp_input_instances(&input_instances);
         let hp_accumulator_instances = accumulator_instances
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        // TODO: Replace with proper vk
         let hp_verify = HPAidedAccumulationScheme::<_, _, S>::verify(
-            &verifier_key.nark_index.num_instance_variables,
+            &verifier_key.nark_index.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
             &proof.hp_proof,
         )?;
 
-        return Ok(hp_verify
+        let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
+            &input_instances,
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_c,
+            &accumulator_instances,
+            &linear_combination_challenges,
+            proof.randomness.as_ref(),
+        );
+
+        Ok(hp_verify
             && r1cs_input.eq(&new_accumulator_instance.r1cs_input)
             && comm_a.eq(&new_accumulator_instance.comm_a)
             && comm_b.eq(&new_accumulator_instance.comm_b)
-            && comm_c.eq(&new_accumulator_instance.comm_c));
-         */
-
-        Ok(true)
+            && comm_c.eq(&new_accumulator_instance.comm_c))
     }
 
     fn decide(
@@ -756,21 +813,18 @@ where
         .map_err(BoxedError::new)?
         .0;
 
-        let _comm_check = comm_a.eq(&instance.comm_a)
+        let comm_check = comm_a.eq(&instance.comm_a)
             && comm_b.eq(&instance.comm_b)
             && comm_c.eq(&instance.comm_c);
 
-        Ok(
-            //comm_check
-            /*&&*/
-            HPAidedAccumulationScheme::<_, _, S>::decide(
+        Ok(comm_check
+            && HPAidedAccumulationScheme::<_, _, S>::decide(
                 &decider_key.ck,
                 AccumulatorRef::<HPAidedAccumulationScheme<_, _, S>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
-            )?,
-        )
+            )?)
     }
 }
 
@@ -858,8 +912,6 @@ pub mod tests {
                 let v = circuit.a.unwrap() * &circuit.b.unwrap();
                 assert!(SimpleNARK::<G, S>::verify(ipk, &[v], &proof));
 
-                println!("IN {:?}", &r1cs_input);
-                println!("V {:?}", &[v]);
                 let instance = InputInstance {
                     r1cs_input: r1cs_input.clone(),
                     first_round_message: proof.first_msg.clone(),
