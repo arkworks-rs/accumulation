@@ -44,6 +44,7 @@ where
         msg: &FirstRoundMessage<G>,
         make_zk: bool,
     ) -> G::ScalarField {
+        /*
         let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
         let input_bytes = input
@@ -74,6 +75,8 @@ where
             }])[0];
 
         gamma
+         */
+        G::ScalarField::one()
     }
 
     pub fn setup() -> PublicParameters {}

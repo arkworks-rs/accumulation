@@ -114,8 +114,8 @@ where
         f().and_then(|first_round_msg| {
             let first_round_msg = first_round_msg.borrow();
             let comm_a = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_a.clone()), mode)?;
-            let comm_b = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_a.clone()), mode)?;
-            let comm_c = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_a.clone()), mode)?;
+            let comm_b = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_b.clone()), mode)?;
+            let comm_c = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_c.clone()), mode)?;
 
             let comm_r_a = first_round_msg
                 .comm_r_a

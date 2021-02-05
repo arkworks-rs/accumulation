@@ -586,6 +586,7 @@ where
         // Run HP AS
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(&prover_key.nark_pk.index_info, &input_instances);
+
         let combined_hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
             &all_blinded_comm_b,
@@ -640,7 +641,7 @@ where
 
         // TODO: Challenge
         // TODO: Can these challenges be independent challenges?
-        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
+        let beta_challenge = G::ScalarField::one();
         let mut beta_challenges = Vec::with_capacity(num_addends);
         let mut cur_challenge = G::ScalarField::one();
         for _ in 0..num_addends {
@@ -708,7 +709,7 @@ where
             + accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
-        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
+        let beta_challenge = G::ScalarField::one();
         let mut beta_challenges = Vec::with_capacity(num_addends);
         let mut cur_challenge = G::ScalarField::one();
         for _ in 0..num_addends {

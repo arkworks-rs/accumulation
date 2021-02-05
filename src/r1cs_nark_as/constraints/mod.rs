@@ -3,12 +3,13 @@ use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
 use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
-use ark_ec::AffineCurve;
+use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::ToConstraintField;
+use ark_ff::One;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget, R1CSVar};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{Absorbable, CryptographicSponge};
@@ -20,6 +21,8 @@ use crate::hp_as::HPAidedAccumulationScheme;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::eq::EqGadget;
 use data_structures::*;
+use std::ops::Mul;
+use ark_nonnative_field::NonNativeFieldVar;
 
 pub struct SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
@@ -142,7 +145,7 @@ where
         let mut output = Vec::new();
         for (ni, vector) in vectors.into_iter().enumerate() {
             for (li, elem) in vector.into_iter().enumerate() {
-                let product = challenges[ni].mul_without_reduce(elem)?;
+                let product = elem.mul_without_reduce(&challenges[ni])?;
                 if li >= output.len() {
                     output.push(product);
                 } else {
@@ -319,7 +322,10 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify = HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::verify(
+        let hp_verify =
+            <HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
+                as AidedAccumulationSchemeVerifierGadget<HPAidedAccumulationScheme<G, ConstraintF<G>, S>, ConstraintF<G>>
+            >::verify(
             cs.clone(),
             &hp_vk,
             &hp_input_instances,
@@ -386,6 +392,6 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&false, 1);
+        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&true, 1);
     }
 }
