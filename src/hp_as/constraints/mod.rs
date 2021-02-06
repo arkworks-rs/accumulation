@@ -12,7 +12,7 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{Absorbable, CryptographicSponge};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
 
 pub mod data_structures;
@@ -193,11 +193,13 @@ where
             t_comms.absorb_into_sponge(&mut challenges_sponge)?;
         }
 
-        // TODO: Squeeze shorter bits
         // TODO: make the first element of `mu_challenges` be `1`, and skip
         // the scalar multiplication for it.
-        let (mut mu_challenges_fe, mut mu_challenges_bits) =
-            challenges_sponge.squeeze_nonnative_field_elements(num_inputs)?;
+        let (mut mu_challenges_fe, mut mu_challenges_bits) = challenges_sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
+            )?;
+
         if has_hiding {
             mu_challenges_fe.push(mu_challenges_fe[1].clone() * &mu_challenges_fe[num_inputs - 1]);
             mu_challenges_bits.push(mu_challenges_fe.last().unwrap().to_bits_le()?);
@@ -271,6 +273,6 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, true), 20);
+        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, true), 1);
     }
 }

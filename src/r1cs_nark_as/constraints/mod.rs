@@ -2,27 +2,29 @@ use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNF
 use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::ToConstraintField;
-use ark_ff::One;
-use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget, R1CSVar};
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{Absorbable, CryptographicSponge};
-use std::marker::PhantomData;
-
-pub mod data_structures;
 use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
 use crate::hp_as::HPAidedAccumulationScheme;
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use data_structures::*;
-use std::ops::Mul;
+use crate::r1cs_nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
+use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
+use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::One;
+use ark_ff::ToConstraintField;
 use ark_nonnative_field::NonNativeFieldVar;
+use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::bits::boolean::Boolean;
+use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use std::marker::PhantomData;
+use std::ops::Mul;
+
+pub mod data_structures;
+use data_structures::*;
 
 pub struct SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
@@ -45,7 +47,68 @@ where
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
+    fn compute_gamma_challenge(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
+        index_info: &IndexInfoVar<ConstraintF<G>>,
+        input: &[NNFieldVar<G>],
+        msg: &FirstRoundMessageVar<G, C>,
+    ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
+        let mut sponge =
+            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKDomain>::new(cs.clone());
+        sponge.absorb(&index_info.matrices_hash.as_ref());
+
+        let mut input_bytes = Vec::new();
+        for elem in input {
+            input_bytes.append(&mut elem.to_bytes()?);
+        }
+        sponge.absorb(input_bytes.to_constraint_field()?.as_slice())?;
+
+        sponge.absorb(&input_bytes.to_constraint_field()?.as_slice());
+        msg.absorb_into_sponge(&mut sponge);
+
+        let mut squeezed =
+            sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
+                num_bits: 128,
+            }])?;
+
+        Ok((squeezed.0.pop().unwrap(), squeezed.1.pop().unwrap()))
+    }
+
+    fn compute_beta_challenges(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
+        num_challenges: usize,
+        as_matrices_hash: &Vec<FpVar<ConstraintF<G>>>,
+        accumulator_instances: &Vec<&AccumulatorInstanceVar<G, C>>,
+        input_instances: &Vec<&InputInstanceVar<G, C>>,
+        proof_randomness: Option<&ProofRandomnessVar<G, C>>,
+    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
+        let mut sponge =
+            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKVerifierASDomain>::new(
+                cs.clone(),
+            );
+
+        sponge.absorb(as_matrices_hash.as_ref())?;
+
+        for acc_instance in accumulator_instances {
+            acc_instance.absorb_into_sponge(&mut sponge)?;
+        }
+
+        for input_instance in input_instances {
+            input_instance.absorb_into_sponge(&mut sponge)?;
+        }
+
+        sponge.absorb(&[FpVar::from(Boolean::Constant(proof_randomness.is_some()))])?;
+        if let Some(proof_randomness) = proof_randomness {
+            proof_randomness.absorb_into_sponge(&mut sponge)?;
+        };
+
+        sponge.squeeze_nonnative_field_elements_with_sizes(
+            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges].as_slice(),
+        )
+    }
+
     fn compute_blinded_commitments(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
         index_info: &IndexInfoVar<ConstraintF<G>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
     ) -> Result<(Vec<C>, Vec<C>, Vec<C>, Vec<C>), SynthesisError> {
@@ -63,37 +126,33 @@ where
             let mut comm_prod = first_round_message.comm_c.clone();
 
             if instance.make_zk {
-                // TODO
-                let (mut challenge, challenge_bits) =
-                    (NNFieldVar::<G>::one(), vec![Boolean::Constant(true)]);
-                /*
-                let challenge: Vec<Boolean<ConstraintF<G>>> = SimpleNARK::<G, S>::compute_challenge(
+                let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
+                    cs.clone(),
                     index_info,
-                    instance.r1cs_input.as_slice(),
-                    first_round_message,
-                    instance.make_zk,
-                );
-                 */
+                    &instance.r1cs_input.as_slice(),
+                    &instance.first_round_message,
+                )?;
 
                 if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
-                    comm_a += &comm_r_a.scalar_mul_le(challenge_bits.iter())?;
+                    comm_a += &comm_r_a.scalar_mul_le(gamma_challenge_bits.iter())?;
                 }
 
                 if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
-                    comm_b += &comm_r_b.scalar_mul_le(challenge_bits.iter())?;
+                    comm_b += &comm_r_b.scalar_mul_le(gamma_challenge_bits.iter())?;
                 }
 
                 if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
-                    comm_c += &comm_r_c.scalar_mul_le(challenge_bits.iter())?;
+                    comm_c += &comm_r_c.scalar_mul_le(gamma_challenge_bits.iter())?;
                 }
 
                 if let Some(comm_1) = first_round_message.comm_1.as_ref() {
-                    comm_prod += &comm_1.scalar_mul_le(challenge_bits.iter())?;
+                    comm_prod += &comm_1.scalar_mul_le(gamma_challenge_bits.iter())?;
                 }
 
                 if let Some(comm_2) = first_round_message.comm_2.as_ref() {
-                    comm_prod +=
-                        &comm_2.scalar_mul_le(challenge.square_in_place()?.to_bits_le()?.iter())?;
+                    comm_prod += &comm_2.scalar_mul_le(
+                        gamma_challenge_fe.square_in_place()?.to_bits_le()?.iter(),
+                    )?;
                 }
             }
 
@@ -292,20 +351,21 @@ where
             + accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
-        let beta_challenges_fe = vec![NNFieldVar::<G>::one(); num_addends];
-        let beta_challenges_bits = vec![vec![Boolean::constant(true)]; num_addends];
-        /*
-        let beta_challenge = G::ScalarField::one() + G::ScalarField::one();
-        let mut beta_challenges = Vec::with_capacity(num_addends);
-        let mut cur_challenge = G::ScalarField::one();
-        for _ in 0..num_addends {
-            beta_challenges.push(cur_challenge);
-            cur_challenge *= beta_challenge;
-        }
-         */
+        let (beta_challenges_fe, beta_challenges_bits) = Self::compute_beta_challenges(
+            cs.clone(),
+            num_addends,
+            &verifier_key.as_matrices_hash,
+            &accumulator_instances,
+            &input_instances,
+            proof.randomness.as_ref(),
+        )?;
 
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
-            Self::compute_blinded_commitments(&verifier_key.nark_index, &input_instances)?;
+            Self::compute_blinded_commitments(
+                cs.clone(),
+                &verifier_key.nark_index,
+                &input_instances,
+            )?;
 
         let hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
@@ -392,6 +452,6 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&true, 1);
+        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&false, 1);
     }
 }

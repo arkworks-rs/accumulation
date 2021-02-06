@@ -9,9 +9,13 @@ use crate::r1cs_nark_as::data_structures::{
 use ark_ec::AffineCurve;
 use ark_ff::{PrimeField, ToConstraintField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -100,6 +104,40 @@ pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, Const
     pub _affine_phantom: PhantomData<G>,
 }
 
+impl<G, C> FirstRoundMessageVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+{
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    where
+        S: CryptographicSpongeVar<ConstraintF<G>>,
+    {
+        sponge.absorb(self.comm_a.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_b.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_c.to_constraint_field()?.as_slice())?;
+
+        for comm in [
+            self.comm_r_a.as_ref(),
+            self.comm_r_b.as_ref(),
+            self.comm_r_c.as_ref(),
+            self.comm_1.as_ref(),
+            self.comm_2.as_ref(),
+        ]
+        .iter()
+        {
+            if let Some(comm) = comm {
+                sponge.absorb(&[FpVar::one()])?;
+                sponge.absorb(comm.to_constraint_field()?.as_slice())?;
+            } else {
+                sponge.absorb(&[FpVar::zero()])?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl<G, C> AllocVar<FirstRoundMessage<G>, ConstraintF<G>> for FirstRoundMessageVar<G, C>
 where
     G: AffineCurve,
@@ -168,6 +206,27 @@ pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Constrain
     pub make_zk: bool,
 }
 
+impl<G, C> InputInstanceVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+{
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    where
+        S: CryptographicSpongeVar<ConstraintF<G>>,
+    {
+        let mut r1cs_input_bytes = Vec::new();
+        for elem in &self.r1cs_input {
+            r1cs_input_bytes.append(&mut elem.to_bytes()?);
+        }
+        sponge.absorb(r1cs_input_bytes.to_constraint_field()?.as_slice())?;
+        self.first_round_message.absorb_into_sponge(sponge)?;
+        sponge.absorb(&[FpVar::from(Boolean::Constant(self.make_zk))])?;
+
+        Ok(())
+    }
+}
+
 impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -209,6 +268,31 @@ pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Con
     pub comm_b: C,
     pub comm_c: C,
     pub hp_instance: HPInputInstanceVar<G, C>,
+}
+
+impl<G, C> AccumulatorInstanceVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+{
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    where
+        S: CryptographicSpongeVar<ConstraintF<G>>,
+    {
+        let mut r1cs_input_bytes = Vec::new();
+        for elem in &self.r1cs_input {
+            r1cs_input_bytes.append(&mut elem.to_bytes()?);
+        }
+        sponge.absorb(r1cs_input_bytes.to_constraint_field()?.as_slice())?;
+
+        sponge.absorb(self.comm_a.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_b.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_c.to_constraint_field()?.as_slice())?;
+
+        self.hp_instance.absorb_into_sponge(sponge)?;
+
+        Ok(())
+    }
 }
 
 impl<G, C> AllocVar<AccumulatorInstance<G>, ConstraintF<G>> for AccumulatorInstanceVar<G, C>
@@ -256,6 +340,27 @@ pub struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, Constra
     pub comm_r_a: C,
     pub comm_r_b: C,
     pub comm_r_c: C,
+}
+
+impl<G, C> ProofRandomnessVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+{
+    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    where
+        S: CryptographicSpongeVar<ConstraintF<G>>,
+    {
+        for elem in &self.r1cs_r_input {
+            sponge.absorb(elem.to_constraint_field()?.as_slice())?;
+        }
+
+        sponge.absorb(self.comm_r_a.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_r_b.to_constraint_field()?.as_slice())?;
+        sponge.absorb(self.comm_r_c.to_constraint_field()?.as_slice())?;
+
+        Ok(())
+    }
 }
 
 impl<G, C> AllocVar<ProofRandomness<G>, ConstraintF<G>> for ProofRandomnessVar<G, C>

@@ -7,7 +7,7 @@ use ark_ff::{One, PrimeField, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
-use ark_sponge::{Absorbable, CryptographicSponge};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::UniformRand;
 use rand_core::RngCore;
 use std::marker::PhantomData;
@@ -511,11 +511,12 @@ where
         }
         challenges_sponge.absorb(&hiding_comms);
 
-        // TODO: Squeeze shorter bits
-        let mut mu_challenges: Vec<G::ScalarField> =
-            challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
+        let mut mu_challenges: Vec<G::ScalarField> = challenges_sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
+            );
+
         if has_hiding {
-            // TODO: Does not work for when num_inputs = 1
             mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));
         }
 
@@ -619,11 +620,12 @@ where
         }
         challenges_sponge.absorb(&proof.hiding_comms);
 
-        // TODO: Squeeze shorter bits
         // TODO: make the first element of `mu_challenges` be `1`, and skip
         // the scalar multiplication for it.
-        let mut mu_challenges: Vec<G::ScalarField> =
-            challenges_sponge.squeeze_nonnative_field_elements(num_inputs);
+        let mut mu_challenges: Vec<G::ScalarField> = challenges_sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
+            );
 
         if has_hiding {
             mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));

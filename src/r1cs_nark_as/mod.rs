@@ -18,7 +18,7 @@ use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
-use ark_sponge::{Absorbable, CryptographicSponge};
+use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
 use rand_core::RngCore;
 use std::marker::PhantomData;
 
@@ -68,11 +68,13 @@ where
             let mut comm_prod = first_round_message.comm_c;
 
             if instance.make_zk {
-                let gamma_challenge = SimpleNARK::<G, S>::compute_challenge(
+                let gamma_challenge = SimpleNARK::<
+                    G,
+                    DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
+                >::compute_challenge(
                     index_info,
                     instance.r1cs_input.as_slice(),
                     first_round_message,
-                    instance.make_zk,
                 );
 
                 let mut comm_a_proj = comm_a.into_projective();
@@ -267,6 +269,33 @@ where
         };
 
         Ok((proof_randomness, (r1cs_r_witness, rand_1, rand_2, rand_3)))
+    }
+
+    fn compute_beta_challenges(
+        num_challenges: usize,
+        as_matrices_hash: &[u8; 32],
+        accumulator_instances: &Vec<&AccumulatorInstance<G>>,
+        input_instances: &Vec<&InputInstance<G>>,
+        proof_randomness: &Option<ProofRandomness<G>>,
+    ) -> Vec<G::ScalarField> {
+        let mut sponge =
+            DomainSeparatedSponge::<ConstraintF<G>, S, SimpleNARKVerifierASDomain>::new();
+
+        sponge.absorb(&as_matrices_hash.as_ref());
+
+        for acc_instance in accumulator_instances {
+            sponge.absorb(acc_instance);
+        }
+
+        for input_instance in input_instances {
+            sponge.absorb(input_instance);
+        }
+
+        sponge.absorb(proof_randomness);
+
+        sponge.squeeze_nonnative_field_elements_with_sizes(
+            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges].as_slice(),
+        )
     }
 
     fn compute_accumulator_instance_components(
@@ -524,7 +553,11 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipk, ivk) = SimpleNARK::<G, S>::index(&predicate_params, predicate_index.clone())
+        let (ipk, ivk) =
+            SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::index(
+                &predicate_params,
+                predicate_index.clone(),
+            )
             .map_err(BoxedError::new)?;
 
         let as_matrices_hash = hash_matrices(PROTOCOL_NAME, &ipk.a, &ipk.b, &ipk.c);
@@ -641,13 +674,13 @@ where
 
         // TODO: Challenge
         // TODO: Can these challenges be independent challenges?
-        let beta_challenge = G::ScalarField::one();
-        let mut beta_challenges = Vec::with_capacity(num_addends);
-        let mut cur_challenge = G::ScalarField::one();
-        for _ in 0..num_addends {
-            beta_challenges.push(cur_challenge);
-            cur_challenge *= beta_challenge;
-        }
+        let beta_challenges = Self::compute_beta_challenges(
+            num_addends,
+            &prover_key.as_matrices_hash,
+            &accumulator_instances,
+            &input_instances,
+            &proof_randomness,
+        );
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
@@ -709,13 +742,13 @@ where
             + accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
-        let beta_challenge = G::ScalarField::one();
-        let mut beta_challenges = Vec::with_capacity(num_addends);
-        let mut cur_challenge = G::ScalarField::one();
-        for _ in 0..num_addends {
-            beta_challenges.push(cur_challenge);
-            cur_challenge *= beta_challenge;
-        }
+        let beta_challenges = Self::compute_beta_challenges(
+            num_addends,
+            &verifier_key.as_matrices_hash,
+            &accumulator_instances,
+            &input_instances,
+            &proof.randomness,
+        );
 
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(&verifier_key.nark_index, &input_instances);
@@ -837,7 +870,7 @@ pub mod tests {
     use crate::r1cs_nark::data_structures::IndexProverKey;
     use crate::r1cs_nark::test::DummyCircuit;
     use crate::r1cs_nark::SimpleNARK;
-    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
+    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
     use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
@@ -846,7 +879,7 @@ pub mod tests {
     use ark_ff::ToConstraintField;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal};
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge};
     use rand_core::RngCore;
     use std::UniformRand;
 
@@ -873,7 +906,9 @@ pub mod tests {
             <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateParams,
             <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateIndex,
         ){
-            let nark_pp = SimpleNARK::<G, S>::setup();
+            let nark_pp =
+                SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
+                );
             let make_zk = test_params.clone();
             let circuit = DummyCircuit {
                 a: Some(G::ScalarField::rand(rng)),
@@ -882,7 +917,12 @@ pub mod tests {
                 num_constraints: 16,
             };
 
-            let (pk, _) = SimpleNARK::<G, S>::index(&nark_pp, circuit.clone()).unwrap();
+            let (pk, _) =
+                SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::index(
+                    &nark_pp,
+                    circuit.clone(),
+                )
+                .unwrap();
             ((pk, circuit.clone(), make_zk), nark_pp, circuit)
         }
 
@@ -901,17 +941,22 @@ pub mod tests {
                 construct_matrices: false,
             });
             circuit.clone().generate_constraints(pcs.clone()).unwrap();
-
             pcs.finalize();
             let r1cs_input = pcs.borrow().unwrap().instance_assignment.clone();
 
             let mut inputs = Vec::with_capacity(num_inputs);
             for _ in 0..num_inputs {
-                let proof =
-                    SimpleNARK::<G, S>::prove(ipk, circuit.clone(), make_zk, Some(rng)).unwrap();
+                let proof = SimpleNARK::<
+                    G,
+                    DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
+                >::prove(ipk, circuit.clone(), make_zk, Some(rng))
+                .unwrap();
 
                 let v = circuit.a.unwrap() * &circuit.b.unwrap();
-                assert!(SimpleNARK::<G, S>::verify(ipk, &[v], &proof));
+                assert!(SimpleNARK::<
+                    G,
+                    DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
+                >::verify(ipk, &[v], &proof));
 
                 let instance = InputInstance {
                     r1cs_input: r1cs_input.clone(),
@@ -941,6 +986,7 @@ pub mod tests {
         PoseidonSponge<Fq>,
         DummyCircuit<Fr>,
     >;
+
     type I = SimpleNARKVerifierAidedAccumulationSchemeTestInput;
 
     /*
