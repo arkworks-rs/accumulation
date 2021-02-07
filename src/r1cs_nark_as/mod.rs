@@ -29,7 +29,7 @@ pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
-pub struct SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
+pub struct SimpleNARKAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -42,7 +42,7 @@ where
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, S, CS> SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
+impl<G, S, CS> SimpleNARKAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -526,7 +526,7 @@ where
     }
 }
 
-impl<G, S, CS> AidedAccumulationScheme for SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>
+impl<G, S, CS> AidedAccumulationScheme for SimpleNARKAidedAccumulationScheme<G, S, CS>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -874,31 +874,34 @@ pub mod tests {
     use crate::r1cs_nark::data_structures::IndexProverKey;
     use crate::r1cs_nark::SimpleNARK;
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
-    use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
+    use crate::r1cs_nark_as::SimpleNARKAidedAccumulationScheme;
     use crate::tests::*;
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
     use ark_ff::{PrimeField, ToConstraintField};
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, ConstraintSystemRef, SynthesisError};
     use ark_relations::lc;
+    use ark_relations::r1cs::{
+        ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
+        SynthesisError,
+    };
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge};
     use rand_core::RngCore;
     use std::UniformRand;
-    
+
     #[derive(Clone)]
     // num_variables = num_inputs + 2
     pub struct NARKVerifierASTestParams {
         // At least one input required.
         pub num_inputs: usize,
-        
+
         // At least one constraint required.
         pub num_constraints: usize,
-        
+
         pub make_zk: bool,
     }
-    
+
     #[derive(Clone)]
     pub(crate) struct DummyCircuit<F: PrimeField> {
         pub a: Option<F>,
@@ -924,19 +927,19 @@ pub mod tests {
             for _ in 0..(self.params.num_constraints - 1) {
                 cs.enforce_constraint(lc!() + a, lc!() + b, lc!() + c)?;
             }
-            
+
             cs.enforce_constraint(lc!(), lc!(), lc!())?;
 
             Ok(())
         }
     }
 
-    pub struct SimpleNARKVerifierAidedAccumulationSchemeTestInput {}
+    pub struct SimpleNARKAidedAccumulationSchemeTestInput {}
 
     impl<G, S>
         AidedAccumulationSchemeTestInput<
-            SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
-        > for SimpleNARKVerifierAidedAccumulationSchemeTestInput
+            SimpleNARKAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
+        > for SimpleNARKAidedAccumulationSchemeTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -951,8 +954,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateParams,
-            <SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateIndex,
+            <SimpleNARKAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateParams,
+            <SimpleNARKAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>> as AidedAccumulationScheme>::PredicateIndex,
         ){
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
@@ -978,7 +981,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>>>
+        ) -> Vec<Input<SimpleNARKAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>>>
         {
             let (test_params, ipk) = input_params;
 
@@ -993,7 +996,9 @@ pub mod tests {
                 let proof = SimpleNARK::<
                     G,
                     DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
-                >::prove(ipk, circuit.clone(), test_params.make_zk, Some(rng))
+                >::prove(
+                    ipk, circuit.clone(), test_params.make_zk, Some(rng)
+                )
                 .unwrap();
 
                 let pcs = ConstraintSystem::new_ref();
@@ -1017,7 +1022,7 @@ pub mod tests {
                 };
 
                 inputs.push(Input::<
-                    SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
+                    SimpleNARKAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>,
                 > {
                     instance,
                     witness,
@@ -1028,20 +1033,17 @@ pub mod tests {
         }
     }
 
-    type AS = SimpleNARKVerifierAidedAccumulationScheme<
-        EdwardsAffine,
-        PoseidonSponge<Fq>,
-        DummyCircuit<Fr>,
-    >;
+    type AS =
+        SimpleNARKAidedAccumulationScheme<EdwardsAffine, PoseidonSponge<Fq>, DummyCircuit<Fr>>;
 
-    type I = SimpleNARKVerifierAidedAccumulationSchemeTestInput;
+    type I = SimpleNARKAidedAccumulationSchemeTestInput;
 
     #[test]
     pub fn nv_single_input_test() -> Result<(), BoxedError> {
         single_input_test::<AS, I>(&NARKVerifierASTestParams {
             num_inputs: 10,
             num_constraints: 10,
-            make_zk: true
+            make_zk: true,
         })
     }
 
@@ -1050,7 +1052,7 @@ pub mod tests {
         multiple_inputs_test::<AS, I>(&NARKVerifierASTestParams {
             num_inputs: 10,
             num_constraints: 10,
-            make_zk: true
+            make_zk: true,
         })
     }
 

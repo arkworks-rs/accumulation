@@ -1,11 +1,13 @@
 use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
+use crate::dl_as::DomainSeparatedSponge;
 use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
 use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
 use crate::hp_as::HPAidedAccumulationScheme;
+use crate::r1cs_nark::SimpleNARK;
 use crate::r1cs_nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
-use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
+use crate::r1cs_nark_as::SimpleNARKAidedAccumulationScheme;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::One;
 use ark_ff::ToConstraintField;
@@ -26,7 +28,7 @@ use std::ops::Mul;
 pub mod data_structures;
 use data_structures::*;
 
-pub struct SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
+pub struct SimpleNARKAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -39,7 +41,7 @@ where
     _sponge_phantom: PhantomData<SV>,
 }
 
-impl<G, C, SV> SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
+impl<G, C, SV> SimpleNARKAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -326,9 +328,9 @@ where
 
 impl<G, S, CS, C, SV>
     AidedAccumulationSchemeVerifierGadget<
-        SimpleNARKVerifierAidedAccumulationScheme<G, S, CS>,
+        SimpleNARKAidedAccumulationScheme<G, S, CS>,
         ConstraintF<G>,
-    > for SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SV>
+    > for SimpleNARKAidedAccumulationSchemeVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -434,13 +436,90 @@ where
     }
 }
 
+/*
+pub struct SimpleNARKAidedAccumulationSchemeVerifierCircuit<'a, G, S, CS, C, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
+{
+    verifier_key: &'a VerifierKeyVar<ConstraintF<G>>,
+    input_instances: Vec<&'a InputInstanceVar<G, C>>,
+    accumulator_instances: Vec<&'a AccumulatorInstanceVar<G, C>>,
+    new_accumulator_instance: &'a AccumulatorInstanceVar<G, C>,
+    proof: &'a ProofVar<G, C>,
+
+    _circuit_phantom: PhantomData<CS>,
+    _sponge_phantom: PhantomData<S>,
+    _sponge_var_phantom: PhantomData<SV>,
+}
+
+impl<'a, G, S, CS, C, SV> ConstraintSynthesizer<ConstraintF<G>>
+    for SimpleNARKAidedAccumulationSchemeVerifierCircuit<'a, G, S, CS, C, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>>,
+{
+    fn generate_constraints(
+        self,
+        cs: ConstraintSystemRef<ConstraintF<G>>,
+    ) -> Result<(), SynthesisError> {
+        <SimpleNARKAidedAccumulationSchemeVerifierGadget<G, C, SV>
+                as AidedAccumulationSchemeVerifierGadget<
+                        SimpleNARKAidedAccumulationScheme<G, S, CS>, ConstraintF<G>>
+        >::verify(
+            cs,
+            self.verifier_key,
+            self.input_instances.into_iter(),
+            self.accumulator_instances.into_iter(),
+            self.new_accumulator_instance,
+            self.proof,
+        )?
+        .enforce_equal(&Boolean::TRUE)
+    }
+}
+
+ */
+
 #[cfg(test)]
 pub mod tests {
-    use crate::r1cs_nark_as::constraints::SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget;
-    use crate::r1cs_nark_as::tests::{SimpleNARKVerifierAidedAccumulationSchemeTestInput, NARKVerifierASTestParams, DummyCircuit};
-    use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
+    use crate::data_structures::Input;
+    use crate::r1cs_nark::SimpleNARK;
+    use crate::r1cs_nark_as::constraints::data_structures::{
+        AccumulatorInstanceVar, InputInstanceVar, ProofVar, VerifierKeyVar,
+    };
+    use crate::r1cs_nark_as::constraints::{
+        //SimpleNARKAidedAccumulationSchemeVerifierCircuit,
+        SimpleNARKAidedAccumulationSchemeVerifierGadget,
+    };
+    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
+    use crate::r1cs_nark_as::tests::{
+        DummyCircuit, NARKVerifierASTestParams, SimpleNARKAidedAccumulationSchemeTestInput,
+    };
+    use crate::r1cs_nark_as::SimpleNARKAidedAccumulationScheme;
+    use crate::tests::AidedAccumulationSchemeTestInput;
+    use crate::AidedAccumulationScheme;
+    use ark_ec::AffineCurve;
+    use ark_ff::PrimeField;
+    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::groups::CurveVar;
+    use ark_relations::r1cs::{
+        ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
+        SynthesisError,
+    };
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
+    use std::marker::PhantomData;
+    use rand_core::RngCore;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
@@ -454,18 +533,145 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type Circuit = DummyCircuit<F>;
-
-    type AS = SimpleNARKVerifierAidedAccumulationScheme<G, Sponge, Circuit>;
-    type I = SimpleNARKVerifierAidedAccumulationSchemeTestInput;
-    type ASV = SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget<G, C, SpongeVar>;
+    type AS = SimpleNARKAidedAccumulationScheme<G, Sponge, DummyCircuit<F>>;
+    type I = SimpleNARKAidedAccumulationSchemeTestInput;
+    type ASV = SimpleNARKAidedAccumulationSchemeVerifierGadget<G, C, SpongeVar>;
 
     #[test]
-    pub fn basic_test() {
-        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&NARKVerifierASTestParams {
-            num_inputs: 1,
-            num_constraints: 10,
-            make_zk: true
-        } );
+    pub fn test_basic() {
+        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(
+            &NARKVerifierASTestParams {
+                num_inputs: 1,
+                num_constraints: 10,
+                make_zk: false,
+            },
+        );
     }
+
+    /*
+    #[derive(Clone, Copy)]
+    struct DefaultCircuit {}
+    impl<F: PrimeField> ConstraintSynthesizer<F> for DefaultCircuit {
+        fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+            Ok(())
+        }
+    }*/
+
+//    pub fn compute_circuit_inputs<Circuit: ConstraintSynthesizer<ConstraintF> + Clone, R: RngCore>(
+//        cs: ConstraintSystemRef<ConstraintF>,
+//        circuit: Circuit,
+//        rng: &mut R,
+//    ) -> (
+//        VerifierKeyVar<ConstraintF>,
+//        InputInstanceVar<G, C>,
+//        AccumulatorInstanceVar<G, C>,
+//        AccumulatorInstanceVar<G, C>,
+//        ProofVar<G, C>,
+//    ) {
+//        type CircuitAS = SimpleNARKAidedAccumulationScheme<G, Sponge, C>;
+//
+//        let nark_pp = SimpleNARK::<G, Sponge>::setup();
+//        let (ipk, _) = SimpleNARK::<G, Sponge>::index(&nark_pp, circuit.clone()).unwrap();
+//        let proof =
+//            SimpleNARK::<G, Sponge>::prove(&ipk, circuit.clone(), false, Some(rng)).unwrap();
+//
+//        /*
+//        let pcs = ConstraintSystem::new_ref();
+//        pcs.set_optimization_goal(OptimizationGoal::Weight);
+//        pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
+//            construct_matrices: false,
+//        });
+//        circuit.clone().generate_constraints(pcs.clone()).unwrap();
+//        pcs.finalize();
+//        let default_input = pcs.borrow().unwrap().instance_assignment.clone();
+//
+//        let nark_as_pp = CircuitAS::generate(rng).unwrap();
+//        let (pk, vk, _) = CircuitAS::index(&nark_as_pp, &nark_pp, &circuit.clone()).unwrap();
+//
+//        let old_input_instance = InputInstance {
+//            r1cs_input: default_input,
+//            first_round_message: proof.first_msg.clone(),
+//            make_zk: false,
+//        };
+//
+//        let old_input_witness = InputWitness {
+//            second_round_message: proof.second_msg,
+//            make_zk: false,
+//        };
+//
+//        let old_input = Input::<CircuitAS> {
+//            instance: old_input_instance,
+//            witness: old_input_witness,
+//        };
+//
+//        let new_input = old_input.clone();
+//
+//        let (old_accumulator, proof) =
+//            CircuitAS::prove(&pk, vec![old_input.as_ref()], vec![], Some(rng)).unwrap();
+//
+//        let (new_accumulator, proof) = CircuitAS::prove(
+//            &pk,
+//            vec![new_input.as_ref()],
+//            vec![old_accumulator.as_ref()],
+//            Some(rng),
+//        )
+//        .unwrap();
+//
+//        let vk_var =
+//            VerifierKeyVar::<ConstraintF>::new_constant(circuit.clone(), vk.clone()).unwrap();
+//
+//        let new_input_instance_var =
+//            InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance)).unwrap();
+//
+//        let old_accumulator_instance_var = AccumulatorInstanceVar::<G, C>::new_witness(
+//            cs.clone(),
+//            || Ok(old_accumulator.instance),
+//        )
+//        .unwrap();
+//
+//        let new_accumulator_instance_var =
+//            AccumulatorInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance))
+//                .unwrap();
+//
+//        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
+//
+//        (
+//            vk_var,
+//            new_input_instance_var,
+//            old_accumulator_instance_var,
+//            new_accumulator_instance_var,
+//            proof_var,
+//        )
+//
+//         */
+//        unimplemented!()
+//    }
+
+    /*
+    #[test]
+    pub fn test_recursion() {
+        let mut rng = ark_std::test_rng();
+
+        let default_cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let (
+            default_vk,
+            default_input_instance,
+            default_accumulator_instance,
+            default_new_accumulator,
+            default_proof,
+        ) = compute_circuit_inputs(default_cs.clone(), DefaultCircuit {}, &mut rng);
+
+        let default_as_circuit = SimpleNARKAidedAccumulationSchemeVerifierCircuit {
+            verifier_key: &default_vk,
+            input_instances: vec![&default_input_instance],
+            accumulator_instances: vec![&default_accumulator_instance],
+            new_accumulator_instance: &default_new_accumulator,
+            proof: &default_proof,
+            _circuit_phantom: PhantomData,
+            _sponge_phantom: PhantomData,
+            _sponge_var_phantom: PhantomData,
+        };
+    }
+
+     */
 }

@@ -269,6 +269,9 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&(8, true), 1);
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &(8, true),
+            1,
+        );
     }
 }
