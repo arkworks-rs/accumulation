@@ -49,6 +49,7 @@ where
             .iter()
             .flat_map(|inp| inp.into_repr().to_bytes_le())
             .collect::<Vec<_>>();
+
         sponge.absorb(&input_bytes);
         sponge.absorb(msg);
 
@@ -426,7 +427,7 @@ pub(crate) mod test {
     const NUM_ITERS: usize = 10;
 
     #[derive(Copy, Clone)]
-    pub(crate) struct DummyCircuit<F: PrimeField> {
+    struct DummyCircuit<F: PrimeField> {
         pub a: Option<F>,
         pub b: Option<F>,
         pub num_variables: usize,
@@ -446,7 +447,7 @@ pub(crate) mod test {
 
             for _ in 0..(self.num_variables - 3) {
                 let _ =
-                    cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+                    cs.new_input_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
             }
 
             for _ in 0..self.num_constraints - 1 {

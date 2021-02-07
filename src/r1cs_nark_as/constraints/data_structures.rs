@@ -351,9 +351,11 @@ where
     where
         S: CryptographicSpongeVar<ConstraintF<G>>,
     {
+        let mut r1cs_r_input_bytes = Vec::new();
         for elem in &self.r1cs_r_input {
-            sponge.absorb(elem.to_constraint_field()?.as_slice())?;
+            r1cs_r_input_bytes.append(&mut elem.to_bytes()?);
         }
+        sponge.absorb(r1cs_r_input_bytes.to_constraint_field()?.as_slice())?;
 
         sponge.absorb(self.comm_r_a.to_constraint_field()?.as_slice())?;
         sponge.absorb(self.comm_r_b.to_constraint_field()?.as_slice())?;

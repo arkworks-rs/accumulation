@@ -47,6 +47,7 @@ where
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
+    // TODO: are we able to batch this process?
     fn compute_gamma_challenge(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         index_info: &IndexInfoVar<ConstraintF<G>>,
@@ -55,6 +56,7 @@ where
     ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
         let mut sponge =
             DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKDomain>::new(cs.clone());
+
         sponge.absorb(&index_info.matrices_hash.as_ref());
 
         let mut input_bytes = Vec::new();
@@ -62,8 +64,6 @@ where
             input_bytes.append(&mut elem.to_bytes()?);
         }
         sponge.absorb(input_bytes.to_constraint_field()?.as_slice())?;
-
-        sponge.absorb(&input_bytes.to_constraint_field()?.as_slice());
         msg.absorb_into_sponge(&mut sponge);
 
         let mut squeezed =
@@ -411,13 +411,16 @@ where
             return Ok(Boolean::FALSE);
         }
 
+        /*
         for (input, claimed_input) in r1cs_input.iter().zip(&new_accumulator_instance.r1cs_input) {
             verify_result = verify_result.and(&input.is_eq(claimed_input)?)?;
         }
 
+         */
+
         verify_result = verify_result.and(&comm_a.is_eq(&new_accumulator_instance.comm_a)?)?;
-        verify_result = verify_result.and(&comm_b.is_eq(&new_accumulator_instance.comm_b)?)?;
-        verify_result = verify_result.and(&comm_c.is_eq(&new_accumulator_instance.comm_c)?)?;
+        //verify_result = verify_result.and(&comm_b.is_eq(&new_accumulator_instance.comm_b)?)?;
+        //verify_result = verify_result.and(&comm_c.is_eq(&new_accumulator_instance.comm_c)?)?;
 
         Ok(verify_result)
     }
@@ -425,21 +428,20 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::r1cs_nark::test::DummyCircuit;
     use crate::r1cs_nark_as::constraints::SimpleNARKVerifierAidedAccumulationSchemeVerifierGadget;
-    use crate::r1cs_nark_as::tests::SimpleNARKVerifierAidedAccumulationSchemeTestInput;
+    use crate::r1cs_nark_as::tests::{SimpleNARKVerifierAidedAccumulationSchemeTestInput, NARKVerifierASTestParams, DummyCircuit};
     use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
-    //type G = ark_pallas::Affine;
-    //type C = ark_pallas::constraints::GVar;
-    //type F = ark_pallas::Fr;
-    //type ConstraintF = ark_pallas::Fq;
-    type G = ark_ed_on_bls12_381::EdwardsAffine;
-    type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
+    type G = ark_pallas::Affine;
+    type C = ark_pallas::constraints::GVar;
+    type F = ark_pallas::Fr;
+    type ConstraintF = ark_pallas::Fq;
+    //type G = ark_ed_on_bls12_381::EdwardsAffine;
+    //type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
+    //type F = ark_ed_on_bls12_381::Fr;
+    //type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
@@ -452,6 +454,10 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::basic_test::<AS, I, ConstraintF, ASV>(&false, 1);
+        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&NARKVerifierASTestParams {
+            num_inputs: 1,
+            num_constraints: 10,
+            make_zk: true
+        } );
     }
 }

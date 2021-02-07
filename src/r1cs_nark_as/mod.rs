@@ -868,7 +868,6 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::r1cs_nark::data_structures::IndexProverKey;
-    use crate::r1cs_nark::test::DummyCircuit;
     use crate::r1cs_nark::SimpleNARK;
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
     use crate::r1cs_nark_as::SimpleNARKVerifierAidedAccumulationScheme;
@@ -876,12 +875,57 @@ pub mod tests {
     use crate::AidedAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
-    use ark_ff::ToConstraintField;
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal};
+    use ark_ff::{PrimeField, ToConstraintField};
+    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, ConstraintSystemRef, SynthesisError};
+    use ark_relations::lc;
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge};
     use rand_core::RngCore;
     use std::UniformRand;
+    
+    #[derive(Clone)]
+    // num_variables = num_inputs + 2
+    pub struct NARKVerifierASTestParams {
+        // At least one input required.
+        pub num_inputs: usize,
+        
+        // At least one constraint required.
+        pub num_constraints: usize,
+        
+        pub make_zk: bool,
+    }
+    
+    #[derive(Clone)]
+    pub(crate) struct DummyCircuit<F: PrimeField> {
+        pub a: Option<F>,
+        pub b: Option<F>,
+        pub params: NARKVerifierASTestParams,
+    }
+
+    impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
+        fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+            let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+            let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
+            let c = cs.new_input_variable(|| {
+                let a = self.a.ok_or(SynthesisError::AssignmentMissing)?;
+                let b = self.b.ok_or(SynthesisError::AssignmentMissing)?;
+
+                Ok(a * b)
+            })?;
+
+            for _ in 0..(self.params.num_inputs - 1) {
+                cs.new_input_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+            }
+
+            for _ in 0..(self.params.num_constraints - 1) {
+                cs.enforce_constraint(lc!() + a, lc!() + b, lc!() + c)?;
+            }
+            
+            cs.enforce_constraint(lc!(), lc!(), lc!())?;
+
+            Ok(())
+        }
+    }
 
     pub struct SimpleNARKVerifierAidedAccumulationSchemeTestInput {}
 
@@ -895,8 +939,8 @@ pub mod tests {
         Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = bool;
-        type InputParams = (IndexProverKey<G>, DummyCircuit<G::ScalarField>, bool);
+        type TestParams = NARKVerifierASTestParams;
+        type InputParams = (Self::TestParams, IndexProverKey<G>);
 
         fn setup(
             test_params: &Self::TestParams,
@@ -909,12 +953,11 @@ pub mod tests {
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
                 );
-            let make_zk = test_params.clone();
+            let make_zk = test_params.make_zk;
             let circuit = DummyCircuit {
                 a: Some(G::ScalarField::rand(rng)),
                 b: Some(G::ScalarField::rand(rng)),
-                num_variables: 10,
-                num_constraints: 16,
+                params: test_params.clone(),
             };
 
             let (pk, _) =
@@ -923,7 +966,8 @@ pub mod tests {
                     circuit.clone(),
                 )
                 .unwrap();
-            ((pk, circuit.clone(), make_zk), nark_pp, circuit)
+
+            ((test_params.clone(), pk), nark_pp, circuit)
         }
 
         fn generate_inputs(
@@ -932,31 +976,30 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> Vec<Input<SimpleNARKVerifierAidedAccumulationScheme<G, S, DummyCircuit<G::ScalarField>>>>
         {
-            let (ipk, circuit, make_zk) = input_params;
-            let make_zk = *make_zk;
-
-            let pcs = ConstraintSystem::new_ref();
-            pcs.set_optimization_goal(OptimizationGoal::Weight);
-            pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
-                construct_matrices: false,
-            });
-            circuit.clone().generate_constraints(pcs.clone()).unwrap();
-            pcs.finalize();
-            let r1cs_input = pcs.borrow().unwrap().instance_assignment.clone();
+            let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
             for _ in 0..num_inputs {
+                let circuit = DummyCircuit {
+                    a: Some(G::ScalarField::rand(rng)),
+                    b: Some(G::ScalarField::rand(rng)),
+                    params: input_params.0.clone(),
+                };
+
                 let proof = SimpleNARK::<
                     G,
                     DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
-                >::prove(ipk, circuit.clone(), make_zk, Some(rng))
+                >::prove(ipk, circuit.clone(), test_params.make_zk, Some(rng))
                 .unwrap();
 
-                let v = circuit.a.unwrap() * &circuit.b.unwrap();
-                assert!(SimpleNARK::<
-                    G,
-                    DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>,
-                >::verify(ipk, &[v], &proof));
+                let pcs = ConstraintSystem::new_ref();
+                pcs.set_optimization_goal(OptimizationGoal::Weight);
+                pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
+                    construct_matrices: false,
+                });
+                circuit.generate_constraints(pcs.clone()).unwrap();
+                pcs.finalize();
+                let r1cs_input = pcs.borrow().unwrap().instance_assignment.clone();
 
                 let instance = InputInstance {
                     r1cs_input: r1cs_input.clone(),
@@ -999,7 +1042,11 @@ pub mod tests {
 
     #[test]
     pub fn nv_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&true)
+        multiple_inputs_test::<AS, I>(&NARKVerifierASTestParams {
+            num_inputs: 10,
+            num_constraints: 10,
+            make_zk: true
+        })
     }
 
     /*
