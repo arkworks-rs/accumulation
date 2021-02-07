@@ -293,9 +293,15 @@ where
 
         sponge.absorb(proof_randomness);
 
-        sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges].as_slice(),
-        )
+        let mut squeeze = sponge.squeeze_nonnative_field_elements_with_sizes(
+            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges - 1].as_slice(),
+        );
+
+        let mut outputs = Vec::with_capacity(num_challenges);
+        outputs.push(G::ScalarField::one());
+        outputs.append(&mut squeeze);
+
+        outputs
     }
 
     fn compute_accumulator_instance_components(
@@ -672,8 +678,6 @@ where
             (None, None)
         };
 
-        // TODO: Challenge
-        // TODO: Can these challenges be independent challenges?
         let beta_challenges = Self::compute_beta_challenges(
             num_addends,
             &prover_key.as_matrices_hash,
@@ -1032,13 +1036,14 @@ pub mod tests {
 
     type I = SimpleNARKVerifierAidedAccumulationSchemeTestInput;
 
-    /*
     #[test]
     pub fn nv_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&false)
+        single_input_test::<AS, I>(&NARKVerifierASTestParams {
+            num_inputs: 10,
+            num_constraints: 10,
+            make_zk: true
+        })
     }
-
-     */
 
     #[test]
     pub fn nv_multiple_inputs_test() -> Result<(), BoxedError> {

@@ -251,7 +251,7 @@ pub mod tests {
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
-            num_iterations: 50,
+            num_iterations: 1,
             num_inputs_per_iteration: vec![1],
         };
         assert!(test_template::<A, I>(&template_params, test_params)?);

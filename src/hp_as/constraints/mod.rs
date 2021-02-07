@@ -42,13 +42,9 @@ where
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
         hiding_comms: Option<&C>,
     ) -> Result<C, SynthesisError> {
-        let mut combined_commitment = C::zero();
+        let mut combined_commitment = hiding_comms.map(C::clone).unwrap_or(C::zero());
         for (commitment, challenge) in commitments.into_iter().zip(challenges) {
             combined_commitment += &commitment.scalar_mul_le(challenge.iter())?;
-        }
-
-        if let Some(hiding_comms) = hiding_comms {
-            combined_commitment += hiding_comms;
         }
 
         Ok(combined_commitment)

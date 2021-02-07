@@ -102,9 +102,20 @@ where
             proof_randomness.absorb_into_sponge(&mut sponge)?;
         };
 
-        sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges].as_slice(),
-        )
+        let mut squeeze = sponge.squeeze_nonnative_field_elements_with_sizes(
+            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges - 1].as_slice(),
+        )?;
+
+        let mut outputs_fe = Vec::with_capacity(num_challenges);
+        let mut outputs_bits = Vec::with_capacity(num_challenges);
+
+        outputs_fe.push(NNFieldVar::<G>::one());
+        outputs_bits.push(vec![Boolean::TRUE]);
+
+        outputs_fe.append(&mut squeeze.0);
+        outputs_bits.append(&mut squeeze.1);
+
+        Ok((outputs_fe, outputs_bits))
     }
 
     fn compute_blinded_commitments(
@@ -411,16 +422,13 @@ where
             return Ok(Boolean::FALSE);
         }
 
-        /*
         for (input, claimed_input) in r1cs_input.iter().zip(&new_accumulator_instance.r1cs_input) {
             verify_result = verify_result.and(&input.is_eq(claimed_input)?)?;
         }
 
-         */
-
         verify_result = verify_result.and(&comm_a.is_eq(&new_accumulator_instance.comm_a)?)?;
-        //verify_result = verify_result.and(&comm_b.is_eq(&new_accumulator_instance.comm_b)?)?;
-        //verify_result = verify_result.and(&comm_c.is_eq(&new_accumulator_instance.comm_c)?)?;
+        verify_result = verify_result.and(&comm_b.is_eq(&new_accumulator_instance.comm_b)?)?;
+        verify_result = verify_result.and(&comm_c.is_eq(&new_accumulator_instance.comm_c)?)?;
 
         Ok(verify_result)
     }
