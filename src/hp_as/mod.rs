@@ -35,6 +35,48 @@ where
     CF: PrimeField + Absorbable<CF>,
     S: CryptographicSponge<CF>,
 {
+    fn squeeze_mu_challenges(
+        sponge: &mut S,
+        num_inputs: usize,
+        has_hiding: bool,
+    ) -> Vec<G::ScalarField> {
+        let mut mu_challenges = Vec::with_capacity(num_inputs);
+        mu_challenges.push(G::ScalarField::one());
+
+        if num_inputs > 1 {
+            let mu_size = FieldElementSize::Truncated { num_bits: 128 };
+            mu_challenges.append(&mut sponge.squeeze_nonnative_field_elements_with_sizes(
+                vec![mu_size; num_inputs - 1].as_slice(),
+            ));
+        }
+
+        if has_hiding {
+            mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));
+        }
+
+        mu_challenges
+    }
+
+    fn squeeze_nu_challenges(sponge: &mut S, num_inputs: usize) -> Vec<G::ScalarField> {
+        let nu_size = FieldElementSize::Truncated { num_bits: 128 };
+        let nu_challenge: G::ScalarField = sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![nu_size].as_slice(),
+            )
+            .pop()
+            .unwrap();
+
+        let mut nu_challenges = Vec::with_capacity(2 * num_inputs - 1);
+        let mut cur_nu_challenge = G::ScalarField::one();
+
+        for _ in 0..(2 * num_inputs - 1) {
+            nu_challenges.push(cur_nu_challenge);
+            cur_nu_challenge *= &nu_challenge;
+        }
+
+        nu_challenges
+    }
+
     fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
         let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
         for (a, b) in a_vec.iter().zip(b_vec.iter()) {
@@ -511,14 +553,8 @@ where
         }
         challenges_sponge.absorb(&hiding_comms);
 
-        let mut mu_challenges: Vec<G::ScalarField> = challenges_sponge
-            .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
-            );
-
-        if has_hiding {
-            mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));
-        }
+        let mut mu_challenges =
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding);
 
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
             input_witnesses.as_slice(),
@@ -535,22 +571,7 @@ where
 
         challenges_sponge.absorb(&proof.t_comms);
 
-        let nu_challenges = {
-            let nu_challenge: G::ScalarField = challenges_sponge
-                .squeeze_nonnative_field_elements(1)
-                .pop()
-                .unwrap();
-
-            let mut nu_challenges = Vec::with_capacity(2 * num_inputs - 1);
-            let mut cur_nu_challenge = G::ScalarField::one();
-
-            for _ in 0..(2 * num_inputs - 1) {
-                nu_challenges.push(cur_nu_challenge);
-                cur_nu_challenge *= &nu_challenge;
-            }
-
-            nu_challenges
-        };
+        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs);
 
         let mut combined_challenges = Vec::with_capacity(num_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {
@@ -620,35 +641,12 @@ where
         }
         challenges_sponge.absorb(&proof.hiding_comms);
 
-        // TODO: make the first element of `mu_challenges` be `1`, and skip
-        // the scalar multiplication for it.
-        let mut mu_challenges: Vec<G::ScalarField> = challenges_sponge
-            .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
-            );
-
-        if has_hiding {
-            mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));
-        }
+        let mu_challenges =
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding);
 
         challenges_sponge.absorb(&proof.t_comms);
 
-        let nu_challenges = {
-            let nu_challenge: G::ScalarField = challenges_sponge
-                .squeeze_nonnative_field_elements(1)
-                .pop()
-                .unwrap();
-
-            let mut nu_challenges = Vec::with_capacity(2 * num_inputs - 1);
-            let mut cur_nu_challenge = G::ScalarField::one();
-
-            for _ in 0..(2 * num_inputs - 1) {
-                nu_challenges.push(cur_nu_challenge);
-                cur_nu_challenge *= &nu_challenge;
-            }
-
-            nu_challenges
-        };
+        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs);
 
         let mut combined_challenges = Vec::with_capacity(num_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {

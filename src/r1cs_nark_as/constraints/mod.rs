@@ -497,10 +497,7 @@ pub mod tests {
     use crate::r1cs_nark_as::constraints::data_structures::{
         AccumulatorInstanceVar, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
-    use crate::r1cs_nark_as::constraints::{
-        //SimpleNARKAidedAccumulationSchemeVerifierCircuit,
-        SimpleNARKAidedAccumulationSchemeVerifierGadget,
-    };
+    use crate::r1cs_nark_as::constraints::SimpleNARKAidedAccumulationSchemeVerifierGadget;
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
     use crate::r1cs_nark_as::tests::{
         DummyCircuit, NARKVerifierASTestParams, SimpleNARKAidedAccumulationSchemeTestInput,
@@ -518,8 +515,8 @@ pub mod tests {
     };
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use std::marker::PhantomData;
     use rand_core::RngCore;
+    use std::marker::PhantomData;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
@@ -548,6 +545,17 @@ pub mod tests {
         );
     }
 
+    #[test]
+    pub fn test_basic_2() {
+        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(
+            &NARKVerifierASTestParams {
+                num_inputs: 1,
+                num_constraints: 10,
+                make_zk: true,
+            },
+        );
+    }
+
     /*
     #[derive(Clone, Copy)]
     struct DefaultCircuit {}
@@ -557,95 +565,95 @@ pub mod tests {
         }
     }*/
 
-//    pub fn compute_circuit_inputs<Circuit: ConstraintSynthesizer<ConstraintF> + Clone, R: RngCore>(
-//        cs: ConstraintSystemRef<ConstraintF>,
-//        circuit: Circuit,
-//        rng: &mut R,
-//    ) -> (
-//        VerifierKeyVar<ConstraintF>,
-//        InputInstanceVar<G, C>,
-//        AccumulatorInstanceVar<G, C>,
-//        AccumulatorInstanceVar<G, C>,
-//        ProofVar<G, C>,
-//    ) {
-//        type CircuitAS = SimpleNARKAidedAccumulationScheme<G, Sponge, C>;
-//
-//        let nark_pp = SimpleNARK::<G, Sponge>::setup();
-//        let (ipk, _) = SimpleNARK::<G, Sponge>::index(&nark_pp, circuit.clone()).unwrap();
-//        let proof =
-//            SimpleNARK::<G, Sponge>::prove(&ipk, circuit.clone(), false, Some(rng)).unwrap();
-//
-//        /*
-//        let pcs = ConstraintSystem::new_ref();
-//        pcs.set_optimization_goal(OptimizationGoal::Weight);
-//        pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
-//            construct_matrices: false,
-//        });
-//        circuit.clone().generate_constraints(pcs.clone()).unwrap();
-//        pcs.finalize();
-//        let default_input = pcs.borrow().unwrap().instance_assignment.clone();
-//
-//        let nark_as_pp = CircuitAS::generate(rng).unwrap();
-//        let (pk, vk, _) = CircuitAS::index(&nark_as_pp, &nark_pp, &circuit.clone()).unwrap();
-//
-//        let old_input_instance = InputInstance {
-//            r1cs_input: default_input,
-//            first_round_message: proof.first_msg.clone(),
-//            make_zk: false,
-//        };
-//
-//        let old_input_witness = InputWitness {
-//            second_round_message: proof.second_msg,
-//            make_zk: false,
-//        };
-//
-//        let old_input = Input::<CircuitAS> {
-//            instance: old_input_instance,
-//            witness: old_input_witness,
-//        };
-//
-//        let new_input = old_input.clone();
-//
-//        let (old_accumulator, proof) =
-//            CircuitAS::prove(&pk, vec![old_input.as_ref()], vec![], Some(rng)).unwrap();
-//
-//        let (new_accumulator, proof) = CircuitAS::prove(
-//            &pk,
-//            vec![new_input.as_ref()],
-//            vec![old_accumulator.as_ref()],
-//            Some(rng),
-//        )
-//        .unwrap();
-//
-//        let vk_var =
-//            VerifierKeyVar::<ConstraintF>::new_constant(circuit.clone(), vk.clone()).unwrap();
-//
-//        let new_input_instance_var =
-//            InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance)).unwrap();
-//
-//        let old_accumulator_instance_var = AccumulatorInstanceVar::<G, C>::new_witness(
-//            cs.clone(),
-//            || Ok(old_accumulator.instance),
-//        )
-//        .unwrap();
-//
-//        let new_accumulator_instance_var =
-//            AccumulatorInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance))
-//                .unwrap();
-//
-//        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
-//
-//        (
-//            vk_var,
-//            new_input_instance_var,
-//            old_accumulator_instance_var,
-//            new_accumulator_instance_var,
-//            proof_var,
-//        )
-//
-//         */
-//        unimplemented!()
-//    }
+    //    pub fn compute_circuit_inputs<Circuit: ConstraintSynthesizer<ConstraintF> + Clone, R: RngCore>(
+    //        cs: ConstraintSystemRef<ConstraintF>,
+    //        circuit: Circuit,
+    //        rng: &mut R,
+    //    ) -> (
+    //        VerifierKeyVar<ConstraintF>,
+    //        InputInstanceVar<G, C>,
+    //        AccumulatorInstanceVar<G, C>,
+    //        AccumulatorInstanceVar<G, C>,
+    //        ProofVar<G, C>,
+    //    ) {
+    //        type CircuitAS = SimpleNARKAidedAccumulationScheme<G, Sponge, C>;
+    //
+    //        let nark_pp = SimpleNARK::<G, Sponge>::setup();
+    //        let (ipk, _) = SimpleNARK::<G, Sponge>::index(&nark_pp, circuit.clone()).unwrap();
+    //        let proof =
+    //            SimpleNARK::<G, Sponge>::prove(&ipk, circuit.clone(), false, Some(rng)).unwrap();
+    //
+    //        /*
+    //        let pcs = ConstraintSystem::new_ref();
+    //        pcs.set_optimization_goal(OptimizationGoal::Weight);
+    //        pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
+    //            construct_matrices: false,
+    //        });
+    //        circuit.clone().generate_constraints(pcs.clone()).unwrap();
+    //        pcs.finalize();
+    //        let default_input = pcs.borrow().unwrap().instance_assignment.clone();
+    //
+    //        let nark_as_pp = CircuitAS::generate(rng).unwrap();
+    //        let (pk, vk, _) = CircuitAS::index(&nark_as_pp, &nark_pp, &circuit.clone()).unwrap();
+    //
+    //        let old_input_instance = InputInstance {
+    //            r1cs_input: default_input,
+    //            first_round_message: proof.first_msg.clone(),
+    //            make_zk: false,
+    //        };
+    //
+    //        let old_input_witness = InputWitness {
+    //            second_round_message: proof.second_msg,
+    //            make_zk: false,
+    //        };
+    //
+    //        let old_input = Input::<CircuitAS> {
+    //            instance: old_input_instance,
+    //            witness: old_input_witness,
+    //        };
+    //
+    //        let new_input = old_input.clone();
+    //
+    //        let (old_accumulator, proof) =
+    //            CircuitAS::prove(&pk, vec![old_input.as_ref()], vec![], Some(rng)).unwrap();
+    //
+    //        let (new_accumulator, proof) = CircuitAS::prove(
+    //            &pk,
+    //            vec![new_input.as_ref()],
+    //            vec![old_accumulator.as_ref()],
+    //            Some(rng),
+    //        )
+    //        .unwrap();
+    //
+    //        let vk_var =
+    //            VerifierKeyVar::<ConstraintF>::new_constant(circuit.clone(), vk.clone()).unwrap();
+    //
+    //        let new_input_instance_var =
+    //            InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance)).unwrap();
+    //
+    //        let old_accumulator_instance_var = AccumulatorInstanceVar::<G, C>::new_witness(
+    //            cs.clone(),
+    //            || Ok(old_accumulator.instance),
+    //        )
+    //        .unwrap();
+    //
+    //        let new_accumulator_instance_var =
+    //            AccumulatorInstanceVar::<G, C>::new_input(cs.clone(), || Ok(new_accumulator.instance))
+    //                .unwrap();
+    //
+    //        let proof_var = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
+    //
+    //        (
+    //            vk_var,
+    //            new_input_instance_var,
+    //            old_accumulator_instance_var,
+    //            new_accumulator_instance_var,
+    //            proof_var,
+    //        )
+    //
+    //         */
+    //        unimplemented!()
+    //    }
 
     /*
     #[test]

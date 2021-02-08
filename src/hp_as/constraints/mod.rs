@@ -37,6 +37,69 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
+    fn squeeze_mu_challenges(
+        sponge: &mut SV,
+        num_inputs: usize,
+        has_hiding: bool,
+    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
+        let mut mu_challenges_fe = Vec::with_capacity(num_inputs);
+        let mut mu_challenges_bits = Vec::with_capacity(num_inputs);
+
+        mu_challenges_fe.push(NNFieldVar::<G>::one());
+        mu_challenges_bits.push(vec![Boolean::TRUE]);
+
+        if num_inputs > 1 {
+            let mu_size = FieldElementSize::Truncated { num_bits: 128 };
+            let (mut mu_challenges_fe_rest, mut mu_challenges_bits_rest) = sponge
+                .squeeze_nonnative_field_elements_with_sizes(
+                    vec![mu_size; num_inputs - 1].as_slice(),
+                )?;
+
+            mu_challenges_fe.append(&mut mu_challenges_fe_rest);
+            mu_challenges_bits.append(&mut mu_challenges_bits_rest);
+        }
+
+        if has_hiding {
+            mu_challenges_fe.push(mu_challenges_fe[1].clone() * &mu_challenges_fe[num_inputs - 1]);
+            mu_challenges_bits.push(mu_challenges_fe.last().unwrap().to_bits_le()?);
+        }
+
+        Ok((mu_challenges_fe, mu_challenges_bits))
+    }
+
+    fn squeeze_nu_challenges(
+        sponge: &mut SV,
+        num_inputs: usize,
+    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
+        let nu_size = FieldElementSize::Truncated { num_bits: 128 };
+        let (mut nu_challenge_fe, mut nu_challenge_bits) = sponge
+            .squeeze_nonnative_field_elements_with_sizes(
+                vec![nu_size].as_slice(),
+            )?;
+
+        let nu_challenge_fe = nu_challenge_fe.pop().unwrap();
+
+        let mut nu_challenges_fe: Vec<NNFieldVar<G>> = Vec::with_capacity(2 * num_inputs - 1);
+        let mut nu_challenges_bits: Vec<Vec<Boolean<ConstraintF<G>>>> =
+            Vec::with_capacity(2 * num_inputs - 1);
+
+        nu_challenges_fe.push(NNFieldVar::<G>::one());
+        nu_challenges_bits.push(vec![Boolean::TRUE]);
+
+        nu_challenges_fe.push(nu_challenge_fe.clone());
+        nu_challenges_bits.push(nu_challenge_bits.pop().unwrap());
+
+        let mut cur_nu_challenge = nu_challenge_fe.clone();
+        for _ in 2..(2 * num_inputs - 1) {
+            cur_nu_challenge *= &nu_challenge_fe;
+
+            nu_challenges_bits.push(cur_nu_challenge.to_bits_le()?);
+            nu_challenges_fe.push(cur_nu_challenge.clone());
+        }
+
+        Ok((nu_challenges_fe, nu_challenges_bits))
+    }
+
     pub(crate) fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
@@ -44,7 +107,11 @@ where
     ) -> Result<C, SynthesisError> {
         let mut combined_commitment = hiding_comms.map(C::clone).unwrap_or(C::zero());
         for (commitment, challenge) in commitments.into_iter().zip(challenges) {
-            combined_commitment += &commitment.scalar_mul_le(challenge.iter())?;
+            if challenge.len() == 1 && challenge[0].eq(&Boolean::TRUE) {
+                combined_commitment += commitment
+            } else {
+                combined_commitment += &commitment.scalar_mul_le(challenge.iter())?
+            }
         }
 
         Ok(combined_commitment)
@@ -189,35 +256,16 @@ where
             t_comms.absorb_into_sponge(&mut challenges_sponge)?;
         }
 
-        // TODO: make the first element of `mu_challenges` be `1`, and skip
-        // the scalar multiplication for it.
-        let (mut mu_challenges_fe, mut mu_challenges_bits) = challenges_sponge
-            .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; num_inputs].as_slice(),
-            )?;
-
-        if has_hiding {
-            mu_challenges_fe.push(mu_challenges_fe[1].clone() * &mu_challenges_fe[num_inputs - 1]);
-            mu_challenges_bits.push(mu_challenges_fe.last().unwrap().to_bits_le()?);
-        }
+        let (mu_challenges_fe, mu_challenges_bits) =
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding)?;
 
         proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
 
-        let (mut nu_challenge_fe, _) = challenges_sponge.squeeze_nonnative_field_elements(1)?;
-        let nu_challenge = nu_challenge_fe.pop().unwrap();
-        let mut nu_challenges: Vec<NNFieldVar<G>> = Vec::with_capacity(2 * num_inputs - 1);
-        let mut nu_challenges_bits: Vec<Vec<Boolean<ConstraintF<G>>>> =
-            Vec::with_capacity(2 * num_inputs - 1);
-
-        let mut cur_nu_challenge = NNFieldVar::<G>::one();
-        for _ in 0..(2 * num_inputs - 1) {
-            nu_challenges_bits.push(cur_nu_challenge.to_bits_le()?);
-            nu_challenges.push(cur_nu_challenge.clone());
-            cur_nu_challenge *= &nu_challenge;
-        }
+        let (nu_challenges_fe, nu_challenges_bits) =
+            Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
 
         let mut combined_challenges = Vec::with_capacity(num_inputs);
-        for (mu, nu) in mu_challenges_fe.iter().zip(&nu_challenges) {
+        for (mu, nu) in mu_challenges_fe.iter().zip(&nu_challenges_fe) {
             combined_challenges.push((mu * nu).to_bits_le()?);
         }
 
@@ -251,14 +299,17 @@ pub mod tests {
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
-    //type G = ark_pallas::Affine;
-    //type C = ark_pallas::constraints::GVar;
-    //type F = ark_pallas::Fr;
-    //type ConstraintF = ark_pallas::Fq;
+    type G = ark_pallas::Affine;
+    type C = ark_pallas::constraints::GVar;
+    type F = ark_pallas::Fr;
+    type ConstraintF = ark_pallas::Fq;
+    /*
     type G = ark_ed_on_bls12_381::EdwardsAffine;
     type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
     type F = ark_ed_on_bls12_381::Fr;
     type ConstraintF = ark_ed_on_bls12_381::Fq;
+
+     */
 
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
@@ -269,9 +320,11 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
-            &(8, true),
-            1,
-        );
+        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&(1, false));
+    }
+
+    #[test]
+    pub fn basic_test_hiding() {
+        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&(1, true));
     }
 }

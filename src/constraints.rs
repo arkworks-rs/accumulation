@@ -75,7 +75,7 @@ pub mod tests {
                 vec![old_accumulator.as_ref()],
                 Some(&mut rng),
             )
-                .unwrap();
+            .unwrap();
 
             let vk_var = ASV::VerifierKey::new_constant(cs.clone(), vk.clone()).unwrap();
 
@@ -100,9 +100,9 @@ pub mod tests {
                 &new_accumulator_instance_var,
                 &proof_var,
             )
-                .unwrap()
-                .enforce_equal(&Boolean::TRUE)
-                .unwrap();
+            .unwrap()
+            .enforce_equal(&Boolean::TRUE)
+            .unwrap();
 
             assert!(cs.is_satisfied().unwrap());
         }
@@ -115,10 +115,13 @@ pub mod tests {
         CF: PrimeField,
         ASV: AidedAccumulationSchemeVerifierGadget<AS, CF>,
     {
+        /*
         let mut layer = ConstraintLayer::default();
         layer.mode = TracingMode::OnlyConstraints;
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         tracing::subscriber::set_global_default(subscriber).unwrap();
+
+         */
 
         let mut rng = ark_std::test_rng();
 
