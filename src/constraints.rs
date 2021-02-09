@@ -188,7 +188,6 @@ pub mod tests {
         );
 
         let start_cost = cs.num_constraints();
-        println!("Before instances {}", cs.num_instance_variables());
         ASV::verify(
             cs.clone(),
             &vk_var,
@@ -200,13 +199,8 @@ pub mod tests {
         .unwrap()
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
-        println!("After instances {}", cs.num_instance_variables());
+
         println!("Cost of verify {:?}", cs.num_constraints() - start_cost);
-
         assert!(cs.is_satisfied().unwrap());
-
-        println!("Total constaints: {:}", cs.num_constraints());
-        println!("Total instances: {:}", cs.num_instance_variables());
-        println!("Total witnesses: {:}", cs.num_witness_variables());
     }
 }

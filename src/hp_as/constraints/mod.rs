@@ -53,7 +53,7 @@ where
         }
 
         if has_hiding {
-            let hiding_components_bits = &[&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
+            let hiding_components_bits = vec![&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
             let mut hiding_components_fe: Vec<NNFieldVar<G>> = bits_le_to_nonnative(sponge.cs().clone(), hiding_components_bits)?;
             mu_challenges_bits.push((hiding_components_fe.pop().unwrap().mul(&hiding_components_fe.pop().unwrap())).to_bits_le()?);
         }

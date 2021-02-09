@@ -65,24 +65,17 @@ where
         Ok(combined_commitment)
     }
 
-    // TODO: are we able to batch this process?
-    fn compute_gamma_challenge(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
-        index_info: &IndexInfoVar<ConstraintF<G>>,
+    fn compute_gamma_challenge<Sponge: CryptographicSpongeVar<ConstraintF<G>>>(
+        sponge: &mut Sponge,
         input: &[NNFieldVar<G>],
         msg: &FirstRoundMessageVar<G, C>,
     ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
-        let mut sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKDomain>::new(cs.clone());
-
-        sponge.absorb(&index_info.matrices_hash.as_ref());
-
         let mut input_bytes = Vec::new();
         for elem in input {
             input_bytes.append(&mut elem.to_bytes()?);
         }
         sponge.absorb(input_bytes.to_constraint_field()?.as_slice())?;
-        msg.absorb_into_sponge(&mut sponge);
+        msg.absorb_into_sponge(sponge);
 
         let mut squeezed =
             sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
@@ -146,6 +139,10 @@ where
         let mut all_blinded_comm_c = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
 
+        let mut sponge =
+            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKDomain>::new(cs.clone());
+        sponge.absorb(&index_info.matrices_hash.as_ref());
+
         for instance in input_instances {
             let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
 
@@ -155,9 +152,9 @@ where
             let mut comm_prod = first_round_message.comm_c.clone();
 
             if instance.make_zk {
+                let mut gamma_sponge = sponge.clone();
                 let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
-                    cs.clone(),
-                    index_info,
+                    &mut gamma_sponge,
                     &instance.r1cs_input.as_slice(),
                     &instance.first_round_message,
                 )?;

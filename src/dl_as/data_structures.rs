@@ -47,10 +47,11 @@ pub struct VerifierKey<G: AffineCurve> {
 #[derive(Clone)]
 pub struct DeciderKey<G: AffineCurve>(pub(crate) ipa_pc::VerifierKey<G>);
 
-pub trait IsSpongeForAccSchemeParam {
+pub trait IsSpongeForAccSchemeParam: Clone {
     fn is_sponge_for_acc_scheme() -> bool;
 }
 
+#[derive(Clone)]
 pub struct SpongeForAccSchemeParam {}
 impl IsSpongeForAccSchemeParam for SpongeForAccSchemeParam {
     fn is_sponge_for_acc_scheme() -> bool {
@@ -58,6 +59,7 @@ impl IsSpongeForAccSchemeParam for SpongeForAccSchemeParam {
     }
 }
 
+#[derive(Clone)]
 pub struct SpongeForPCParam {}
 impl IsSpongeForAccSchemeParam for SpongeForPCParam {
     fn is_sponge_for_acc_scheme() -> bool {
@@ -65,6 +67,7 @@ impl IsSpongeForAccSchemeParam for SpongeForPCParam {
     }
 }
 
+#[derive(Clone)]
 pub struct DomainSeparatedSponge<
     CF: PrimeField + Absorbable<CF>,
     S: CryptographicSponge<CF>,
