@@ -49,6 +49,22 @@ where
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>>,
 {
+    fn combine_commitments<'a>(
+        commitments: impl IntoIterator<Item = &'a C>,
+        challenges: &[Vec<Boolean<ConstraintF<G>>>],
+    ) -> Result<C, SynthesisError> {
+        let mut combined_commitment = C::zero();
+        for (commitment, challenge) in commitments.into_iter().zip(challenges) {
+            if challenge.len() == 1 && challenge[0].eq(&Boolean::TRUE) {
+                combined_commitment += commitment
+            } else {
+                combined_commitment += &commitment.scalar_mul_le(challenge.iter())?
+            }
+        }
+
+        Ok(combined_commitment)
+    }
+
     // TODO: are we able to batch this process?
     fn compute_gamma_challenge(
         cs: ConstraintSystemRef<ConstraintF<G>>,
@@ -297,25 +313,13 @@ where
             Self::combine_vectors(r1cs_inputs, beta_challenges_fe.as_slice())?;
 
         let combined_comm_a =
-            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
-                all_comm_a,
-                beta_challenges_bits.as_slice(),
-                None,
-            )?;
+            Self::combine_commitments(all_comm_a, beta_challenges_bits.as_slice())?;
 
         let combined_comm_b =
-            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
-                all_comm_b,
-                beta_challenges_bits.as_slice(),
-                None,
-            )?;
+            Self::combine_commitments(all_comm_b, beta_challenges_bits.as_slice())?;
 
         let combined_comm_c =
-            HPAidedAccumulationSchemeVerifierGadget::<G, C, SV>::combine_commitments(
-                all_comm_c,
-                beta_challenges_bits.as_slice(),
-                None,
-            )?;
+            Self::combine_commitments(all_comm_c, beta_challenges_bits.as_slice())?;
 
         Ok((
             combined_r1cs_input,

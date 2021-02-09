@@ -60,9 +60,7 @@ where
     fn squeeze_nu_challenges(sponge: &mut S, num_inputs: usize) -> Vec<G::ScalarField> {
         let nu_size = FieldElementSize::Truncated { num_bits: 128 };
         let nu_challenge: G::ScalarField = sponge
-            .squeeze_nonnative_field_elements_with_sizes(
-                vec![nu_size].as_slice(),
-            )
+            .squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())
             .pop()
             .unwrap();
 

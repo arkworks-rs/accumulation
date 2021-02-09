@@ -1,4 +1,5 @@
 use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
+use std::ops::Mul;
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HPAidedAccumulationScheme;
 use ark_ec::AffineCurve;
@@ -11,7 +12,7 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::constraints::{CryptographicSpongeVar, bits_le_to_nonnative};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
 
@@ -41,77 +42,69 @@ where
         sponge: &mut SV,
         num_inputs: usize,
         has_hiding: bool,
-    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
-        let mut mu_challenges_fe = Vec::with_capacity(num_inputs);
+    ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
         let mut mu_challenges_bits = Vec::with_capacity(num_inputs);
-
-        mu_challenges_fe.push(NNFieldVar::<G>::one());
         mu_challenges_bits.push(vec![Boolean::TRUE]);
 
         if num_inputs > 1 {
-            let mu_size = FieldElementSize::Truncated { num_bits: 128 };
-            let (mut mu_challenges_fe_rest, mut mu_challenges_bits_rest) = sponge
-                .squeeze_nonnative_field_elements_with_sizes(
-                    vec![mu_size; num_inputs - 1].as_slice(),
-                )?;
-
-            mu_challenges_fe.append(&mut mu_challenges_fe_rest);
-            mu_challenges_bits.append(&mut mu_challenges_bits_rest);
+            let mut mu_challenges_bits_rest= sponge
+                .squeeze_bits(128 * (num_inputs - 1))?;
+            mu_challenges_bits_rest.chunks(128).into_iter().for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
         }
 
         if has_hiding {
-            mu_challenges_fe.push(mu_challenges_fe[1].clone() * &mu_challenges_fe[num_inputs - 1]);
-            mu_challenges_bits.push(mu_challenges_fe.last().unwrap().to_bits_le()?);
+            let hiding_components_bits = &[&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
+            let mut hiding_components_fe: Vec<NNFieldVar<G>> = bits_le_to_nonnative(sponge.cs().clone(), hiding_components_bits)?;
+            mu_challenges_bits.push((hiding_components_fe.pop().unwrap().mul(&hiding_components_fe.pop().unwrap())).to_bits_le()?);
         }
 
-        Ok((mu_challenges_fe, mu_challenges_bits))
+        Ok(mu_challenges_bits)
     }
 
     fn squeeze_nu_challenges(
         sponge: &mut SV,
         num_inputs: usize,
-    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
+    ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
         let nu_size = FieldElementSize::Truncated { num_bits: 128 };
-        let (mut nu_challenge_fe, mut nu_challenge_bits) = sponge
-            .squeeze_nonnative_field_elements_with_sizes(
-                vec![nu_size].as_slice(),
-            )?;
+        let (mut nu_challenge_fe, mut nu_challenge_bits) =
+            sponge.squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())?;
+        let mut nu_challenge_fe: NNFieldVar<G> = nu_challenge_fe.pop().unwrap();
 
-        let nu_challenge_fe = nu_challenge_fe.pop().unwrap();
-
-        let mut nu_challenges_fe: Vec<NNFieldVar<G>> = Vec::with_capacity(2 * num_inputs - 1);
         let mut nu_challenges_bits: Vec<Vec<Boolean<ConstraintF<G>>>> =
             Vec::with_capacity(2 * num_inputs - 1);
 
-        nu_challenges_fe.push(NNFieldVar::<G>::one());
         nu_challenges_bits.push(vec![Boolean::TRUE]);
-
-        nu_challenges_fe.push(nu_challenge_fe.clone());
         nu_challenges_bits.push(nu_challenge_bits.pop().unwrap());
 
         let mut cur_nu_challenge = nu_challenge_fe.clone();
-        for _ in 2..(2 * num_inputs - 1) {
+        for _ in 2..(num_inputs + 1) {
             cur_nu_challenge *= &nu_challenge_fe;
-
             nu_challenges_bits.push(cur_nu_challenge.to_bits_le()?);
-            nu_challenges_fe.push(cur_nu_challenge.clone());
         }
 
-        Ok((nu_challenges_fe, nu_challenges_bits))
+        Ok(nu_challenges_bits)
     }
 
-    pub(crate) fn combine_commitments<'a>(
+    fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
+        extra_challenges: Option<&[Vec<Boolean<ConstraintF<G>>>]>,
         hiding_comms: Option<&C>,
     ) -> Result<C, SynthesisError> {
         let mut combined_commitment = hiding_comms.map(C::clone).unwrap_or(C::zero());
-        for (commitment, challenge) in commitments.into_iter().zip(challenges) {
-            if challenge.len() == 1 && challenge[0].eq(&Boolean::TRUE) {
-                combined_commitment += commitment
-            } else {
-                combined_commitment += &commitment.scalar_mul_le(challenge.iter())?
+        for (i, commitment) in commitments.into_iter().enumerate() {
+            let mut addend = commitment.clone();
+            if !(challenges[i].len() == 1 && challenges[i][0].eq(&Boolean::TRUE)) {
+                addend = addend.scalar_mul_le(challenges[i].iter())?;
             }
+
+            if let Some(extra_challenge) = extra_challenges.as_ref().map(|challenges| &challenges[i]) {
+                if !(extra_challenge.len() == 1 && extra_challenge[0].eq(&Boolean::TRUE)) {
+                    addend = addend.scalar_mul_le(extra_challenge.iter())?;
+                }
+            }
+
+            combined_commitment += &addend;
         }
 
         Ok(combined_commitment)
@@ -122,7 +115,6 @@ where
         proof: &ProofVar<G, C>,
         mu_challenges: &[Vec<Boolean<ConstraintF<G>>>],
         nu_challenges: &[Vec<Boolean<ConstraintF<G>>>],
-        combined_challenges: &[Vec<Boolean<ConstraintF<G>>>],
     ) -> Result<InputInstanceVar<G, C>, SynthesisError> {
         let num_inputs = input_instances.len();
 
@@ -138,7 +130,8 @@ where
 
         let comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
-            combined_challenges,
+            mu_challenges,
+            Some(nu_challenges),
             hiding_comm_addend_1.as_ref(),
         )?;
 
@@ -154,17 +147,17 @@ where
                 .map(|instance| &instance.comm_2)
                 .rev(),
             nu_challenges,
+            None,
             hiding_comm_addend_2.as_ref(),
         )?;
 
         let comm_3 = {
             let t_comm_low_addend =
-                Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None)?;
-            let t_comm_high_addend = Self::combine_commitments(
-                proof.t_comms.high.iter(),
-                &nu_challenges[num_inputs..],
-                None,
-            )?;
+                Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None, None)?;
+
+            let t_comm_high_addend =
+                Self::combine_commitments(proof.t_comms.high.iter(), &nu_challenges, None, None)?
+                    .scalar_mul_le(nu_challenges[1].iter())?;
 
             let hiding_comm_addend_3 = proof
                 .hiding_comms
@@ -179,11 +172,13 @@ where
             let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
                 &mu_challenges,
+                None,
                 hiding_comm_addend_3.as_ref(),
-            )?
-            .scalar_mul_le(nu_challenges[num_inputs - 1].iter())?;
+            )?;
 
-            t_comm_low_addend + &t_comm_high_addend + &comm_3_addend
+            t_comm_low_addend
+                + &(t_comm_high_addend + &comm_3_addend)
+                    .scalar_mul_le(nu_challenges[num_inputs - 1].iter())?
         };
 
         Ok(InputInstanceVar {
@@ -256,25 +251,19 @@ where
             t_comms.absorb_into_sponge(&mut challenges_sponge)?;
         }
 
-        let (mu_challenges_fe, mu_challenges_bits) =
+        let mu_challenges_bits =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding)?;
 
         proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
 
-        let (nu_challenges_fe, nu_challenges_bits) =
+        let nu_challenges_bits =
             Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
-
-        let mut combined_challenges = Vec::with_capacity(num_inputs);
-        for (mu, nu) in mu_challenges_fe.iter().zip(&nu_challenges_fe) {
-            combined_challenges.push((mu * nu).to_bits_le()?);
-        }
 
         let accumulator_instance = Self::compute_combined_hp_commitments(
             input_instances.as_slice(),
             proof,
             &mu_challenges_bits,
             &nu_challenges_bits,
-            combined_challenges.as_slice(),
         )?;
 
         let result1 = accumulator_instance
