@@ -9,7 +9,7 @@ use ark_ff::{to_bytes, One, PrimeField, UniformRand, Zero};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
 use ark_poly_commit::{
     ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
-    PolynomialCommitment, PolynomialLabel, UVPolynomial,
+    PolynomialCommitment, PolynomialLabel,
 };
 use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
@@ -18,11 +18,19 @@ use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
+use ark_poly::polynomial::univariate::DensePolynomial;
+use ark_poly::{Polynomial, UVPolynomial};
 pub use data_structures::*;
 
 // Alias for readability
 type FinalCommKey<G> = G;
-pub type PCDL<G, P, D, CF, S> = InnerProductArgPC<G, D, P, CF, SpongeForPC<CF, S>>;
+pub type PCDL<G, D, CF, S> = InnerProductArgPC<
+    G,
+    D,
+    DensePolynomial<<G as AffineCurve>::ScalarField>,
+    CF,
+    SpongeForPC<CF, S>,
+>;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;
@@ -31,10 +39,9 @@ pub mod constraints;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct DLAccumulationScheme<G, P, D, R, CF, S>
+pub struct DLAccumulationScheme<G, D, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
     CF: PrimeField + Absorbable<CF>,
@@ -42,17 +49,15 @@ where
     S: CryptographicSponge<CF>,
 {
     _curve: PhantomData<G>,
-    _polynomial: PhantomData<P>,
     _digest: PhantomData<D>,
     _rng: PhantomData<R>,
     _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, P, D, R, CF, S> DLAccumulationScheme<G, P, D, R, CF, S>
+impl<G, D, R, CF, S> DLAccumulationScheme<G, D, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
     CF: PrimeField + Absorbable<CF>,
@@ -61,15 +66,13 @@ where
 {
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::CommitterKey<G>,
-        linear_polynomial: P,
+        linear_polynomial: DensePolynomial<G::ScalarField>,
     ) -> Result<FinalCommKey<G>, PCError> {
-        assert!(linear_polynomial.degree() <= 1);
-
         let labeled_random_linear_polynomial =
             LabeledPolynomial::new(PolynomialLabel::new(), linear_polynomial, None, None);
 
         let (mut linear_polynomial_commitments, _) =
-            PCDL::<G, P, D, CF, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
+            PCDL::<G, D, CF, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
 
         Ok(linear_polynomial_commitments
             .pop()
@@ -98,7 +101,7 @@ where
                 });
             }
 
-            let check_polynomial = PCDL::<G, P, D, CF, S>::succinct_check(
+            let check_polynomial = PCDL::<G, D, CF, S>::succinct_check(
                 ipa_vk,
                 vec![ipa_commitment],
                 input.point.clone(),
@@ -149,7 +152,6 @@ where
         let mut bytes_input = Vec::new();
 
         let elems = &check_polynomial.0;
-        // TODO: Absorb field elements instead?
         for i in 0..(log_supported_degree + 1) {
             if i < elems.len() {
                 bytes_input.append(&mut ark_ff::to_bytes!(elems[i]).unwrap());
@@ -165,7 +167,7 @@ where
     fn combine_succinct_checks_and_proof<'a>(
         ipa_vk: &ipa_pc::VerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
-        proof: &Proof<G, P>,
+        proof: Option<&Randomness<G>>,
     ) -> Result<
         (
             LabeledCommitment<ipa_pc::Commitment<G>>, // Combined commitment
@@ -177,24 +179,23 @@ where
         let supported_degree = ipa_vk.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        assert!(proof.random_linear_polynomial.degree() <= 1);
         let mut linear_combination_challenge_sponge = SpongeForAccScheme::<CF, S>::new();
-        // TODO: Renable for hiding
-        /*
-        let random_coeffs = proof.random_linear_polynomial.coeffs();
-        for i in 0..=1 {
-            if i < random_coeffs.len() {
-                linear_combination_challenge_sponge.absorb(&random_coeffs[i]);
-            } else {
-                linear_combination_challenge_sponge.absorb(&G::ScalarField::zero());
-            }
-        }
-         */
 
-        /*
-        linear_combination_challenge_sponge
-            .absorb(&to_bytes!(proof.random_linear_polynomial_commitment).unwrap());
-         */
+        if let Some(randomness) = proof.as_ref() {
+            let random_coeffs = randomness.random_linear_polynomial.coeffs();
+            for i in 0..=1 {
+                if i < random_coeffs.len() {
+                    linear_combination_challenge_sponge
+                        .absorb(&to_bytes!(random_coeffs[i]).unwrap());
+                } else {
+                    linear_combination_challenge_sponge
+                        .absorb(&to_bytes!(G::ScalarField::zero()).unwrap());
+                }
+            }
+
+            linear_combination_challenge_sponge
+                .absorb(&to_bytes!(randomness.random_linear_polynomial_commitment).unwrap());
+        }
 
         for (check_polynomial, commitment) in succinct_checks {
             Self::absorb_check_polynomial_into_sponge(
@@ -211,9 +212,14 @@ where
                     .as_slice(),
             );
 
-        // TODO: Revert to enable hiding
-        //let mut combined_commitment = proof.random_linear_polynomial_commitment.into_projective();
-        let mut combined_commitment = G::Projective::zero();
+        let mut combined_commitment = if let Some(randomness) = proof.as_ref() {
+            randomness
+                .random_linear_polynomial_commitment
+                .into_projective()
+        } else {
+            G::Projective::zero()
+        };
+
         let mut combined_check_polynomial_addends = Vec::with_capacity(succinct_checks.len());
 
         for ((check_polynomial, commitment), cur_challenge) in
@@ -223,8 +229,11 @@ where
             combined_check_polynomial_addends.push((cur_challenge, check_polynomial));
         }
 
-        // TODO: Revert to enable hiding
-        let randomized_combined_commitment = combined_commitment; //+ &(ipa_vk.s.mul(proof.commitment_randomness));
+        let mut randomized_combined_commitment = if let Some(randomness) = proof.as_ref() {
+            combined_commitment + &ipa_vk.s.mul(randomness.commitment_randomness)
+        } else {
+            combined_commitment.clone()
+        };
 
         let mut commitments = G::Projective::batch_normalization_into_affine(&[
             combined_commitment,
@@ -277,10 +286,11 @@ where
         combined_check_polynomial_addends: impl IntoIterator<
             Item = (G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>),
         >,
-    ) -> P {
-        let mut combined = P::zero();
+    ) -> DensePolynomial<G::ScalarField> {
+        let mut combined = DensePolynomial::zero();
         for (scalar, check_polynomial) in combined_check_polynomial_addends {
-            let polynomial = P::from_coefficients_vec(check_polynomial.compute_coeffs());
+            let polynomial =
+                DensePolynomial::from_coefficients_vec(check_polynomial.compute_coeffs());
             combined += (scalar, &polynomial);
         }
         combined
@@ -301,30 +311,34 @@ where
 
     fn compute_new_accumulator(
         ipa_ck: &ipa_pc::CommitterKey<G>,
-        combined_check_polynomial: P,
+        combined_check_polynomial: DensePolynomial<G::ScalarField>,
         combined_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
         challenge: G::ScalarField,
-        commitment_randomness: G::ScalarField,
+        proof: Option<&Randomness<G>>,
         rng: &mut dyn RngCore,
     ) -> Result<InputInstance<G>, PCError> {
-        let supported_degree = ipa_ck.supported_degree();
-        assert!(combined_check_polynomial.degree() <= supported_degree);
+        let hiding_bound = if proof.is_some() {
+            Some(ipa_ck.supported_degree())
+        } else {
+            None
+        };
 
         let evaluation = combined_check_polynomial.evaluate(&challenge);
         let labeled_combined_polynomial = LabeledPolynomial::new(
             PolynomialLabel::new(),
             combined_check_polynomial,
             None,
-            // TODO: Turn on hiding again
-            None,
+            hiding_bound,
         );
 
         let randomness = ipa_pc::Randomness {
-            rand: commitment_randomness,
+            rand: proof
+                .map(|rand| rand.commitment_randomness.clone())
+                .unwrap_or(G::ScalarField::zero()),
             shifted_rand: None,
         };
 
-        let ipa_proof = PCDL::<G, P, D, CF, S>::open_individual_opening_challenges(
+        let ipa_proof = PCDL::<G, D, CF, S>::open_individual_opening_challenges(
             ipa_ck,
             vec![&labeled_combined_polynomial],
             vec![&combined_commitment],
@@ -345,10 +359,9 @@ where
     }
 }
 
-impl<G, P, D, R, CF, S> AidedAccumulationScheme for DLAccumulationScheme<G, P, D, R, CF, S>
+impl<G, D, R, CF, S> AidedAccumulationScheme for DLAccumulationScheme<G, D, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
     CF: PrimeField + Absorbable<CF>,
@@ -369,7 +382,7 @@ where
     type AccumulatorInstance = InputInstance<G>;
     type AccumulatorWitness = ();
 
-    type Proof = Proof<G, P>;
+    type Proof = Option<Randomness<G>>;
     type Error = BoxedError;
 
     fn generate(_rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
@@ -381,7 +394,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipa_ck, ipa_vk) = PCDL::<G, P, D, CF, S>::trim(
+        let (ipa_ck, ipa_vk) = PCDL::<G, D, CF, S>::trim(
             predicate_params,
             predicate_index.supported_degree_bound,
             predicate_index.supported_hiding_bound,
@@ -389,7 +402,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let (ipa_ck_linear, _) = PCDL::<G, P, D, CF, S>::trim(predicate_params, 1, 0, Some(&[1]))
+        let (ipa_ck_linear, _) = PCDL::<G, D, CF, S>::trim(predicate_params, 1, 0, Some(&[1]))
             .map_err(|e| BoxedError::new(e))?;
 
         let verifier_key = VerifierKey {
@@ -418,22 +431,39 @@ where
     {
         let rng = rng.expect("dl_as prover requires rng");
 
-        let inputs = InputRef::<'a, Self>::instances(inputs);
-        let accumulators = AccumulatorRef::<'a, Self>::instances(accumulators);
+        let inputs: Vec<&InputInstance<G>> =
+            InputRef::<'a, Self>::instances(inputs).collect::<Vec<_>>();
+        let accumulators: Vec<&InputInstance<G>> =
+            AccumulatorRef::<'a, Self>::instances(accumulators).collect::<Vec<_>>();
 
-        let random_linear_polynomial =
-            P::from_coefficients_slice(&[G::ScalarField::rand(rng), G::ScalarField::rand(rng)]);
+        let has_hiding = inputs
+            .iter()
+            .chain(&accumulators)
+            .fold(false, |has_hiding, input| {
+                return has_hiding
+                    || input.ipa_proof.hiding_comm.is_some()
+                    || input.ipa_proof.rand.is_some();
+            });
 
-        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-            &prover_key.verifier_key.ipa_ck_linear,
-            random_linear_polynomial.clone(),
-        )
-        .map_err(|e| BoxedError::new(e))?;
+        let proof = if has_hiding {
+            let random_linear_polynomial = DensePolynomial::from_coefficients_slice(&[
+                G::ScalarField::rand(rng),
+                G::ScalarField::rand(rng),
+            ]);
 
-        let proof = Proof {
-            random_linear_polynomial,
-            random_linear_polynomial_commitment: linear_polynomial_commitment,
-            commitment_randomness: G::ScalarField::rand(rng),
+            let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
+                &prover_key.verifier_key.ipa_ck_linear,
+                random_linear_polynomial.clone(),
+            )
+            .map_err(|e| BoxedError::new(e))?;
+
+            Some(Randomness {
+                random_linear_polynomial,
+                random_linear_polynomial_commitment: linear_polynomial_commitment,
+                commitment_randomness: G::ScalarField::rand(rng),
+            })
+        } else {
+            None
         };
 
         let succinct_checks = Self::succinct_check_inputs_and_accumulators(
@@ -447,22 +477,23 @@ where
             Self::combine_succinct_checks_and_proof(
                 &prover_key.verifier_key.ipa_vk,
                 &succinct_checks,
-                &proof,
+                proof.as_ref(),
             )
             .map_err(|e| BoxedError::new(e))?;
 
-        let combined_check_polynomial =
+        let mut combined_check_polynomial =
             Self::combine_check_polynomials(combined_check_polynomial_addends);
 
-        // TODO: Reenable for hiding
-        //combined_check_polynomial += &proof.random_linear_polynomial;
+        if let Some(randomness) = proof.as_ref() {
+            combined_check_polynomial += &randomness.random_linear_polynomial;
+        }
 
         let accumulator = Self::compute_new_accumulator(
             &prover_key.ipa_ck,
             combined_check_polynomial,
             combined_commitment,
             challenge,
-            proof.commitment_randomness.clone(),
+            proof.as_ref(),
             rng,
         )
         .map_err(|e| BoxedError::new(e))?;
@@ -485,23 +516,21 @@ where
     where
         Self: 'a,
     {
-        // TODO: Revert for hiding
-        /*
-        if proof.random_linear_polynomial.degree() > 1 {
-            return Ok(false);
+        if let Some(randomness) = proof.as_ref() {
+            if randomness.random_linear_polynomial.degree() > 1 {
+                return Ok(false);
+            }
+
+            let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
+                &verifier_key.ipa_ck_linear,
+                randomness.random_linear_polynomial.clone(),
+            )
+            .map_err(|e| BoxedError::new(e))?;
+
+            if !linear_polynomial_commitment.eq(&randomness.random_linear_polynomial_commitment) {
+                return Ok(false);
+            }
         }
-
-        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-            &verifier_key.ipa_ck_linear,
-            proof.random_linear_polynomial.clone(),
-        )
-        .map_err(|e| BoxedError::new(e))?;
-
-        if !linear_polynomial_commitment.eq(&proof.random_linear_polynomial_commitment) {
-            return Ok(false);
-        }
-
-         */
 
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators(
             &verifier_key.ipa_vk,
@@ -515,8 +544,11 @@ where
 
         let succinct_checks = succinct_check_result.ok().unwrap();
 
-        let combine_result =
-            Self::combine_succinct_checks_and_proof(&verifier_key.ipa_vk, &succinct_checks, &proof);
+        let combine_result = Self::combine_succinct_checks_and_proof(
+            &verifier_key.ipa_vk,
+            &succinct_checks,
+            proof.as_ref(),
+        );
 
         if combine_result.is_err() {
             return Ok(false);
@@ -536,11 +568,12 @@ where
             return Ok(false);
         }
 
-        let eval =
+        let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_polynomial_addends, challenge);
 
-        // TODO: Revert for hiding
-        //eval += &proof.random_linear_polynomial.evaluate(&challenge);
+        if let Some(randomness) = proof.as_ref() {
+            eval += &randomness.random_linear_polynomial.evaluate(&challenge);
+        }
 
         if !eval.eq(&new_accumulator.evaluation) {
             return Ok(false);
@@ -555,7 +588,7 @@ where
     ) -> Result<bool, Self::Error> {
         let accumulator = accumulator.instance;
 
-        let ipa_check = PCDL::<G, P, D, CF, S>::check_individual_opening_challenges(
+        let ipa_check = PCDL::<G, D, CF, S>::check_individual_opening_challenges(
             &decider_key.0,
             vec![&accumulator.ipa_commitment],
             &accumulator.point,
@@ -570,10 +603,9 @@ where
     }
 }
 
-impl<G, P, D, R, CF, S> AccumulationScheme for DLAccumulationScheme<G, P, D, R, CF, S>
+impl<G, D, R, CF, S> AccumulationScheme for DLAccumulationScheme<G, D, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
     D: Digest,
     R: RngCore + SeedableRng,
     CF: PrimeField + Absorbable<CF>,
@@ -607,12 +639,10 @@ pub mod tests {
 
     pub struct DLAccumulationSchemeTestInput {}
 
-    impl<G, P, D, R, CF, S>
-        AidedAccumulationSchemeTestInput<DLAccumulationScheme<G, P, D, R, CF, S>>
+    impl<G, D, R, CF, S> AidedAccumulationSchemeTestInput<DLAccumulationScheme<G, D, R, CF, S>>
         for DLAccumulationSchemeTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
-        P: UVPolynomial<G::ScalarField>,
         D: Digest,
         R: RngCore + SeedableRng,
         CF: PrimeField + Absorbable<CF>,
@@ -627,14 +657,14 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <DLAccumulationScheme<G, P, D, R, CF, S> as AidedAccumulationScheme>::PredicateParams,
-            <DLAccumulationScheme<G, P, D, R, CF, S> as AidedAccumulationScheme>::PredicateIndex,
+            <DLAccumulationScheme<G, D, R, CF, S> as AidedAccumulationScheme>::PredicateParams,
+            <DLAccumulationScheme<G, D, R, CF, S> as AidedAccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = (1 << 10) - 1;
+            let max_degree = (1 << 3) - 1;
             let supported_degree = max_degree;
-            let predicate_params = PCDL::<G, P, D, CF, S>::setup(max_degree, None, rng).unwrap();
+            let predicate_params = PCDL::<G, D, CF, S>::setup(max_degree, None, rng).unwrap();
 
-            let (ck, vk) = PCDL::<G, P, D, CF, S>::trim(
+            let (ck, vk) = PCDL::<G, D, CF, S>::trim(
                 &predicate_params,
                 supported_degree,
                 supported_degree,
@@ -654,27 +684,30 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<DLAccumulationScheme<G, P, D, R, CF, S>>> {
+        ) -> Vec<Input<DLAccumulationScheme<G, D, R, CF, S>>> {
             let ck = &input_params.0;
 
-            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
+            let labeled_polynomials: Vec<
+                LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+            > = (0..num_inputs)
                 .map(|i| {
                     //let degree =
                     //rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
                     let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
-                    let polynomial = P::rand(degree, rng);
-                    //let hiding_bound = None;
+                    let polynomial = DensePolynomial::rand(degree, rng);
+                    let hiding_bound = degree;
 
-                    let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
+                    let labeled_polynomial =
+                        LabeledPolynomial::new(label, polynomial, None, Some(hiding_bound));
 
                     labeled_polynomial
                 })
                 .collect();
 
             let (labeled_commitments, randoms) =
-                PCDL::<G, P, D, CF, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                PCDL::<G, D, CF, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = (&labeled_polynomials)
                 .into_iter()
@@ -683,7 +716,7 @@ pub mod tests {
                 .map(|((labeled_polynomial, labeled_commitment), randomness)| {
                     let point = G::ScalarField::rand(rng);
                     let evaluation = labeled_polynomial.evaluate(&point);
-                    let ipa_proof = PCDL::<G, P, D, CF, S>::open_individual_opening_challenges(
+                    let ipa_proof = PCDL::<G, D, CF, S>::open_individual_opening_challenges(
                         ck,
                         vec![labeled_polynomial],
                         vec![&labeled_commitment],
@@ -701,7 +734,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<DLAccumulationScheme<G, P, D, R, CF, S>> {
+                    Input::<DLAccumulationScheme<G, D, R, CF, S>> {
                         instance: input,
                         witness: (),
                     }
@@ -712,14 +745,8 @@ pub mod tests {
         }
     }
 
-    type AS = DLAccumulationScheme<
-        Affine,
-        DensePolynomial<Fr>,
-        sha2::Sha512,
-        rand_chacha::ChaChaRng,
-        Fq,
-        PoseidonSponge<Fq>,
-    >;
+    type AS =
+        DLAccumulationScheme<Affine, sha2::Sha512, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
     type I = DLAccumulationSchemeTestInput;
 
     #[test]
@@ -732,6 +759,7 @@ pub mod tests {
         multiple_inputs_test::<AS, I>(&())
     }
 
+    /*
     #[test]
     pub fn dl_multiple_accumulations_test() -> Result<(), BoxedError> {
         multiple_accumulations_test::<AS, I>(&())
@@ -745,5 +773,5 @@ pub mod tests {
     #[test]
     pub fn dl_accumulators_only_test() -> Result<(), BoxedError> {
         accumulators_only_test::<AS, I>(&())
-    }
+    }*/
 }

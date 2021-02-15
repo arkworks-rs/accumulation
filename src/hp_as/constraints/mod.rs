@@ -1,5 +1,4 @@
 use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
-use std::ops::Mul;
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HPAidedAccumulationScheme;
 use ark_ec::AffineCurve;
@@ -12,9 +11,10 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::{CryptographicSpongeVar, bits_le_to_nonnative};
+use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
+use std::ops::Mul;
 
 pub mod data_structures;
 use data_structures::*;
@@ -47,15 +47,25 @@ where
         mu_challenges_bits.push(vec![Boolean::TRUE]);
 
         if num_inputs > 1 {
-            let mut mu_challenges_bits_rest= sponge
-                .squeeze_bits(128 * (num_inputs - 1))?;
-            mu_challenges_bits_rest.chunks(128).into_iter().for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
+            let mut mu_challenges_bits_rest = sponge.squeeze_bits(128 * (num_inputs - 1))?;
+            mu_challenges_bits_rest
+                .chunks(128)
+                .into_iter()
+                .for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
         }
 
         if has_hiding {
-            let hiding_components_bits = vec![&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
-            let mut hiding_components_fe: Vec<NNFieldVar<G>> = bits_le_to_nonnative(sponge.cs().clone(), hiding_components_bits)?;
-            mu_challenges_bits.push((hiding_components_fe.pop().unwrap().mul(&hiding_components_fe.pop().unwrap())).to_bits_le()?);
+            let hiding_components_bits =
+                vec![&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
+            let mut hiding_components_fe: Vec<NNFieldVar<G>> =
+                bits_le_to_nonnative(sponge.cs().clone(), hiding_components_bits)?;
+            mu_challenges_bits.push(
+                (hiding_components_fe
+                    .pop()
+                    .unwrap()
+                    .mul(&hiding_components_fe.pop().unwrap()))
+                .to_bits_le()?,
+            );
         }
 
         Ok(mu_challenges_bits)
@@ -98,7 +108,9 @@ where
                 addend = addend.scalar_mul_le(challenges[i].iter())?;
             }
 
-            if let Some(extra_challenge) = extra_challenges.as_ref().map(|challenges| &challenges[i]) {
+            if let Some(extra_challenge) =
+                extra_challenges.as_ref().map(|challenges| &challenges[i])
+            {
                 if !(extra_challenge.len() == 1 && extra_challenge[0].eq(&Boolean::TRUE)) {
                     addend = addend.scalar_mul_le(extra_challenge.iter())?;
                 }
@@ -256,8 +268,7 @@ where
 
         proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
 
-        let nu_challenges_bits =
-            Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
+        let nu_challenges_bits = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
 
         let accumulator_instance = Self::compute_combined_hp_commitments(
             input_instances.as_slice(),

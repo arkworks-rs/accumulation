@@ -1,6 +1,7 @@
 use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
+use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::{ipa_pc, LabeledCommitment, UVPolynomial};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
@@ -15,19 +16,16 @@ pub struct PredicateIndex {
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
-    // ipa_pc instance
     pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
     pub point: G::ScalarField,
     pub evaluation: G::ScalarField,
 
-    // ipa_pc proof
     pub ipa_proof: ipa_pc::Proof<G>,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<G: AffineCurve, P: UVPolynomial<G::ScalarField>> {
-    // TODO: Replace with size two tuple or array of coeffs to enforce linear polynomial?
-    pub(crate) random_linear_polynomial: P,
+pub struct Randomness<G: AffineCurve> {
+    pub(crate) random_linear_polynomial: DensePolynomial<G::ScalarField>,
     pub(crate) random_linear_polynomial_commitment: G,
     pub(crate) commitment_randomness: G::ScalarField,
 }

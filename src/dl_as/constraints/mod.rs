@@ -125,7 +125,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, succinct_checks, _proof))]
+    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, succinct_checks, proof))]
     fn combine_succinct_checks_and_proof<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
@@ -134,7 +134,7 @@ where
             SuccinctCheckPolynomialVar<G>,
             &FinalCommKeyVar<C>,
         )>,
-        _proof: &ProofVar<G, C>,
+        proof: &ProofVar<G, C>,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -149,22 +149,30 @@ where
 
         let mut linear_combination_challenge_sponge =
             SpongeVarForAccScheme::<G, S>::new(ns!(cs, "linear_combination_challenge_sponge").cs());
-        // TODO: Reenable for hiding
-        /*
-        let random_coeffs = &proof.random_linear_polynomial_coeffs;
-        linear_combination_challenge_sponge
-            .absorb_bytes(random_coeffs[0].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge
-            .absorb_bytes(random_coeffs[1].to_bytes()?.as_slice())?;
-        linear_combination_challenge_sponge.absorb_bytes(
-            proof
-                .random_linear_polynomial_commitment
-                .to_bytes()?
-                .as_slice(),
-        )?;
-         */
 
-        let _cost_absorbing_succinct_check_polys = cs.num_constraints();
+        if let Some(randomness) = proof.randomness.as_ref() {
+            let random_coeffs = &randomness.random_linear_polynomial_coeffs;
+            linear_combination_challenge_sponge.absorb(
+                random_coeffs[0]
+                    .to_bytes()?
+                    .to_constraint_field()?
+                    .as_slice(),
+            )?;
+            linear_combination_challenge_sponge.absorb(
+                random_coeffs[1]
+                    .to_bytes()?
+                    .to_constraint_field()?
+                    .as_slice(),
+            )?;
+            linear_combination_challenge_sponge.absorb(
+                randomness
+                    .random_linear_polynomial_commitment
+                    .to_bytes()?
+                    .to_constraint_field()?
+                    .as_slice(),
+            )?;
+        }
+
         let mut combined_succinct_check_result = Boolean::TRUE;
         for (_, check_polynomial, commitment) in succinct_checks {
             if log_supported_degree > check_polynomial.0.len() {
@@ -188,12 +196,14 @@ where
                     .as_slice(),
             )?;
 
-        // TODO: Revert for hiding
-        //let mut combined_commitment = proof.random_linear_polynomial_commitment.clone();
-        let mut combined_commitment = C::zero();
+        let mut combined_commitment = if let Some(randomness) = proof.randomness.as_ref() {
+            randomness.random_linear_polynomial_commitment.clone()
+        } else {
+            C::zero()
+        };
 
         let mut combined_check_polynomial_and_addends = Vec::with_capacity(succinct_checks.len());
-        let mut addend_bitss = Vec::with_capacity(succinct_checks.len());
+        let mut addend_bits = Vec::with_capacity(succinct_checks.len());
 
         for (
             ((succinct_check_result, check_polynomial, commitment), cur_challenge),
@@ -210,18 +220,17 @@ where
 
             combined_check_polynomial_and_addends.push((cur_challenge.clone(), check_polynomial));
 
-            addend_bitss.push(cur_challenge_bits);
+            addend_bits.push(cur_challenge_bits);
         }
 
-        // TODO: Reenable for hiding
-        /*
-        let randomized_combined_commitment = ipa_vk
-            .s
-            .scalar_mul_le(proof.commitment_randomness.iter())?
-            + &combined_commitment;
-         */
-
-        let randomized_combined_commitment = combined_commitment.clone();
+        let randomized_combined_commitment = if let Some(randomness) = proof.randomness.as_ref() {
+            ipa_vk
+                .s
+                .scalar_mul_le(randomness.commitment_randomness.iter())?
+                + &combined_commitment
+        } else {
+            combined_commitment.clone()
+        };
 
         let mut challenge_point_sponge =
             SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge").cs());
@@ -230,7 +239,7 @@ where
         for ((_, check_polynomial), linear_combination_challenge_bits) in
             combined_check_polynomial_and_addends
                 .iter()
-                .zip(&addend_bitss)
+                .zip(&addend_bits)
         {
             if log_supported_degree > (*check_polynomial).0.len() {
                 combined_succinct_check_result = Boolean::FALSE;
@@ -315,16 +324,17 @@ where
             return Ok(Boolean::FALSE);
         }
 
-        // TODO: Revert for hiding
-        // let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-        //     &verifier_key.ipa_ck_linear,
-        //     &proof.random_linear_polynomial_coeffs,
-        // )?;
+        if let Some(randomness) = proof.randomness.as_ref() {
+            let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
+                &verifier_key.ipa_ck_linear,
+                &randomness.random_linear_polynomial_coeffs,
+            )?;
 
-        // verify_result = verify_result.and(
-        //     &linear_polynomial_commitment
-        //         .is_eq(&proof.random_linear_polynomial_commitment)?,
-        // )?;
+            verify_result = verify_result.and(
+                &linear_polynomial_commitment
+                    .is_eq(&randomness.random_linear_polynomial_commitment)?,
+            )?;
+        }
 
         // let cost = cs.num_constraints();
         let succinct_check_result = Self::succinct_check_inputs(
@@ -332,12 +342,7 @@ where
             &verifier_key.ipa_vk,
             input_instances.into_iter().chain(accumulator_instances),
         )?;
-        // println!(
-        //     "Cost of succinct_check_inputs: {:?}",
-        //     cs.num_constraints() - cost
-        // );
 
-        // let cost = cs.num_constraints();
         let (
             combined_succinct_check_result,
             combined_commitment,
@@ -347,15 +352,8 @@ where
             ns!(cs, "combine_succinct_checks_and_proof").cs(),
             &verifier_key.ipa_vk,
             &succinct_check_result,
-            &proof,
+            proof,
         )?;
-        /*
-        println!(
-            "Cost of combine_succinct_checks: {:?}",
-            cs.num_constraints() - cost
-        );
-
-         */
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
@@ -364,25 +362,15 @@ where
 
         verify_result = verify_result.and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
 
-        let eval =
+        let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_poly_addends, &challenge)?;
-        /*
-        println!(
-            "Cost of evaluate_combined_check_polynomial: {:?}",
-            cs.num_constraints() - cost
-        );
-        println!("Total constraint: {:?}", cs.num_constraints());
 
-         */
-
-        // TODO: Revert for hiding
-        /*
-        eval += Self::evaluate_linear_polynomial(
-            &proof.random_linear_polynomial_coeffs,
-            &challenge,
-        );
-
-         */
+        if let Some(randomness) = proof.randomness.as_ref() {
+            eval += Self::evaluate_linear_polynomial(
+                &randomness.random_linear_polynomial_coeffs,
+                &challenge,
+            );
+        };
 
         verify_result = verify_result.and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
 
@@ -393,7 +381,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::dl_as::constraints::{
-        DLAccumulationSchemeGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
+        DLAccumulationSchemeGadget, InputInstanceVar, ProofVar, RandomnessVar, VerifierKeyVar,
     };
     use crate::dl_as::tests::DLAccumulationSchemeTestInput;
     use crate::dl_as::DLAccumulationScheme;
@@ -422,7 +410,6 @@ pub mod tests {
 
     type AS = DLAccumulationScheme<
         G,
-        DensePolynomial<F>,
         sha2::Sha512,
         rand_chacha::ChaChaRng,
         ConstraintF,
@@ -529,9 +516,11 @@ pub mod tests {
         println!("Num instance: {:}", cs.num_instance_variables());
         println!("Num witness: {:}", cs.num_witness_variables());
 
+        assert!(cs.is_satisfied().unwrap());
+        /*
         if !cs.is_satisfied().unwrap() {
             println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        }
+        }*/
 
         // println!("BEGIN");
         // for constraint in cs.constraint_names().unwrap() {

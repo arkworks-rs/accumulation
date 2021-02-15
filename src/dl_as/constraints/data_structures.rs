@@ -1,8 +1,8 @@
 #![allow(unused)]
 use crate::constraints::{ConstraintF, NNFieldVar};
 use crate::dl_as::data_structures::{
-    InputInstance, IsSpongeForAccSchemeParam, Proof, SpongeForAccSchemeParam, SpongeForPCParam,
-    VerifierKey,
+    InputInstance, IsSpongeForAccSchemeParam, Randomness, SpongeForAccSchemeParam,
+    SpongeForPCParam, VerifierKey,
 };
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
@@ -124,7 +124,7 @@ where
     }
 }
 
-pub struct ProofVar<G, C>
+pub struct RandomnessVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
@@ -134,13 +134,12 @@ where
     pub(crate) commitment_randomness: Vec<Boolean<ConstraintF<G>>>,
 }
 
-impl<G, C, P> AllocVar<Proof<G, P>, ConstraintF<G>> for ProofVar<G, C>
+impl<G, C> AllocVar<Randomness<G>, ConstraintF<G>> for RandomnessVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
-    P: UVPolynomial<G::ScalarField>,
 {
-    fn new_variable<T: Borrow<Proof<G, P>>>(
+    fn new_variable<T: Borrow<Randomness<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -192,6 +191,36 @@ where
                 random_linear_polynomial_commitment,
                 commitment_randomness,
             })
+        })
+    }
+}
+
+pub struct ProofVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+{
+    pub randomness: Option<RandomnessVar<G, C>>,
+}
+
+impl<G, C> AllocVar<Option<Randomness<G>>, ConstraintF<G>> for ProofVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<Option<Randomness<G>>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|proof| {
+            let randomness = proof
+                .borrow()
+                .as_ref()
+                .map(|rand| RandomnessVar::new_variable(ns.clone(), || Ok(rand.clone()), mode))
+                .transpose()?;
+            Ok(Self { randomness })
         })
     }
 }
