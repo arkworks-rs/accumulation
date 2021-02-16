@@ -4,22 +4,31 @@ use ark_ff::PrimeField;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::{ipa_pc, LabeledCommitment, UVPolynomial};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize, DomainSeparator};
 use ark_std::io::{Read, Write};
 use ark_std::marker::PhantomData;
 
 #[derive(Clone)]
 pub struct PredicateIndex {
+    /// The degree bound supported by IPA_PC.
     pub supported_degree_bound: usize,
+
+    /// The hiding bound supported by IPA_PC.
     pub supported_hiding_bound: usize,
 }
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
+    /// The IPA_PC commitment that will be or has been accumulated
     pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
+
+    /// Point where the proof was opened at.
     pub point: G::ScalarField,
+
+    /// The evaluation of the committed polynomial at the point.
     pub evaluation: G::ScalarField,
 
+    /// The IPA_PC proof of evaluation at the point.
     pub ipa_proof: ipa_pc::Proof<G>,
 }
 
@@ -42,89 +51,16 @@ pub struct VerifierKey<G: AffineCurve> {
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
 }
 
-#[derive(Clone)]
-pub struct DeciderKey<G: AffineCurve>(pub(crate) ipa_pc::VerifierKey<G>);
-
-pub trait IsSpongeForAccSchemeParam: Clone {
-    fn is_sponge_for_acc_scheme() -> bool;
-}
-
-#[derive(Clone)]
-pub struct SpongeForAccSchemeParam {}
-impl IsSpongeForAccSchemeParam for SpongeForAccSchemeParam {
-    fn is_sponge_for_acc_scheme() -> bool {
-        true
+pub struct PCDLDomain {}
+impl DomainSeparator for PCDLDomain {
+    fn domain() -> Vec<u8> {
+        b"PC-DL-in-AS-DL-2020".to_vec()
     }
 }
 
-#[derive(Clone)]
-pub struct SpongeForPCParam {}
-impl IsSpongeForAccSchemeParam for SpongeForPCParam {
-    fn is_sponge_for_acc_scheme() -> bool {
-        false
+pub struct ASDLDomain {}
+impl DomainSeparator for ASDLDomain {
+    fn domain() -> Vec<u8> {
+        b"AS_DL-2020".to_vec()
     }
 }
-
-#[derive(Clone)]
-pub struct DomainSeparatedSponge<
-    CF: PrimeField + Absorbable<CF>,
-    S: CryptographicSponge<CF>,
-    I: IsSpongeForAccSchemeParam,
-> {
-    sponge: S,
-    _field: PhantomData<CF>,
-    _param: PhantomData<I>,
-}
-
-impl<CF: PrimeField + Absorbable<CF>, S: CryptographicSponge<CF>, I: IsSpongeForAccSchemeParam>
-    CryptographicSponge<CF> for DomainSeparatedSponge<CF, S, I>
-{
-    fn new() -> Self {
-        let mut sponge = S::new();
-        sponge.absorb(&if I::is_sponge_for_acc_scheme() {
-            CF::one()
-        } else {
-            CF::zero()
-        });
-        Self {
-            sponge,
-            _field: PhantomData,
-            _param: PhantomData,
-        }
-    }
-
-    fn absorb(&mut self, input: &impl Absorbable<CF>) {
-        self.sponge.absorb(input);
-    }
-
-    fn squeeze_bytes(&mut self, num_bytes: usize) -> Vec<u8> {
-        self.sponge.squeeze_bytes(num_bytes)
-    }
-
-    fn squeeze_bits(&mut self, num_bits: usize) -> Vec<bool> {
-        self.sponge.squeeze_bits(num_bits)
-    }
-
-    fn squeeze_field_elements_with_sizes(&mut self, sizes: &[FieldElementSize]) -> Vec<CF> {
-        self.sponge.squeeze_field_elements_with_sizes(sizes)
-    }
-
-    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<CF> {
-        self.sponge.squeeze_field_elements(num_elements)
-    }
-
-    fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
-        &mut self,
-        sizes: &[FieldElementSize],
-    ) -> Vec<F> {
-        self.sponge
-            .squeeze_nonnative_field_elements_with_sizes(sizes)
-    }
-
-    fn squeeze_nonnative_field_elements<F: PrimeField>(&mut self, num_elements: usize) -> Vec<F> {
-        self.sponge.squeeze_nonnative_field_elements(num_elements)
-    }
-}
-
-pub type SpongeForAccScheme<F, S> = DomainSeparatedSponge<F, S, SpongeForAccSchemeParam>;
-pub type SpongeForPC<F, S> = DomainSeparatedSponge<F, S, SpongeForPCParam>;

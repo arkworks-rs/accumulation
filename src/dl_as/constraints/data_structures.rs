@@ -1,8 +1,7 @@
 #![allow(unused)]
 use crate::constraints::{ConstraintF, NNFieldVar};
 use crate::dl_as::data_structures::{
-    InputInstance, IsSpongeForAccSchemeParam, Randomness, SpongeForAccSchemeParam,
-    SpongeForPCParam, VerifierKey,
+    InputInstance, Randomness, VerifierKey,
 };
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
@@ -200,7 +199,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub randomness: Option<RandomnessVar<G, C>>,
+    pub(crate) randomness: Option<RandomnessVar<G, C>>,
 }
 
 impl<G, C> AllocVar<Option<Randomness<G>>, ConstraintF<G>> for ProofVar<G, C>
@@ -224,103 +223,3 @@ where
         })
     }
 }
-
-#[derive(Derivative)]
-#[derivative(Clone)]
-pub struct DomainSeparatedSpongeVar<
-    G: AffineCurve,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
-    I: IsSpongeForAccSchemeParam,
-> {
-    sponge: S,
-    absorbed_bit: bool,
-
-    _affine: PhantomData<G>,
-    _sponge: PhantomData<S>,
-    _param: PhantomData<I>,
-}
-
-impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAccSchemeParam>
-    DomainSeparatedSpongeVar<G, S, I>
-{
-    fn try_absorb_domain_bit(&mut self) -> Result<(), SynthesisError> {
-        if !self.absorbed_bit {
-            let is_for_sponge = if I::is_sponge_for_acc_scheme() {
-                FpVar::one()
-            } else {
-                FpVar::zero()
-            };
-
-            self.sponge.absorb(&[is_for_sponge])?;
-
-            self.absorbed_bit = true;
-        }
-
-        Ok(())
-    }
-}
-
-impl<G: AffineCurve, S: CryptographicSpongeVar<ConstraintF<G>>, I: IsSpongeForAccSchemeParam>
-    CryptographicSpongeVar<ConstraintF<G>> for DomainSeparatedSpongeVar<G, S, I>
-{
-    fn new(cs: ConstraintSystemRef<ConstraintF<G>>) -> Self {
-        Self {
-            sponge: S::new(cs),
-            absorbed_bit: false,
-            _affine: PhantomData,
-            _sponge: PhantomData,
-            _param: PhantomData,
-        }
-    }
-
-    fn cs(&self) -> ConstraintSystemRef<ConstraintF<G>> {
-        self.sponge.cs()
-    }
-
-    fn absorb(&mut self, input: &[FpVar<ConstraintF<G>>]) -> Result<(), SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge.absorb(input)
-    }
-
-    fn squeeze_bytes(
-        &mut self,
-        num_bytes: usize,
-    ) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge.squeeze_bytes(num_bytes)
-    }
-
-    fn squeeze_bits(
-        &mut self,
-        num_bits: usize,
-    ) -> Result<Vec<Boolean<ConstraintF<G>>>, SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge.squeeze_bits(num_bits)
-    }
-
-    fn squeeze_field_elements(
-        &mut self,
-        num_elements: usize,
-    ) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
-        self.try_absorb_domain_bit()?;
-        self.sponge.squeeze_field_elements(num_elements)
-    }
-
-    fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
-        &mut self,
-        sizes: &[FieldElementSize],
-    ) -> Result<
-        (
-            Vec<NonNativeFieldVar<F, ConstraintF<G>>>,
-            Vec<Vec<Boolean<ConstraintF<G>>>>,
-        ),
-        SynthesisError,
-    > {
-        self.try_absorb_domain_bit()?;
-        self.sponge
-            .squeeze_nonnative_field_elements_with_sizes(sizes)
-    }
-}
-
-pub type SpongeVarForAccScheme<G, S> = DomainSeparatedSpongeVar<G, S, SpongeForAccSchemeParam>;
-pub type SpongeVarForPC<G, S> = DomainSeparatedSpongeVar<G, S, SpongeForPCParam>;

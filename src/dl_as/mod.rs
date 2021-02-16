@@ -12,7 +12,7 @@ use ark_poly_commit::{
     PolynomialCommitment, PolynomialLabel,
 };
 use ark_relations::r1cs::ToConstraintField;
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize, DomainSeparatedSponge};
 use ark_std::marker::PhantomData;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
@@ -22,14 +22,13 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly::{Polynomial, UVPolynomial};
 pub use data_structures::*;
 
-// Alias for readability
 type FinalCommKey<G> = G;
 pub type PCDL<G, D, CF, S> = InnerProductArgPC<
     G,
     D,
     DensePolynomial<<G as AffineCurve>::ScalarField>,
     CF,
-    SpongeForPC<CF, S>,
+    DomainSeparatedSponge<CF, S, PCDLDomain>,
 >;
 
 #[cfg(feature = "r1cs")]
@@ -179,7 +178,7 @@ where
         let supported_degree = ipa_vk.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge = SpongeForAccScheme::<CF, S>::new();
+        let mut linear_combination_challenge_sponge = DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
 
         if let Some(randomness) = proof.as_ref() {
             let random_coeffs = randomness.random_linear_polynomial.coeffs();
@@ -250,7 +249,7 @@ where
             None,
         );
 
-        let mut challenge_point_sponge = SpongeForAccScheme::<CF, S>::new();
+        let mut challenge_point_sponge = DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
 
         let combined_commitment = commitments.pop().unwrap();
         challenge_point_sponge.absorb(&combined_commitment.to_field_elements().unwrap());
@@ -374,7 +373,7 @@ where
     type PredicateIndex = PredicateIndex;
     type ProverKey = ProverKey<G>;
     type VerifierKey = VerifierKey<G>;
-    type DeciderKey = DeciderKey<G>;
+    type DeciderKey = ipa_pc::VerifierKey<G>;
 
     type InputInstance = InputInstance<G>;
     type InputWitness = ();
@@ -415,7 +414,7 @@ where
             verifier_key: verifier_key.clone(),
         };
 
-        let decider_key = DeciderKey(ipa_ck);
+        let decider_key = ipa_ck;
 
         Ok((prover_key, verifier_key, decider_key))
     }
@@ -589,7 +588,7 @@ where
         let accumulator = accumulator.instance;
 
         let ipa_check = PCDL::<G, D, CF, S>::check_individual_opening_challenges(
-            &decider_key.0,
+            decider_key,
             vec![&accumulator.ipa_commitment],
             &accumulator.point,
             vec![accumulator.evaluation],

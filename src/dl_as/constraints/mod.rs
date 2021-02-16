@@ -13,13 +13,14 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
 use ark_sponge::FieldElementSize;
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
 
 pub mod data_structures;
 pub use data_structures::*;
+use crate::dl_as::{ASDLDomain, PCDLDomain};
 
 pub struct DLAccumulationSchemeGadget<G, C, S>
 where
@@ -77,13 +78,12 @@ where
         )>,
         SynthesisError,
     > {
-        let _test = SpongeVarForPC::<G, S>::new(cs.clone());
         inputs
             .into_iter()
             .map(|input| {
                 let ipa_commitment = &input.ipa_commitment;
                 let (succinct_check_result, check_polynomial) =
-                    InnerProductArgPCGadget::<G, C, SpongeVarForPC<G, S>>::succinct_check(
+                    InnerProductArgPCGadget::<G, C, DomainSeparatedSpongeVar<ConstraintF<G>, S, PCDLDomain>>::succinct_check(
                         ns!(cs, "succinct_check").cs(),
                         ipa_vk,
                         vec![ipa_commitment],
@@ -104,7 +104,7 @@ where
 
     #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
     fn absorb_check_polynomial_into_sponge(
-        sponge: &mut SpongeVarForAccScheme<G, S>,
+        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>>,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
@@ -148,7 +148,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge =
-            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "linear_combination_challenge_sponge").cs());
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(ns!(cs, "linear_combination_challenge_sponge").cs());
 
         if let Some(randomness) = proof.randomness.as_ref() {
             let random_coeffs = &randomness.random_linear_polynomial_coeffs;
@@ -233,7 +233,7 @@ where
         };
 
         let mut challenge_point_sponge =
-            SpongeVarForAccScheme::<G, S>::new(ns!(cs, "challenge_point_sponge").cs());
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(ns!(cs, "challenge_point_sponge").cs());
         challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
 
         for ((_, check_polynomial), linear_combination_challenge_bits) in
