@@ -258,10 +258,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_inputs_test<
-        A: SplitAccumulationScheme,
-        I: SplitASTestInput<A>,
-    >(
+    pub fn multiple_inputs_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -272,10 +269,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_accumulations_test<
-        A: SplitAccumulationScheme,
-        I: SplitASTestInput<A>,
-    >(
+    pub fn multiple_accumulations_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -301,10 +295,7 @@ pub mod tests {
     }
 
     // Only add this test if scheme is intended to support cases with accumulators but no inputs
-    pub fn accumulators_only_test<
-        A: SplitAccumulationScheme,
-        I: SplitASTestInput<A>,
-    >(
+    pub fn accumulators_only_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let mut num_inputs_per_iteration = vec![0usize; 10];
@@ -321,10 +312,7 @@ pub mod tests {
     }
 
     // Only add this test if scheme is intended to support cases with no accumulators or inputs
-    pub fn no_accumulators_or_inputs_test<
-        A: SplitAccumulationScheme,
-        I: SplitASTestInput<A>,
-    >(
+    pub fn no_accumulators_or_inputs_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {

@@ -362,32 +362,25 @@ where
         };
 
         let combined_r1cs_input =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(
-                r1cs_inputs,
-                beta_challenges,
-                None,
-            );
+            HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
 
-        let combined_comm_a_proj =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-                all_comm_a,
-                beta_challenges,
-                None,
-            );
+        let combined_comm_a_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
+            all_comm_a,
+            beta_challenges,
+            None,
+        );
 
-        let combined_comm_b_proj =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-                all_comm_b,
-                beta_challenges,
-                None,
-            );
+        let combined_comm_b_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
+            all_comm_b,
+            beta_challenges,
+            None,
+        );
 
-        let combined_comm_c_proj =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-                all_comm_c,
-                beta_challenges,
-                None,
-            );
+        let combined_comm_c_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
+            all_comm_c,
+            beta_challenges,
+            None,
+        );
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_c_proj,
@@ -484,34 +477,30 @@ where
                 )
             };
 
-        let combined_r1cs_blinded_witness =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(
-                r1cs_blinded_witnesses,
+        let combined_r1cs_blinded_witness = HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(
+            r1cs_blinded_witnesses,
+            beta_challenges,
+            None,
+        );
+
+        let witness_randomness = if prover_witness_randomness.is_some() {
+            let combined_sigma_a = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
+                all_sigma_a,
                 beta_challenges,
                 None,
             );
 
-        let witness_randomness = if prover_witness_randomness.is_some() {
-            let combined_sigma_a =
-                HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                    all_sigma_a,
-                    beta_challenges,
-                    None,
-                );
+            let combined_sigma_b = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
+                all_sigma_b,
+                beta_challenges,
+                None,
+            );
 
-            let combined_sigma_b =
-                HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                    all_sigma_b,
-                    beta_challenges,
-                    None,
-                );
-
-            let combined_sigma_c =
-                HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                    all_sigma_c,
-                    beta_challenges,
-                    None,
-                );
+            let combined_sigma_c = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
+                all_sigma_c,
+                beta_challenges,
+                None,
+            );
 
             Some(AccumulatorWitnessRandomness {
                 sigma_a: combined_sigma_a,
@@ -636,22 +625,15 @@ where
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
             .zip(&combined_hp_input_witnesses)
-            .map(
-                |(instance, witness)| InputRef::<HPSplitAS<_, _, S>> {
-                    instance,
-                    witness,
-                },
-            );
+            .map(|(instance, witness)| InputRef::<HPSplitAS<_, _, S>> { instance, witness });
 
         let hp_accumulators_iter = accumulator_instances
             .iter()
             .zip(&accumulator_witnesses)
-            .map(
-                |(instance, witness)| AccumulatorRef::<HPSplitAS<_, _, S>> {
-                    instance: &instance.hp_instance,
-                    witness: &witness.hp_witness,
-                },
-            );
+            .map(|(instance, witness)| AccumulatorRef::<HPSplitAS<_, _, S>> {
+                instance: &instance.hp_instance,
+                witness: &witness.hp_witness,
+            });
 
         let (hp_accumulator, hp_proof) = HPSplitAS::<_, _, S>::prove(
             &prover_key.nark_pk.ck,
@@ -936,10 +918,8 @@ pub mod tests {
 
     pub struct SimpleNARKSplitASInput {}
 
-    impl<G, S>
-        SplitASTestInput<
-            SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>,
-        > for SimpleNARKSplitASInput
+    impl<G, S> SplitASTestInput<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>>
+        for SimpleNARKSplitASInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -960,7 +940,7 @@ pub mod tests {
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
                 );
-            let make_zk = test_params.make_zk;
+            let _make_zk = test_params.make_zk;
             let circuit = DummyCircuit {
                 a: Some(G::ScalarField::rand(rng)),
                 b: Some(G::ScalarField::rand(rng)),
@@ -981,8 +961,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>>>
-        {
+        ) -> Vec<Input<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>>> {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -1021,20 +1000,19 @@ pub mod tests {
                     make_zk: proof.make_zk,
                 };
 
-                inputs.push(Input::<
-                    SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>,
-                > {
-                    instance,
-                    witness,
-                });
+                inputs.push(
+                    Input::<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>> {
+                        instance,
+                        witness,
+                    },
+                );
             }
 
             inputs
         }
     }
 
-    type AS =
-        SimpleNARKSplitAS<EdwardsAffine, PoseidonSponge<Fq>, DummyCircuit<Fr>>;
+    type AS = SimpleNARKSplitAS<EdwardsAffine, PoseidonSponge<Fq>, DummyCircuit<Fr>>;
 
     type I = SimpleNARKSplitASInput;
 

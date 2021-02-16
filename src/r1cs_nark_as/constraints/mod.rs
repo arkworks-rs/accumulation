@@ -1,28 +1,25 @@
-use crate::constraints::{SplitASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
 use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
 use crate::hp_as::constraints::HPSplitASVerifierGadget;
 use crate::hp_as::HPSplitAS;
-use crate::r1cs_nark::SimpleNARK;
 use crate::r1cs_nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
 use crate::r1cs_nark_as::SimpleNARKSplitAS;
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::AffineCurve;
 use ark_ff::One;
 use ark_ff::ToConstraintField;
-use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
-use std::ops::Mul;
 
 pub mod data_structures;
 use data_structures::*;
@@ -326,11 +323,8 @@ where
     }
 }
 
-impl<G, S, CS, C, SV>
-    SplitASVerifierGadget<
-        SimpleNARKSplitAS<G, S, CS>,
-        ConstraintF<G>,
-    > for SimpleNARKSplitASVerifierGadget<G, C, SV>
+impl<G, S, CS, C, SV> SplitASVerifierGadget<SimpleNARKSplitAS<G, S, CS>, ConstraintF<G>>
+    for SimpleNARKSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -395,10 +389,10 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify =
-            <HPSplitASVerifierGadget<G, C, SV>
-                as SplitASVerifierGadget<HPSplitAS<G, ConstraintF<G>, S>, ConstraintF<G>>
-            >::verify(
+        let hp_verify = <HPSplitASVerifierGadget<G, C, SV> as SplitASVerifierGadget<
+            HPSplitAS<G, ConstraintF<G>, S>,
+            ConstraintF<G>,
+        >>::verify(
             cs.clone(),
             &hp_vk,
             &hp_input_instances,
@@ -438,31 +432,13 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::data_structures::Input;
-    use crate::r1cs_nark::SimpleNARK;
-    use crate::r1cs_nark_as::constraints::data_structures::{
-        AccumulatorInstanceVar, InputInstanceVar, ProofVar, VerifierKeyVar,
-    };
     use crate::r1cs_nark_as::constraints::SimpleNARKSplitASVerifierGadget;
-    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
     use crate::r1cs_nark_as::tests::{
         DummyCircuit, NARKVerifierASTestParams, SimpleNARKSplitASInput,
     };
     use crate::r1cs_nark_as::SimpleNARKSplitAS;
-    use crate::tests::SplitASTestInput;
-    use crate::SplitAccumulationScheme;
-    use ark_ec::AffineCurve;
-    use ark_ff::PrimeField;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::groups::CurveVar;
-    use ark_relations::r1cs::{
-        ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
-        SynthesisError,
-    };
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use rand_core::RngCore;
-    use std::marker::PhantomData;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;

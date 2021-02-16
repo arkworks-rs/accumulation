@@ -553,8 +553,7 @@ pub mod tests {
 
     pub struct LHSplitASTestInput {}
 
-    impl<G, P, CF, S> SplitASTestInput<LHSplitAS<G, P, CF, S>>
-        for LHSplitASTestInput
+    impl<G, P, CF, S> SplitASTestInput<LHSplitAS<G, P, CF, S>> for LHSplitASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         P: UVPolynomial<G::ScalarField>,

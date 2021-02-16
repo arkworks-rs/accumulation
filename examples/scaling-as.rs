@@ -38,8 +38,7 @@ type AS_LH = LHSplitAS<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
 type PCDL = dl_as::PCDL<G1Affine, Fq, PoseidonSponge<Fq>>;
 
-type AS_DL =
-    DLAtomicAS<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+type AS_DL = DLAtomicAS<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,

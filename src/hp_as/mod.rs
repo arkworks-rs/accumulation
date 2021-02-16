@@ -551,7 +551,7 @@ where
         }
         challenges_sponge.absorb(&hiding_comms);
 
-        let mut mu_challenges =
+        let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding);
 
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
@@ -715,8 +715,7 @@ pub mod tests {
 
     pub struct HPSplitASTestInput {}
 
-    impl<G, CF, S> SplitASTestInput<HPSplitAS<G, CF, S>>
-        for HPSplitASTestInput
+    impl<G, CF, S> SplitASTestInput<HPSplitAS<G, CF, S>> for HPSplitASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         CF: PrimeField + Absorbable<CF>,
@@ -750,10 +749,8 @@ pub mod tests {
                 .map(|_| {
                     let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
                     let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
-                    let product = HPSplitAS::<G, CF, S>::compute_hp(
-                        a_vec.as_slice(),
-                        b_vec.as_slice(),
-                    );
+                    let product =
+                        HPSplitAS::<G, CF, S>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
                     let randomness = if input_params.1 {
                         let rand_1 = G::ScalarField::rand(&mut rng);

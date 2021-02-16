@@ -1,4 +1,4 @@
-use crate::constraints::{SplitASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HPSplitAS;
 use ark_ec::AffineCurve;
@@ -9,7 +9,7 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
@@ -47,7 +47,7 @@ where
         mu_challenges_bits.push(vec![Boolean::TRUE]);
 
         if num_inputs > 1 {
-            let mut mu_challenges_bits_rest = sponge.squeeze_bits(128 * (num_inputs - 1))?;
+            let mu_challenges_bits_rest = sponge.squeeze_bits(128 * (num_inputs - 1))?;
             mu_challenges_bits_rest
                 .chunks(128)
                 .into_iter()
@@ -78,7 +78,7 @@ where
         let nu_size = FieldElementSize::Truncated { num_bits: 128 };
         let (mut nu_challenge_fe, mut nu_challenge_bits) =
             sponge.squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())?;
-        let mut nu_challenge_fe: NNFieldVar<G> = nu_challenge_fe.pop().unwrap();
+        let nu_challenge_fe: NNFieldVar<G> = nu_challenge_fe.pop().unwrap();
 
         let mut nu_challenges_bits: Vec<Vec<Boolean<ConstraintF<G>>>> =
             Vec::with_capacity(2 * num_inputs - 1);
@@ -202,11 +202,8 @@ where
     }
 }
 
-impl<G, S, C, SV>
-    SplitASVerifierGadget<
-        HPSplitAS<G, ConstraintF<G>, S>,
-        ConstraintF<G>,
-    > for HPSplitASVerifierGadget<G, C, SV>
+impl<G, S, C, SV> SplitASVerifierGadget<HPSplitAS<G, ConstraintF<G>, S>, ConstraintF<G>>
+    for HPSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,

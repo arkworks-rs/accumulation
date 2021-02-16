@@ -65,7 +65,7 @@ where
         })
     }
 
-    pub fn as_ref(&self) -> InstanceWitnessPairRef<Instance, Witness> {
+    pub fn as_ref(&self) -> InstanceWitnessPairRef<'_, Instance, Witness> {
         InstanceWitnessPairRef {
             instance: &self.instance,
             witness: &self.witness,

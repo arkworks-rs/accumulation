@@ -1,4 +1,5 @@
 use crate::constraints::{ConstraintF, NNFieldVar};
+use crate::dl_as::{ASDLDomain, PCDLDomain};
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
@@ -20,7 +21,6 @@ use std::ops::Mul;
 
 pub mod data_structures;
 pub use data_structures::*;
-use crate::dl_as::{ASDLDomain, PCDLDomain};
 
 pub struct DLAtomicASGadget<G, C, S>
 where
@@ -82,16 +82,19 @@ where
             .into_iter()
             .map(|input| {
                 let ipa_commitment = &input.ipa_commitment;
-                let (succinct_check_result, check_polynomial) =
-                    InnerProductArgPCGadget::<G, C, DomainSeparatedSpongeVar<ConstraintF<G>, S, PCDLDomain>>::succinct_check(
-                        ns!(cs, "succinct_check").cs(),
-                        ipa_vk,
-                        vec![ipa_commitment],
-                        &input.point,
-                        vec![&input.evaluation],
-                        &input.ipa_proof,
-                        &|_| NNFieldVar::<G>::one(),
-                    )?;
+                let (succinct_check_result, check_polynomial) = InnerProductArgPCGadget::<
+                    G,
+                    C,
+                    DomainSeparatedSpongeVar<ConstraintF<G>, S, PCDLDomain>,
+                >::succinct_check(
+                    ns!(cs, "succinct_check").cs(),
+                    ipa_vk,
+                    vec![ipa_commitment],
+                    &input.point,
+                    vec![&input.evaluation],
+                    &input.ipa_proof,
+                    &|_| NNFieldVar::<G>::one(),
+                )?;
 
                 Ok((
                     succinct_check_result,
@@ -148,7 +151,9 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(ns!(cs, "linear_combination_challenge_sponge").cs());
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(
+                ns!(cs, "linear_combination_challenge_sponge").cs(),
+            );
 
         if let Some(randomness) = proof.randomness.as_ref() {
             let random_coeffs = &randomness.random_linear_polynomial_coeffs;
@@ -233,7 +238,9 @@ where
         };
 
         let mut challenge_point_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(ns!(cs, "challenge_point_sponge").cs());
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(
+                ns!(cs, "challenge_point_sponge").cs(),
+            );
         challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
 
         for ((_, check_polynomial), linear_combination_challenge_bits) in
@@ -380,14 +387,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::dl_as::constraints::{
-        DLAtomicASGadget, InputInstanceVar, ProofVar, RandomnessVar, VerifierKeyVar,
-    };
+    use crate::dl_as::constraints::{DLAtomicASGadget, InputInstanceVar, ProofVar, VerifierKeyVar};
     use crate::dl_as::tests::DLAtomicASTestInput;
     use crate::dl_as::DLAtomicAS;
     use crate::tests::SplitASTestInput;
     use crate::SplitAccumulationScheme;
-    use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
@@ -408,12 +412,7 @@ pub mod tests {
     // type F = ark_ed_on_bls12_381::Fr;
     // type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = DLAtomicAS<
-        G,
-        rand_chacha::ChaChaRng,
-        ConstraintF,
-        PoseidonSponge<ConstraintF>,
-    >;
+    type AS = DLAtomicAS<G, rand_chacha::ChaChaRng, ConstraintF, PoseidonSponge<ConstraintF>>;
 
     type I = DLAtomicASTestInput;
 
@@ -425,11 +424,7 @@ pub mod tests {
             <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(
-            &input_params,
-            2,
-            &mut rng,
-        );
+        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 

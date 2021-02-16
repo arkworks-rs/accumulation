@@ -6,22 +6,22 @@ use crate::std::vec::Vec;
 use crate::{AtomicAccumulationScheme, SplitAccumulationScheme};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{to_bytes, One, PrimeField, UniformRand, Zero};
+use ark_poly::polynomial::univariate::DensePolynomial;
+use ark_poly::{Polynomial, UVPolynomial};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
 use ark_poly_commit::{
     ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
     PolynomialCommitment, PolynomialLabel,
 };
 use ark_relations::r1cs::ToConstraintField;
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize, DomainSeparatedSponge};
+use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
+use blake2::Blake2s;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
-use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly::{Polynomial, UVPolynomial};
 pub use data_structures::*;
-use blake2::Blake2s;
 
 type FinalCommKey<G> = G;
 pub type PCDL<G, CF, S> = InnerProductArgPC<
@@ -176,7 +176,8 @@ where
         let supported_degree = ipa_vk.supported_degree();
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge = DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
+        let mut linear_combination_challenge_sponge =
+            DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
 
         if let Some(randomness) = proof.as_ref() {
             let random_coeffs = randomness.random_linear_polynomial.coeffs();
@@ -226,7 +227,7 @@ where
             combined_check_polynomial_addends.push((cur_challenge, check_polynomial));
         }
 
-        let mut randomized_combined_commitment = if let Some(randomness) = proof.as_ref() {
+        let randomized_combined_commitment = if let Some(randomness) = proof.as_ref() {
             combined_commitment + &ipa_vk.s.mul(randomness.commitment_randomness)
         } else {
             combined_commitment.clone()
@@ -615,15 +616,11 @@ pub mod tests {
     use crate::dl_as::data_structures::{InputInstance, PredicateIndex};
     use crate::dl_as::{DLAtomicAS, PCDL};
     use crate::error::BoxedError;
-    use crate::tests::{
-        accumulators_only_test, multiple_accumulations_multiple_inputs_test,
-        multiple_accumulations_test, multiple_inputs_test, single_input_test,
-        SplitASTestInput,
-    };
+    use crate::tests::{multiple_inputs_test, single_input_test, SplitASTestInput};
     use crate::SplitAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
-    use ark_pallas::{Affine, Fq, Fr};
+    use ark_pallas::{Affine, Fq};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
@@ -634,8 +631,7 @@ pub mod tests {
 
     pub struct DLAtomicASTestInput {}
 
-    impl<G, R, CF, S> SplitASTestInput<DLAtomicAS<G, R, CF, S>>
-        for DLAtomicASTestInput
+    impl<G, R, CF, S> SplitASTestInput<DLAtomicAS<G, R, CF, S>> for DLAtomicASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         R: RngCore + SeedableRng,
@@ -658,13 +654,9 @@ pub mod tests {
             let supported_degree = max_degree;
             let predicate_params = PCDL::<G, CF, S>::setup(max_degree, None, rng).unwrap();
 
-            let (ck, vk) = PCDL::<G, CF, S>::trim(
-                &predicate_params,
-                supported_degree,
-                supported_degree,
-                None,
-            )
-            .unwrap();
+            let (ck, vk) =
+                PCDL::<G, CF, S>::trim(&predicate_params, supported_degree, supported_degree, None)
+                    .unwrap();
 
             let predicate_index = PredicateIndex {
                 supported_degree_bound: supported_degree,
@@ -739,8 +731,7 @@ pub mod tests {
         }
     }
 
-    type AS =
-        DLAtomicAS<Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+    type AS = DLAtomicAS<Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
     type I = DLAtomicASTestInput;
 
     #[test]

@@ -221,8 +221,7 @@ pub mod tests {
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
 
-    type AS =
-        LHSplitAS<G, DensePolynomial<F>, ConstraintF, PoseidonSponge<ConstraintF>>;
+    type AS = LHSplitAS<G, DensePolynomial<F>, ConstraintF, PoseidonSponge<ConstraintF>>;
 
     type I = LHSplitASTestInput;
 
@@ -234,11 +233,7 @@ pub mod tests {
             <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(
-            &input_params,
-            2,
-            &mut rng,
-        );
+        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 

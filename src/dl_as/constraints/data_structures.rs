@@ -1,18 +1,13 @@
-#![allow(unused)]
 use crate::constraints::{ConstraintF, NNFieldVar};
-use crate::dl_as::data_structures::{
-    InputInstance, Randomness, VerifierKey,
-};
+use crate::dl_as::data_structures::{InputInstance, Randomness, VerifierKey};
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
-use ark_nonnative_field::NonNativeFieldVar;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;

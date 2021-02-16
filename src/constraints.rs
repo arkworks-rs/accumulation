@@ -4,8 +4,7 @@ use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::eq::EqGadget;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
@@ -41,8 +40,6 @@ pub mod tests {
     use ark_relations::r1cs::{
         ConstraintLayer, ConstraintSystem, ConstraintSystemRef, TracingMode,
     };
-    use rand_core::RngCore;
-    use tracing_subscriber::layer::SubscriberExt;
 
     pub fn test_simple_accumulation<AS, I, CF, ASV>(
         test_params: &I::TestParams,
