@@ -1,5 +1,5 @@
-use crate::constraints::{ConstraintF, NNFieldVar};
-use crate::dl_as::{ASDLDomain, PCDLDomain};
+use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
+use crate::dl_as::{ASDLDomain, PCDLDomain, DLAtomicAS};
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
@@ -18,23 +18,24 @@ use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
 use ark_sponge::FieldElementSize;
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
+use crate::SplitAccumulationScheme;
 
 pub mod data_structures;
 use data_structures::*;
 
-pub struct DLAtomicASGadget<G, C, S>
+pub struct DLAtomicASVerifierGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
     S: CryptographicSpongeVar<ConstraintF<G>>,
 {
-    pub _affine: PhantomData<G>,
-    pub _curve: PhantomData<C>,
-    pub _sponge: PhantomData<S>,
+    _affine: PhantomData<G>,
+    _curve: PhantomData<C>,
+    _sponge: PhantomData<S>,
 }
 
-impl<G, C, S> DLAtomicASGadget<G, C, S>
+impl<G, C, S> DLAtomicASVerifierGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -385,9 +386,29 @@ where
     }
 }
 
+/*
+impl<G, C, SV> SplitASVerifierGadget<DLAtomicAS<G, SV>, ConstraintF<G>> for DLAtomicASVerifierGadget<G, C, SV>
+    where
+        G: AffineCurve,
+        C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>>,
+{
+    type VerifierKey = ();
+    type InputInstance = ();
+    type AccumulatorInstance = ();
+    type Proof = ();
+
+    fn verify<'a>(cs: ConstraintSystemRef<_>, verifier_key: &Self::VerifierKey, input_instances: impl IntoIterator<Item=&'a Self::InputInstance, IntoIter=_>, accumulator_instances: impl IntoIterator<Item=&'a Self::AccumulatorInstance, IntoIter=_>, new_accumulator_instance: &Self::AccumulatorInstance, proof: &Self::Proof) -> Result<Boolean<_>, SynthesisError> where
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a {
+        unimplemented!()
+    }
+}*/
+
 #[cfg(test)]
 pub mod tests {
-    use crate::dl_as::constraints::{DLAtomicASGadget, InputInstanceVar, ProofVar, VerifierKeyVar};
+    use crate::dl_as::constraints::{DLAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar};
     use crate::dl_as::tests::DLAtomicASTestInput;
     use crate::dl_as::DLAtomicAS;
     use crate::tests::SplitASTestInput;
@@ -494,7 +515,7 @@ pub mod tests {
 
         let proof = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
-        DLAtomicASGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
+        DLAtomicASVerifierGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             ns!(cs, "dl_as_verify").cs(),
             &vk,
             vec![&new_input_instance],

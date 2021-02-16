@@ -16,6 +16,7 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::CryptographicSponge;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -109,9 +110,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         sponge.absorb(self.comm_a.to_constraint_field()?.as_slice())?;
         sponge.absorb(self.comm_b.to_constraint_field()?.as_slice())?;
@@ -211,9 +213,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         let mut r1cs_input_bytes = Vec::new();
         for elem in &self.r1cs_input {
@@ -275,9 +278,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         let mut r1cs_input_bytes = Vec::new();
         for elem in &self.r1cs_input {
@@ -347,9 +351,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         let mut r1cs_r_input_bytes = Vec::new();
         for elem in &self.r1cs_r_input {

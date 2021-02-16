@@ -11,6 +11,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
+use ark_sponge::CryptographicSponge;
 
 /// Represents the verifier key that is used when accumulating instances and old accumulators.
 pub struct VerifierKeyVar<CF: PrimeField> {
@@ -80,9 +81,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         sponge.absorb(&self.comm_1.to_constraint_field()?)?;
         sponge.absorb(&self.comm_2.to_constraint_field()?)?;
@@ -186,9 +188,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         for t_0 in &self.low {
             sponge.absorb(&t_0.to_constraint_field()?)?;
@@ -244,9 +247,10 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         sponge.absorb(&self.comm_1.to_constraint_field()?)?;
         sponge.absorb(&self.comm_2.to_constraint_field()?)?;

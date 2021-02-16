@@ -29,26 +29,26 @@ pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
-pub struct SimpleNARKSplitAS<G, S, CS>
+pub struct SimpleNARKSplitAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
     _affine: PhantomData<G>,
     _sponge: PhantomData<S>,
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, S, CS> SimpleNARKSplitAS<G, S, CS>
+impl<G, CS, S> SimpleNARKSplitAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
     fn compute_blinded_commitments(
         index_info: &IndexInfo,
@@ -494,13 +494,13 @@ where
     }
 }
 
-impl<G, S, CS> SplitAccumulationScheme for SimpleNARKSplitAS<G, S, CS>
+impl<G, CS, S> SplitAccumulationScheme for SimpleNARKSplitAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
     type UniversalParams = <HPSplitAS<G, S> as SplitAccumulationScheme>::UniversalParams;
 
@@ -896,7 +896,7 @@ pub mod tests {
 
     pub struct SimpleNARKSplitASInput {}
 
-    impl<G, S> SplitASTestInput<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>>
+    impl<G, S> SplitASTestInput<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>>
         for SimpleNARKSplitASInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
@@ -912,8 +912,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>> as SplitAccumulationScheme>::PredicateParams,
-            <SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>> as SplitAccumulationScheme>::PredicateIndex,
+            <SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S> as SplitAccumulationScheme>::PredicateParams,
+            <SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S> as SplitAccumulationScheme>::PredicateIndex,
         ){
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
@@ -939,7 +939,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>>> {
+        ) -> Vec<Input<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>>> {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -979,7 +979,7 @@ pub mod tests {
                 };
 
                 inputs.push(
-                    Input::<SimpleNARKSplitAS<G, S, DummyCircuit<G::ScalarField>>> {
+                    Input::<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>> {
                         instance,
                         witness,
                     },
@@ -990,7 +990,7 @@ pub mod tests {
         }
     }
 
-    type AS = SimpleNARKSplitAS<EdwardsAffine, PoseidonSponge<Fq>, DummyCircuit<Fr>>;
+    type AS = SimpleNARKSplitAS<EdwardsAffine, DummyCircuit<Fr>, PoseidonSponge<Fq>>;
 
     type I = SimpleNARKSplitASInput;
 

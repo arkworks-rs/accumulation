@@ -24,26 +24,29 @@ use std::marker::PhantomData;
 pub mod data_structures;
 use data_structures::*;
 
-pub struct SimpleNARKSplitASVerifierGadget<G, C, SV>
+pub struct SimpleNARKSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine_phantom: PhantomData<G>,
     _curve_phantom: PhantomData<C>,
-    _sponge_phantom: PhantomData<SV>,
+    _sponge_phantom: PhantomData<S>,
+    _sponge_var_phantom: PhantomData<SV>,
 }
 
-impl<G, C, SV> SimpleNARKSplitASVerifierGadget<G, C, SV>
+impl<G, C, S, SV> SimpleNARKSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
@@ -61,8 +64,8 @@ where
         Ok(combined_commitment)
     }
 
-    fn compute_gamma_challenge<Sponge: CryptographicSpongeVar<ConstraintF<G>>>(
-        sponge: &mut Sponge,
+    fn compute_gamma_challenge(
+        sponge: &mut DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, SimpleNARKDomain>,
         input: &[NNFieldVar<G>],
         msg: &FirstRoundMessageVar<G, C>,
     ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
@@ -90,7 +93,7 @@ where
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
     ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
         let mut sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKVerifierASDomain>::new(
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKVerifierASDomain>::new(
                 cs.clone(),
             );
 
@@ -136,7 +139,7 @@ where
         let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
 
         let mut sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, SV, SimpleNARKDomain>::new(cs.clone());
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKDomain>::new(cs.clone());
         sponge.absorb(&index_info.matrices_hash.as_ref());
 
         for instance in input_instances {
@@ -323,16 +326,16 @@ where
     }
 }
 
-impl<G, S, CS, C, SV> SplitASVerifierGadget<SimpleNARKSplitAS<G, S, CS>, ConstraintF<G>>
-    for SimpleNARKSplitASVerifierGadget<G, C, SV>
+impl<G, C, CS, S, SV> SplitASVerifierGadget<SimpleNARKSplitAS<G, CS, S>, ConstraintF<G>>
+    for SimpleNARKSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -389,10 +392,7 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify = <HPSplitASVerifierGadget<G, C, SV> as SplitASVerifierGadget<
-            HPSplitAS<G, S>,
-            ConstraintF<G>,
-        >>::verify(
+        let hp_verify = HPSplitASVerifierGadget::<G, C, S, SV>::verify(
             cs.clone(),
             &hp_vk,
             &hp_input_instances,
@@ -452,9 +452,9 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = SimpleNARKSplitAS<G, Sponge, DummyCircuit<F>>;
+    type AS = SimpleNARKSplitAS<G, DummyCircuit<F>, Sponge>;
     type I = SimpleNARKSplitASInput;
-    type ASV = SimpleNARKSplitASVerifierGadget<G, C, SpongeVar>;
+    type ASV = SimpleNARKSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_basic() {

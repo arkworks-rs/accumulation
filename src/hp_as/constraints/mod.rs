@@ -19,24 +19,27 @@ use std::ops::Mul;
 pub mod data_structures;
 use data_structures::*;
 
-pub struct HPSplitASVerifierGadget<G, C, SV>
+pub struct HPSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
-    pub _affine: PhantomData<G>,
-    pub _curve: PhantomData<C>,
-    pub _sponge: PhantomData<SV>,
+    _affine: PhantomData<G>,
+    _curve: PhantomData<C>,
+    _sponge: PhantomData<S>,
+    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, SV> HPSplitASVerifierGadget<G, C, SV>
+impl<G, C, S, SV> HPSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     fn squeeze_mu_challenges(
         sponge: &mut SV,
@@ -202,14 +205,14 @@ where
     }
 }
 
-impl<G, S, C, SV> SplitASVerifierGadget<HPSplitAS<G, S>, ConstraintF<G>>
-    for HPSplitASVerifierGadget<G, C, SV>
+impl<G, C, S, SV> SplitASVerifierGadget<HPSplitAS<G, S>, ConstraintF<G>>
+    for HPSplitASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -313,7 +316,7 @@ pub mod tests {
 
     type AS = HPSplitAS<G, Sponge>;
     type I = HPSplitASTestInput;
-    type ASV = HPSplitASVerifierGadget<G, C, SpongeVar>;
+    type ASV = HPSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
     pub fn basic_test() {
