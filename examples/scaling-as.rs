@@ -36,10 +36,10 @@ use rand_core::RngCore;
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
 type AS_LH = LHAidedAccumulationScheme<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
-type PCDL = dl_as::PCDL<G1Affine, sha2::Sha512, Fq, PoseidonSponge<Fq>>;
+type PCDL = dl_as::PCDL<G1Affine, Fq, PoseidonSponge<Fq>>;
 
 type AS_DL =
-    DLAccumulationScheme<G1Affine, sha2::Sha512, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+    DLAccumulationScheme<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,

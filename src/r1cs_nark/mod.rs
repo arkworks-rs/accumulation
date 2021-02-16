@@ -446,8 +446,7 @@ pub(crate) mod test {
             })?;
 
             for _ in 0..(self.num_variables - 3) {
-                let _ =
-                    cs.new_input_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.new_input_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
             }
 
             for _ in 0..self.num_constraints - 1 {

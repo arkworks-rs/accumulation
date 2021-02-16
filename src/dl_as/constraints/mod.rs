@@ -410,7 +410,6 @@ pub mod tests {
 
     type AS = DLAccumulationScheme<
         G,
-        sha2::Sha512,
         rand_chacha::ChaChaRng,
         ConstraintF,
         PoseidonSponge<ConstraintF>,
