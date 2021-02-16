@@ -446,7 +446,7 @@ pub(crate) mod test {
             })?;
 
             for _ in 0..(self.num_variables - 3) {
-                cs.new_input_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+                cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
             }
 
             for _ in 0..self.num_constraints - 1 {
@@ -466,7 +466,7 @@ pub(crate) mod test {
             a: Some(Fr::rand(rng)),
             b: Some(Fr::rand(rng)),
             num_variables: 10,
-            num_constraints: 10,
+            num_constraints: 100,
         };
         let v = c.a.unwrap() * &c.b.unwrap();
 

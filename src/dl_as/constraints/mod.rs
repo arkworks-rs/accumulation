@@ -20,7 +20,7 @@ use ark_std::marker::PhantomData;
 use std::ops::Mul;
 
 pub mod data_structures;
-pub use data_structures::*;
+use data_structures::*;
 
 pub struct DLAtomicASGadget<G, C, S>
 where
@@ -412,7 +412,7 @@ pub mod tests {
     // type F = ark_ed_on_bls12_381::Fr;
     // type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = DLAtomicAS<G, rand_chacha::ChaChaRng, ConstraintF, PoseidonSponge<ConstraintF>>;
+    type AS = DLAtomicAS<G, PoseidonSponge<ConstraintF>>;
 
     type I = DLAtomicASTestInput;
 

@@ -1,3 +1,4 @@
+use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::ops::Mul;
@@ -20,16 +21,16 @@ use blake2::Blake2s;
 use digest::Digest;
 use rand_core::{RngCore, SeedableRng};
 
-mod data_structures;
-pub use data_structures::*;
+pub mod data_structures;
+use data_structures::*;
 
 type FinalCommKey<G> = G;
-pub type PCDL<G, CF, S> = InnerProductArgPC<
+pub type PCDL<G, S> = InnerProductArgPC<
     G,
     Blake2s,
     DensePolynomial<<G as AffineCurve>::ScalarField>,
-    CF,
-    DomainSeparatedSponge<CF, S, PCDLDomain>,
+    ConstraintF<G>,
+    DomainSeparatedSponge<ConstraintF<G>, S, PCDLDomain>,
 >;
 
 #[cfg(feature = "r1cs")]
@@ -39,27 +40,23 @@ pub mod constraints;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct DLAtomicAS<G, R, CF, S>
+pub struct DLAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    R: RngCore + SeedableRng,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
-    _rng: PhantomData<R>,
-    _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, R, CF, S> DLAtomicAS<G, R, CF, S>
+impl<G, S> DLAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    R: RngCore + SeedableRng,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::CommitterKey<G>,
@@ -69,7 +66,7 @@ where
             LabeledPolynomial::new(PolynomialLabel::new(), linear_polynomial, None, None);
 
         let (mut linear_polynomial_commitments, _) =
-            PCDL::<G, CF, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
+            PCDL::<G, S>::commit(ck, vec![&labeled_random_linear_polynomial], None)?;
 
         Ok(linear_polynomial_commitments
             .pop()
@@ -98,7 +95,7 @@ where
                 });
             }
 
-            let check_polynomial = PCDL::<G, CF, S>::succinct_check(
+            let check_polynomial = PCDL::<G, S>::succinct_check(
                 ipa_vk,
                 vec![ipa_commitment],
                 input.point.clone(),
@@ -141,7 +138,7 @@ where
     }
 
     fn absorb_check_polynomial_into_sponge(
-        sponge: &mut impl CryptographicSponge<CF>,
+        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
         log_supported_degree: usize,
     ) {
@@ -177,7 +174,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge =
-            DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
+            DomainSeparatedSponge::<ConstraintF<G>, S, ASDLDomain>::new();
 
         if let Some(randomness) = proof.as_ref() {
             let random_coeffs = randomness.random_linear_polynomial.coeffs();
@@ -248,7 +245,8 @@ where
             None,
         );
 
-        let mut challenge_point_sponge = DomainSeparatedSponge::<CF, S, ASDLDomain>::new();
+        let mut challenge_point_sponge =
+            DomainSeparatedSponge::<ConstraintF<G>, S, ASDLDomain>::new();
 
         let combined_commitment = commitments.pop().unwrap();
         challenge_point_sponge.absorb(&combined_commitment.to_field_elements().unwrap());
@@ -336,7 +334,7 @@ where
             shifted_rand: None,
         };
 
-        let ipa_proof = PCDL::<G, CF, S>::open_individual_opening_challenges(
+        let ipa_proof = PCDL::<G, S>::open_individual_opening_challenges(
             ipa_ck,
             vec![&labeled_combined_polynomial],
             vec![&combined_commitment],
@@ -357,13 +355,12 @@ where
     }
 }
 
-impl<G, R, CF, S> SplitAccumulationScheme for DLAtomicAS<G, R, CF, S>
+impl<G, S> SplitAccumulationScheme for DLAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    R: RngCore + SeedableRng,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
     type PredicateParams = ipa_pc::UniversalParams<G>;
@@ -391,7 +388,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipa_ck, ipa_vk) = PCDL::<G, CF, S>::trim(
+        let (ipa_ck, ipa_vk) = PCDL::<G, S>::trim(
             predicate_params,
             predicate_index.supported_degree_bound,
             predicate_index.supported_hiding_bound,
@@ -399,7 +396,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let (ipa_ck_linear, _) = PCDL::<G, CF, S>::trim(predicate_params, 1, 0, Some(&[1]))
+        let (ipa_ck_linear, _) = PCDL::<G, S>::trim(predicate_params, 1, 0, Some(&[1]))
             .map_err(|e| BoxedError::new(e))?;
 
         let verifier_key = VerifierKey {
@@ -585,7 +582,7 @@ where
     ) -> Result<bool, Self::Error> {
         let accumulator = accumulator.instance;
 
-        let ipa_check = PCDL::<G, CF, S>::check_individual_opening_challenges(
+        let ipa_check = PCDL::<G, S>::check_individual_opening_challenges(
             decider_key,
             vec![&accumulator.ipa_commitment],
             &accumulator.point,
@@ -600,18 +597,18 @@ where
     }
 }
 
-impl<G, R, CF, S> AtomicAccumulationScheme for DLAtomicAS<G, R, CF, S>
+impl<G, S> AtomicAccumulationScheme for DLAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    R: RngCore + SeedableRng,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
 }
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::dl_as::data_structures::{InputInstance, PredicateIndex};
     use crate::dl_as::{DLAtomicAS, PCDL};
@@ -631,13 +628,12 @@ pub mod tests {
 
     pub struct DLAtomicASTestInput {}
 
-    impl<G, R, CF, S> SplitASTestInput<DLAtomicAS<G, R, CF, S>> for DLAtomicASTestInput
+    impl<G, S> SplitASTestInput<DLAtomicAS<G, S>> for DLAtomicASTestInput
     where
-        G: AffineCurve + ToConstraintField<CF>,
-        R: RngCore + SeedableRng,
-        CF: PrimeField + Absorbable<CF>,
-        Vec<CF>: Absorbable<CF>,
-        S: CryptographicSponge<CF>,
+        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        ConstraintF<G>: Absorbable<ConstraintF<G>>,
+        Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = ();
         type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>);
@@ -647,15 +643,15 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <DLAtomicAS<G, R, CF, S> as SplitAccumulationScheme>::PredicateParams,
-            <DLAtomicAS<G, R, CF, S> as SplitAccumulationScheme>::PredicateIndex,
+            <DLAtomicAS<G, S> as SplitAccumulationScheme>::PredicateParams,
+            <DLAtomicAS<G, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             let max_degree = (1 << 3) - 1;
             let supported_degree = max_degree;
-            let predicate_params = PCDL::<G, CF, S>::setup(max_degree, None, rng).unwrap();
+            let predicate_params = PCDL::<G, S>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) =
-                PCDL::<G, CF, S>::trim(&predicate_params, supported_degree, supported_degree, None)
+                PCDL::<G, S>::trim(&predicate_params, supported_degree, supported_degree, None)
                     .unwrap();
 
             let predicate_index = PredicateIndex {
@@ -670,7 +666,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<DLAtomicAS<G, R, CF, S>>> {
+        ) -> Vec<Input<DLAtomicAS<G, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<
@@ -693,7 +689,7 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, randoms) =
-                PCDL::<G, CF, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                PCDL::<G, S>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = (&labeled_polynomials)
                 .into_iter()
@@ -702,7 +698,7 @@ pub mod tests {
                 .map(|((labeled_polynomial, labeled_commitment), randomness)| {
                     let point = G::ScalarField::rand(rng);
                     let evaluation = labeled_polynomial.evaluate(&point);
-                    let ipa_proof = PCDL::<G, CF, S>::open_individual_opening_challenges(
+                    let ipa_proof = PCDL::<G, S>::open_individual_opening_challenges(
                         ck,
                         vec![labeled_polynomial],
                         vec![&labeled_commitment],
@@ -720,7 +716,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<DLAtomicAS<G, R, CF, S>> {
+                    Input::<DLAtomicAS<G, S>> {
                         instance: input,
                         witness: (),
                     }
@@ -731,7 +727,7 @@ pub mod tests {
         }
     }
 
-    type AS = DLAtomicAS<Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+    type AS = DLAtomicAS<Affine, PoseidonSponge<Fq>>;
     type I = DLAtomicASTestInput;
 
     #[test]

@@ -362,25 +362,16 @@ where
         };
 
         let combined_r1cs_input =
-            HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
+            HPSplitAS::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
 
-        let combined_comm_a_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-            all_comm_a,
-            beta_challenges,
-            None,
-        );
+        let combined_comm_a_proj =
+            HPSplitAS::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
 
-        let combined_comm_b_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-            all_comm_b,
-            beta_challenges,
-            None,
-        );
+        let combined_comm_b_proj =
+            HPSplitAS::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
 
-        let combined_comm_c_proj = HPSplitAS::<G, ConstraintF<G>, S>::combine_commitments(
-            all_comm_c,
-            beta_challenges,
-            None,
-        );
+        let combined_comm_c_proj =
+            HPSplitAS::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_c_proj,
@@ -477,30 +468,18 @@ where
                 )
             };
 
-        let combined_r1cs_blinded_witness = HPSplitAS::<G, ConstraintF<G>, S>::combine_vectors(
-            r1cs_blinded_witnesses,
-            beta_challenges,
-            None,
-        );
+        let combined_r1cs_blinded_witness =
+            HPSplitAS::<G, S>::combine_vectors(r1cs_blinded_witnesses, beta_challenges, None);
 
         let witness_randomness = if prover_witness_randomness.is_some() {
-            let combined_sigma_a = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                all_sigma_a,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_a =
+                HPSplitAS::<G, S>::combine_randomness(all_sigma_a, beta_challenges, None);
 
-            let combined_sigma_b = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                all_sigma_b,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_b =
+                HPSplitAS::<G, S>::combine_randomness(all_sigma_b, beta_challenges, None);
 
-            let combined_sigma_c = HPSplitAS::<G, ConstraintF<G>, S>::combine_randomness(
-                all_sigma_c,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_c =
+                HPSplitAS::<G, S>::combine_randomness(all_sigma_c, beta_challenges, None);
 
             Some(AccumulatorWitnessRandomness {
                 sigma_a: combined_sigma_a,
@@ -523,8 +502,7 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
-    type UniversalParams =
-        <HPSplitAS<G, ConstraintF<G>, S> as SplitAccumulationScheme>::UniversalParams;
+    type UniversalParams = <HPSplitAS<G, S> as SplitAccumulationScheme>::UniversalParams;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -540,7 +518,7 @@ where
     type Error = BoxedError;
 
     fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
-        <HPSplitAS<G, ConstraintF<G>, S> as SplitAccumulationScheme>::generate(rng)
+        <HPSplitAS<G, S> as SplitAccumulationScheme>::generate(rng)
     }
 
     fn index(
@@ -625,17 +603,17 @@ where
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
             .zip(&combined_hp_input_witnesses)
-            .map(|(instance, witness)| InputRef::<HPSplitAS<_, _, S>> { instance, witness });
+            .map(|(instance, witness)| InputRef::<HPSplitAS<_, S>> { instance, witness });
 
         let hp_accumulators_iter = accumulator_instances
             .iter()
             .zip(&accumulator_witnesses)
-            .map(|(instance, witness)| AccumulatorRef::<HPSplitAS<_, _, S>> {
+            .map(|(instance, witness)| AccumulatorRef::<HPSplitAS<_, S>> {
                 instance: &instance.hp_instance,
                 witness: &witness.hp_witness,
             });
 
-        let (hp_accumulator, hp_proof) = HPSplitAS::<_, _, S>::prove(
+        let (hp_accumulator, hp_proof) = HPSplitAS::<_, S>::prove(
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
@@ -749,7 +727,7 @@ where
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        let hp_verify = HPSplitAS::<_, _, S>::verify(
+        let hp_verify = HPSplitAS::<_, S>::verify(
             &verifier_key.nark_index.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
@@ -838,9 +816,9 @@ where
             && comm_c.eq(&instance.comm_c);
 
         Ok(comm_check
-            && HPSplitAS::<_, _, S>::decide(
+            && HPSplitAS::<_, S>::decide(
                 &decider_key.ck,
-                AccumulatorRef::<HPSplitAS<_, _, S>> {
+                AccumulatorRef::<HPSplitAS<_, S>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },

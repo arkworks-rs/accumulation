@@ -1,3 +1,4 @@
+use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::std::marker::PhantomData;
@@ -18,46 +19,43 @@ use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use rand_core::RngCore;
 use std::ops::Mul;
 
-mod data_structures;
-pub use data_structures::*;
+pub mod data_structures;
+use ark_poly::polynomial::univariate::DensePolynomial;
+use data_structures::*;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-pub struct LHSplitAS<G, P, CF, S>
+pub struct LHSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
-    for<'a, 'b> &'a P: Add<&'b P, Output = P>,
-    for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
-    _polynomial: PhantomData<P>,
-    _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, P, CF, S> LHSplitAS<G, P, CF, S>
+impl<G, S> LHSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
-    for<'a, 'b> &'a P: Add<&'b P, Output = P>,
-    for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &lh_pc::CommitterKey<G>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
-        input_witnesses: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
+        input_witnesses: impl IntoIterator<
+            Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+        >,
         rng: &mut dyn RngCore,
 
         // Outputs
-        witness_polynomials_output: &mut Vec<LabeledPolynomial<G::ScalarField, P>>,
+        witness_polynomials_output: &mut Vec<
+            LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+        >,
         witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
     ) -> Result<(), LHPCError>
     where
@@ -67,8 +65,10 @@ where
             let point = instance.point;
             let eval = instance.eval;
 
-            let numerator: P = (&P::from_coefficients_vec(vec![-eval])).add(witness.polynomial());
-            let denominator = P::from_coefficients_vec(vec![-point, G::ScalarField::one()]);
+            let numerator =
+                (&DensePolynomial::from_coefficients_vec(vec![-eval])).add(witness.polynomial());
+            let denominator =
+                DensePolynomial::from_coefficients_vec(vec![-point, G::ScalarField::one()]);
             let witness_polynomial = (&numerator).div(&denominator);
 
             let labeled_witness_polynomial = LabeledPolynomial::new(
@@ -97,7 +97,7 @@ where
         rng: &mut dyn RngCore,
     ) -> Result<
         (
-            Vec<LabeledPolynomial<G::ScalarField, P>>,
+            Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
             Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
         ),
         LHPCError,
@@ -140,13 +140,12 @@ where
     }
 
     fn combine_polynomials<'a>(
-        labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
+        labeled_polynomials: impl IntoIterator<
+            Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+        >,
         challenges: &[G::ScalarField],
-    ) -> P
-    where
-        P: 'a,
-    {
-        let mut combined_polynomial = P::zero();
+    ) -> DensePolynomial<G::ScalarField> {
+        let mut combined_polynomial = DensePolynomial::zero();
         for (i, p) in labeled_polynomials.into_iter().enumerate() {
             combined_polynomial += (challenges[i], p.polynomial());
         }
@@ -180,29 +179,26 @@ where
     }
 }
 
-impl<G, P, CF, S> SplitAccumulationScheme for LHSplitAS<G, P, CF, S>
+impl<G, S> SplitAccumulationScheme for LHSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    P: UVPolynomial<G::ScalarField>,
-    for<'a, 'b> &'a P: Add<&'b P, Output = P>,
-    for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-    CF: PrimeField + Absorbable<CF>,
-    Vec<CF>: Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
     type PredicateParams = lh_pc::UniversalParameters<G>;
     type PredicateIndex = usize;
 
-    type ProverKey = ProverKey<G, CF>;
-    type VerifierKey = CF;
+    type ProverKey = ProverKey<G, ConstraintF<G>>;
+    type VerifierKey = ConstraintF<G>;
     type DeciderKey = lh_pc::VerifierKey<G>;
 
     type InputInstance = InputInstance<G>;
-    type InputWitness = LabeledPolynomial<G::ScalarField, P>;
+    type InputWitness = LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>;
 
     type AccumulatorInstance = InputInstance<G>;
-    type AccumulatorWitness = LabeledPolynomial<G::ScalarField, P>;
+    type AccumulatorWitness = LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>;
 
     type Proof = Proof<G>;
 
@@ -217,8 +213,13 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ck, vk) = LinearHashPC::<G, P>::trim(predicate_params, *predicate_index, 0, None)
-            .map_err(|e| BoxedError::new(e))?;
+        let (ck, vk) = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(
+            predicate_params,
+            *predicate_index,
+            0,
+            None,
+        )
+        .map_err(|e| BoxedError::new(e))?;
 
         let mut degree_challenge_sponge = S::new();
         degree_challenge_sponge.absorb(predicate_index);
@@ -511,9 +512,9 @@ where
         Ok(true)
     }
 
-    fn decide<'a>(
+    fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'a, Self>,
+        accumulator: AccumulatorRef<Self>,
     ) -> Result<bool, Self::Error> {
         let check = LinearHashPC::check_individual_opening_challenges(
             decider_key,
@@ -531,6 +532,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::lh_as::{InputInstance, LHSplitAS};
@@ -553,15 +555,12 @@ pub mod tests {
 
     pub struct LHSplitASTestInput {}
 
-    impl<G, P, CF, S> SplitASTestInput<LHSplitAS<G, P, CF, S>> for LHSplitASTestInput
+    impl<G, S> SplitASTestInput<LHSplitAS<G, S>> for LHSplitASTestInput
     where
-        G: AffineCurve + ToConstraintField<CF>,
-        P: UVPolynomial<G::ScalarField>,
-        for<'a, 'b> &'a P: Add<&'b P, Output = P>,
-        for<'a, 'b> &'a P: Div<&'b P, Output = P>,
-        CF: PrimeField + Absorbable<CF>,
-        Vec<CF>: Absorbable<CF>,
-        S: CryptographicSponge<CF>,
+        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        ConstraintF<G>: Absorbable<ConstraintF<G>>,
+        Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = ();
         type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>);
@@ -571,17 +570,17 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <LHSplitAS<G, P, CF, S> as SplitAccumulationScheme>::PredicateParams,
-            <LHSplitAS<G, P, CF, S> as SplitAccumulationScheme>::PredicateIndex,
+            <LHSplitAS<G, S> as SplitAccumulationScheme>::PredicateParams,
+            <LHSplitAS<G, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             // TODO: Change these parameters to test params
             //let max_degree = (1 << 5) - 1;
             let max_degree = (1 << 2) - 1;
             let supported_degree = max_degree;
-            let predicate_params = LinearHashPC::<G, P>::setup(max_degree, None, rng).unwrap();
+            let predicate_params = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng).unwrap();
 
             let (ck, vk) =
-                LinearHashPC::<G, P>::trim(&predicate_params, supported_degree, 0, None).unwrap();
+                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(&predicate_params, supported_degree, 0, None).unwrap();
 
             ((ck, vk), predicate_params, supported_degree)
         }
@@ -590,17 +589,17 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<LHSplitAS<G, P, CF, S>>> {
+        ) -> Vec<Input<LHSplitAS<G, S>>> {
             let ck = &input_params.0;
 
-            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
+            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>> = (0..num_inputs)
                 .map(|i| {
                     //let degree =
                     //rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
                     let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
-                    let polynomial = P::rand(degree, rng);
+                    let polynomial = DensePolynomial::rand(degree, rng);
                     let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
@@ -608,7 +607,7 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, _) =
-                LinearHashPC::<G, P>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
             let inputs = labeled_polynomials
                 .into_iter()
@@ -623,7 +622,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<LHSplitAS<G, P, CF, S>> {
+                    Input::<LHSplitAS<G, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -634,7 +633,7 @@ pub mod tests {
         }
     }
 
-    type AS = LHSplitAS<Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
+    type AS = LHSplitAS<Affine, PoseidonSponge<Fq>>;
 
     type I = LHSplitASTestInput;
 

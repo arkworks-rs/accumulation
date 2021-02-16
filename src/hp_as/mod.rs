@@ -1,3 +1,4 @@
+use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::SplitAccumulationScheme;
@@ -18,22 +19,21 @@ use data_structures::*;
 
 pub mod constraints;
 
-pub struct HPSplitAS<G, CF, S>
+pub struct HPSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    CF: PrimeField + Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
-    _constraint_field: PhantomData<CF>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, CF, S> HPSplitAS<G, CF, S>
+impl<G, S> HPSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    CF: PrimeField + Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn squeeze_mu_challenges(
         sponge: &mut S,
@@ -402,11 +402,11 @@ where
     }
 }
 
-impl<G, CF, S> SplitAccumulationScheme for HPSplitAS<G, CF, S>
+impl<G, S> SplitAccumulationScheme for HPSplitAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<CF>,
-    CF: PrimeField + Absorbable<CF>,
-    S: CryptographicSponge<CF>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
     type PredicateParams = ();
@@ -545,7 +545,9 @@ where
         };
 
         let mut challenges_sponge = S::new();
-        challenges_sponge.absorb(&CF::from(prover_key.supported_elems_len() as u64));
+        challenges_sponge.absorb(&ConstraintF::<G>::from(
+            prover_key.supported_elems_len() as u64
+        ));
         for input_instance in input_instances.iter() {
             challenges_sponge.absorb(input_instance);
         }
@@ -633,7 +635,7 @@ where
         };
 
         let mut challenges_sponge = S::new();
-        challenges_sponge.absorb(&CF::from(*verifier_key as u64));
+        challenges_sponge.absorb(&ConstraintF::<G>::from(*verifier_key as u64));
         for input_instance in input_instances.iter() {
             challenges_sponge.absorb(input_instance);
         }
@@ -697,6 +699,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hp_as::data_structures::{InputInstance, InputWitness, InputWitnessRandomness};
@@ -715,11 +718,11 @@ pub mod tests {
 
     pub struct HPSplitASTestInput {}
 
-    impl<G, CF, S> SplitASTestInput<HPSplitAS<G, CF, S>> for HPSplitASTestInput
+    impl<G, S> SplitASTestInput<HPSplitAS<G, S>> for HPSplitASTestInput
     where
-        G: AffineCurve + ToConstraintField<CF>,
-        CF: PrimeField + Absorbable<CF>,
-        S: CryptographicSponge<CF>,
+        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        ConstraintF<G>: Absorbable<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = (usize, bool);
         type InputParams = (PedersenCommitmentCK<G>, bool);
@@ -729,8 +732,8 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <HPSplitAS<G, CF, S> as SplitAccumulationScheme>::PredicateParams,
-            <HPSplitAS<G, CF, S> as SplitAccumulationScheme>::PredicateIndex,
+            <HPSplitAS<G, S> as SplitAccumulationScheme>::PredicateParams,
+            <HPSplitAS<G, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
@@ -741,7 +744,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-        ) -> Vec<Input<HPSplitAS<G, CF, S>>> {
+        ) -> Vec<Input<HPSplitAS<G, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_elems_len();
 
@@ -749,8 +752,7 @@ pub mod tests {
                 .map(|_| {
                     let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
                     let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
-                    let product =
-                        HPSplitAS::<G, CF, S>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
+                    let product = HPSplitAS::<G, S>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
                     let randomness = if input_params.1 {
                         let rand_1 = G::ScalarField::rand(&mut rng);
@@ -798,13 +800,13 @@ pub mod tests {
                         b_vec,
                         randomness,
                     };
-                    Input::<HPSplitAS<G, CF, S>> { instance, witness }
+                    Input::<HPSplitAS<G, S>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }
     }
 
-    type AS = HPSplitAS<Affine, Fq, PoseidonSponge<Fq>>;
+    type AS = HPSplitAS<Affine, PoseidonSponge<Fq>>;
 
     type I = HPSplitASTestInput;
 

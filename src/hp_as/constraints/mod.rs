@@ -202,7 +202,7 @@ where
     }
 }
 
-impl<G, S, C, SV> SplitASVerifierGadget<HPSplitAS<G, ConstraintF<G>, S>, ConstraintF<G>>
+impl<G, S, C, SV> SplitASVerifierGadget<HPSplitAS<G, S>, ConstraintF<G>>
     for HPSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
@@ -311,7 +311,7 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = HPSplitAS<G, ConstraintF, Sponge>;
+    type AS = HPSplitAS<G, Sponge>;
     type I = HPSplitASTestInput;
     type ASV = HPSplitASVerifierGadget<G, C, SpongeVar>;
 

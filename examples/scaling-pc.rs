@@ -26,7 +26,7 @@ use ark_std::vec::Vec;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
 
-type PCDL = dl_as::PCDL<G1Affine, Fq, PoseidonSponge<Fq>>;
+type PCDL = dl_as::PCDL<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_pc<F, PC, R>(min_degree: usize, max_degree: usize, rng: &mut R)
 where

@@ -221,7 +221,7 @@ pub mod tests {
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
 
-    type AS = LHSplitAS<G, DensePolynomial<F>, ConstraintF, PoseidonSponge<ConstraintF>>;
+    type AS = LHSplitAS<G, PoseidonSponge<ConstraintF>>;
 
     type I = LHSplitASTestInput;
 

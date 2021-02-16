@@ -34,11 +34,11 @@ use ark_std::vec::Vec;
 use rand_core::RngCore;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
-type AS_LH = LHSplitAS<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
+type AS_LH = LHSplitAS<G1Affine, PoseidonSponge<Fq>>;
 
-type PCDL = dl_as::PCDL<G1Affine, Fq, PoseidonSponge<Fq>>;
+type PCDL = dl_as::PCDL<G1Affine, PoseidonSponge<Fq>>;
 
-type AS_DL = DLAtomicAS<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+type AS_DL = DLAtomicAS<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,
@@ -178,7 +178,7 @@ fn lh_input_gen<R: RngCore>(
             let point = Fr::rand(rng);
             let eval = labeled_polynomial.evaluate(&point);
 
-            let instance = lh_as::InputInstance {
+            let instance = lh_as::data_structures::InputInstance {
                 commitment: labeled_commitment,
                 point,
                 eval,
@@ -209,7 +209,7 @@ fn dl_param_gen<R: RngCore>(
 ) {
     let predicate_params = PCDL::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();
-    let predicate_index = dl_as::PredicateIndex {
+    let predicate_index = dl_as::data_structures::PredicateIndex {
         supported_degree_bound: degree,
         supported_hiding_bound: 0,
     };
@@ -261,7 +261,7 @@ fn dl_input_gen<R: RngCore>(
             .unwrap();
             assert!(result);
 
-            let input = dl_as::InputInstance {
+            let input = dl_as::data_structures::InputInstance {
                 ipa_commitment: labeled_commitment,
                 point,
                 evaluation: eval,

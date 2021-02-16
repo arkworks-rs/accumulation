@@ -390,7 +390,7 @@ where
         )?;
 
         let hp_verify = <HPSplitASVerifierGadget<G, C, SV> as SplitASVerifierGadget<
-            HPSplitAS<G, ConstraintF<G>, S>,
+            HPSplitAS<G, S>,
             ConstraintF<G>,
         >>::verify(
             cs.clone(),
