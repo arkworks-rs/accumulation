@@ -1,6 +1,6 @@
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::AidedAccumulationScheme;
+use crate::SplitAccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, PrimeField, ToConstraintField, Zero};
@@ -18,7 +18,7 @@ use data_structures::*;
 
 pub mod constraints;
 
-pub struct HPAidedAccumulationScheme<G, CF, S>
+pub struct HPSplitAS<G, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     CF: PrimeField + Absorbable<CF>,
@@ -29,7 +29,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, CF, S> HPAidedAccumulationScheme<G, CF, S>
+impl<G, CF, S> HPSplitAS<G, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     CF: PrimeField + Absorbable<CF>,
@@ -402,7 +402,7 @@ where
     }
 }
 
-impl<G, CF, S> AidedAccumulationScheme for HPAidedAccumulationScheme<G, CF, S>
+impl<G, CF, S> SplitAccumulationScheme for HPSplitAS<G, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     CF: PrimeField + Absorbable<CF>,
@@ -700,9 +700,9 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hp_as::data_structures::{InputInstance, InputWitness, InputWitnessRandomness};
-    use crate::hp_as::HPAidedAccumulationScheme;
+    use crate::hp_as::HPSplitAS;
     use crate::tests::*;
-    use crate::AidedAccumulationScheme;
+    use crate::SplitAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_pallas::{Affine, Fq};
@@ -713,10 +713,10 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct HPAidedAccumulationSchemeTestInput {}
+    pub struct HPSplitASTestInput {}
 
-    impl<G, CF, S> AidedAccumulationSchemeTestInput<HPAidedAccumulationScheme<G, CF, S>>
-        for HPAidedAccumulationSchemeTestInput
+    impl<G, CF, S> SplitASTestInput<HPSplitAS<G, CF, S>>
+        for HPSplitASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         CF: PrimeField + Absorbable<CF>,
@@ -730,8 +730,8 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateParams,
-            <HPAidedAccumulationScheme<G, CF, S> as AidedAccumulationScheme>::PredicateIndex,
+            <HPSplitAS<G, CF, S> as SplitAccumulationScheme>::PredicateParams,
+            <HPSplitAS<G, CF, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
@@ -742,7 +742,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-        ) -> Vec<Input<HPAidedAccumulationScheme<G, CF, S>>> {
+        ) -> Vec<Input<HPSplitAS<G, CF, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_elems_len();
 
@@ -750,7 +750,7 @@ pub mod tests {
                 .map(|_| {
                     let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
                     let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
-                    let product = HPAidedAccumulationScheme::<G, CF, S>::compute_hp(
+                    let product = HPSplitAS::<G, CF, S>::compute_hp(
                         a_vec.as_slice(),
                         b_vec.as_slice(),
                     );
@@ -801,15 +801,15 @@ pub mod tests {
                         b_vec,
                         randomness,
                     };
-                    Input::<HPAidedAccumulationScheme<G, CF, S>> { instance, witness }
+                    Input::<HPSplitAS<G, CF, S>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }
     }
 
-    type AS = HPAidedAccumulationScheme<Affine, Fq, PoseidonSponge<Fq>>;
+    type AS = HPSplitAS<Affine, Fq, PoseidonSponge<Fq>>;
 
-    type I = HPAidedAccumulationSchemeTestInput;
+    type I = HPSplitASTestInput;
 
     #[test]
     pub fn hp_single_input_test() -> Result<(), BoxedError> {

@@ -1,4 +1,4 @@
-use crate::AidedAccumulationScheme;
+use crate::SplitAccumulationScheme;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
 
@@ -87,23 +87,23 @@ where
 }
 
 pub type Accumulator<A> = InstanceWitnessPair<
-    <A as AidedAccumulationScheme>::AccumulatorInstance,
-    <A as AidedAccumulationScheme>::AccumulatorWitness,
+    <A as SplitAccumulationScheme>::AccumulatorInstance,
+    <A as SplitAccumulationScheme>::AccumulatorWitness,
 >;
 
 pub type AccumulatorRef<'a, A> = InstanceWitnessPairRef<
     'a,
-    <A as AidedAccumulationScheme>::AccumulatorInstance,
-    <A as AidedAccumulationScheme>::AccumulatorWitness,
+    <A as SplitAccumulationScheme>::AccumulatorInstance,
+    <A as SplitAccumulationScheme>::AccumulatorWitness,
 >;
 
 pub type Input<A> = InstanceWitnessPair<
-    <A as AidedAccumulationScheme>::InputInstance,
-    <A as AidedAccumulationScheme>::InputWitness,
+    <A as SplitAccumulationScheme>::InputInstance,
+    <A as SplitAccumulationScheme>::InputWitness,
 >;
 
 pub type InputRef<'a, A> = InstanceWitnessPairRef<
     'a,
-    <A as AidedAccumulationScheme>::InputInstance,
-    <A as AidedAccumulationScheme>::InputWitness,
+    <A as SplitAccumulationScheme>::InputInstance,
+    <A as SplitAccumulationScheme>::InputWitness,
 >;

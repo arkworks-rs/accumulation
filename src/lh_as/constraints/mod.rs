@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 pub mod data_structures;
 use data_structures::*;
 
-pub struct LHAccumulationSchemeGadget<G, C, S>
+pub struct LHSplitASVerifierGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -28,7 +28,7 @@ where
     pub _sponge: PhantomData<S>,
 }
 
-impl<G, C, S> LHAccumulationSchemeGadget<G, C, S>
+impl<G, C, S> LHSplitASVerifierGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -195,12 +195,12 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::lh_as::constraints::{
-        InputInstanceVar, LHAccumulationSchemeGadget, ProofVar, VerifierKeyVar,
+        InputInstanceVar, LHSplitASVerifierGadget, ProofVar, VerifierKeyVar,
     };
-    use crate::lh_as::tests::LHAidedAccumulationSchemeTestInput;
-    use crate::lh_as::LHAidedAccumulationScheme;
-    use crate::tests::AidedAccumulationSchemeTestInput;
-    use crate::AidedAccumulationScheme;
+    use crate::lh_as::tests::LHSplitASTestInput;
+    use crate::lh_as::LHSplitAS;
+    use crate::tests::SplitASTestInput;
+    use crate::SplitAccumulationScheme;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -222,19 +222,19 @@ pub mod tests {
     type ConstraintF = ark_pallas::Fq;
 
     type AS =
-        LHAidedAccumulationScheme<G, DensePolynomial<F>, ConstraintF, PoseidonSponge<ConstraintF>>;
+        LHSplitAS<G, DensePolynomial<F>, ConstraintF, PoseidonSponge<ConstraintF>>;
 
-    type I = LHAidedAccumulationSchemeTestInput;
+    type I = LHSplitASTestInput;
 
     #[test]
     pub fn test() {
         let mut rng = test_rng();
 
         let (input_params, predicate_params, predicate_index) =
-            <I as AidedAccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
+            <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as AidedAccumulationSchemeTestInput<AS>>::generate_inputs(
+        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(
             &input_params,
             2,
             &mut rng,
@@ -280,7 +280,7 @@ pub mod tests {
 
         let proof = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
 
-        LHAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
+        LHSplitASVerifierGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             cs.clone(),
             &vk,
             vec![&new_input_instance],

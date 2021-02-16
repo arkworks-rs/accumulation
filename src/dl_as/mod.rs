@@ -3,7 +3,7 @@ use crate::error::{ASError, BoxedError};
 use crate::std::ops::Mul;
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use crate::{AccumulationScheme, AidedAccumulationScheme};
+use crate::{AtomicAccumulationScheme, SplitAccumulationScheme};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{to_bytes, One, PrimeField, UniformRand, Zero};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
@@ -39,7 +39,7 @@ pub mod constraints;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct DLAccumulationScheme<G, R, CF, S>
+pub struct DLAtomicAS<G, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     R: RngCore + SeedableRng,
@@ -53,7 +53,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, R, CF, S> DLAccumulationScheme<G, R, CF, S>
+impl<G, R, CF, S> DLAtomicAS<G, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     R: RngCore + SeedableRng,
@@ -356,7 +356,7 @@ where
     }
 }
 
-impl<G, R, CF, S> AidedAccumulationScheme for DLAccumulationScheme<G, R, CF, S>
+impl<G, R, CF, S> SplitAccumulationScheme for DLAtomicAS<G, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     R: RngCore + SeedableRng,
@@ -599,7 +599,7 @@ where
     }
 }
 
-impl<G, R, CF, S> AccumulationScheme for DLAccumulationScheme<G, R, CF, S>
+impl<G, R, CF, S> AtomicAccumulationScheme for DLAtomicAS<G, R, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     R: RngCore + SeedableRng,
@@ -613,14 +613,14 @@ where
 pub mod tests {
     use crate::data_structures::Input;
     use crate::dl_as::data_structures::{InputInstance, PredicateIndex};
-    use crate::dl_as::{DLAccumulationScheme, PCDL};
+    use crate::dl_as::{DLAtomicAS, PCDL};
     use crate::error::BoxedError;
     use crate::tests::{
         accumulators_only_test, multiple_accumulations_multiple_inputs_test,
         multiple_accumulations_test, multiple_inputs_test, single_input_test,
-        AidedAccumulationSchemeTestInput,
+        SplitASTestInput,
     };
-    use crate::AidedAccumulationScheme;
+    use crate::SplitAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
     use ark_pallas::{Affine, Fq, Fr};
@@ -632,10 +632,10 @@ pub mod tests {
     use digest::Digest;
     use rand_core::{RngCore, SeedableRng};
 
-    pub struct DLAccumulationSchemeTestInput {}
+    pub struct DLAtomicASTestInput {}
 
-    impl<G, R, CF, S> AidedAccumulationSchemeTestInput<DLAccumulationScheme<G, R, CF, S>>
-        for DLAccumulationSchemeTestInput
+    impl<G, R, CF, S> SplitASTestInput<DLAtomicAS<G, R, CF, S>>
+        for DLAtomicASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         R: RngCore + SeedableRng,
@@ -651,8 +651,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <DLAccumulationScheme<G, R, CF, S> as AidedAccumulationScheme>::PredicateParams,
-            <DLAccumulationScheme<G, R, CF, S> as AidedAccumulationScheme>::PredicateIndex,
+            <DLAtomicAS<G, R, CF, S> as SplitAccumulationScheme>::PredicateParams,
+            <DLAtomicAS<G, R, CF, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             let max_degree = (1 << 3) - 1;
             let supported_degree = max_degree;
@@ -678,7 +678,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<DLAccumulationScheme<G, R, CF, S>>> {
+        ) -> Vec<Input<DLAtomicAS<G, R, CF, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<
@@ -728,7 +728,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<DLAccumulationScheme<G, R, CF, S>> {
+                    Input::<DLAtomicAS<G, R, CF, S>> {
                         instance: input,
                         witness: (),
                     }
@@ -740,8 +740,8 @@ pub mod tests {
     }
 
     type AS =
-        DLAccumulationScheme<Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
-    type I = DLAccumulationSchemeTestInput;
+        DLAtomicAS<Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+    type I = DLAtomicASTestInput;
 
     #[test]
     pub fn dl_single_input_test() -> Result<(), BoxedError> {

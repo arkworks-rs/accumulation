@@ -21,10 +21,10 @@ use std::time::Instant;
 use ark_accumulation::{
     data_structures::{Accumulator, Input},
     dl_as,
-    dl_as::DLAccumulationScheme,
+    dl_as::DLAtomicAS,
     lh_as,
-    lh_as::LHAidedAccumulationScheme,
-    AidedAccumulationScheme,
+    lh_as::LHSplitAS,
+    SplitAccumulationScheme,
 };
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
@@ -34,12 +34,12 @@ use ark_std::vec::Vec;
 use rand_core::RngCore;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
-type AS_LH = LHAidedAccumulationScheme<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
+type AS_LH = LHSplitAS<G1Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
 type PCDL = dl_as::PCDL<G1Affine, Fq, PoseidonSponge<Fq>>;
 
 type AS_DL =
-    DLAccumulationScheme<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
+    DLAtomicAS<G1Affine, rand_chacha::ChaChaRng, Fq, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,
@@ -51,7 +51,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     F: PrimeField,
     P: UVPolynomial<F>,
     PC: PolynomialCommitment<F, P>,
-    AS: AidedAccumulationScheme,
+    AS: SplitAccumulationScheme,
     ParamGen: Fn(
         usize,
         &mut R,
@@ -148,8 +148,8 @@ fn lh_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     PCLH_Keys,
-    <AS_LH as AidedAccumulationScheme>::PredicateParams,
-    <AS_LH as AidedAccumulationScheme>::PredicateIndex,
+    <AS_LH as SplitAccumulationScheme>::PredicateParams,
+    <AS_LH as SplitAccumulationScheme>::PredicateIndex,
 ) {
     let predicate_params = PCLH::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCLH::trim(&predicate_params, degree, 0, None).unwrap();
@@ -205,8 +205,8 @@ fn dl_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     PCDL_Keys,
-    <AS_DL as AidedAccumulationScheme>::PredicateParams,
-    <AS_DL as AidedAccumulationScheme>::PredicateIndex,
+    <AS_DL as SplitAccumulationScheme>::PredicateParams,
+    <AS_DL as SplitAccumulationScheme>::PredicateIndex,
 ) {
     let predicate_params = PCDL::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();

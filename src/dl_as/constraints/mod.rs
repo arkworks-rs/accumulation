@@ -22,7 +22,7 @@ pub mod data_structures;
 pub use data_structures::*;
 use crate::dl_as::{ASDLDomain, PCDLDomain};
 
-pub struct DLAccumulationSchemeGadget<G, C, S>
+pub struct DLAtomicASGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -34,7 +34,7 @@ where
     pub _sponge: PhantomData<S>,
 }
 
-impl<G, C, S> DLAccumulationSchemeGadget<G, C, S>
+impl<G, C, S> DLAtomicASGadget<G, C, S>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -381,12 +381,12 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::dl_as::constraints::{
-        DLAccumulationSchemeGadget, InputInstanceVar, ProofVar, RandomnessVar, VerifierKeyVar,
+        DLAtomicASGadget, InputInstanceVar, ProofVar, RandomnessVar, VerifierKeyVar,
     };
-    use crate::dl_as::tests::DLAccumulationSchemeTestInput;
-    use crate::dl_as::DLAccumulationScheme;
-    use crate::tests::AidedAccumulationSchemeTestInput;
-    use crate::AidedAccumulationScheme;
+    use crate::dl_as::tests::DLAtomicASTestInput;
+    use crate::dl_as::DLAtomicAS;
+    use crate::tests::SplitASTestInput;
+    use crate::SplitAccumulationScheme;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -408,24 +408,24 @@ pub mod tests {
     // type F = ark_ed_on_bls12_381::Fr;
     // type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = DLAccumulationScheme<
+    type AS = DLAtomicAS<
         G,
         rand_chacha::ChaChaRng,
         ConstraintF,
         PoseidonSponge<ConstraintF>,
     >;
 
-    type I = DLAccumulationSchemeTestInput;
+    type I = DLAtomicASTestInput;
 
     #[test]
     pub fn basic() {
         let mut rng = test_rng();
 
         let (input_params, predicate_params, predicate_index) =
-            <I as AidedAccumulationSchemeTestInput<AS>>::setup(&(), &mut rng);
+            <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
         let pp = AS::generate(&mut rng).unwrap();
         let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as AidedAccumulationSchemeTestInput<AS>>::generate_inputs(
+        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(
             &input_params,
             2,
             &mut rng,
@@ -499,7 +499,7 @@ pub mod tests {
 
         let proof = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
 
-        DLAccumulationSchemeGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
+        DLAtomicASGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
             ns!(cs, "dl_as_verify").cs(),
             &vk,
             vec![&new_input_instance],

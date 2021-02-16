@@ -1,6 +1,6 @@
-use crate::constraints::{AidedAccumulationSchemeVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{SplitASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::hp_as::data_structures::InputInstance;
-use crate::hp_as::HPAidedAccumulationScheme;
+use crate::hp_as::HPSplitAS;
 use ark_ec::AffineCurve;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
@@ -19,7 +19,7 @@ use std::ops::Mul;
 pub mod data_structures;
 use data_structures::*;
 
-pub struct HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
+pub struct HPSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -31,7 +31,7 @@ where
     pub _sponge: PhantomData<SV>,
 }
 
-impl<G, C, SV> HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
+impl<G, C, SV> HPSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -203,10 +203,10 @@ where
 }
 
 impl<G, S, C, SV>
-    AidedAccumulationSchemeVerifierGadget<
-        HPAidedAccumulationScheme<G, ConstraintF<G>, S>,
+    SplitASVerifierGadget<
+        HPSplitAS<G, ConstraintF<G>, S>,
         ConstraintF<G>,
-    > for HPAidedAccumulationSchemeVerifierGadget<G, C, SV>
+    > for HPSplitASVerifierGadget<G, C, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -293,9 +293,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::hp_as::constraints::HPAidedAccumulationSchemeVerifierGadget;
-    use crate::hp_as::tests::HPAidedAccumulationSchemeTestInput;
-    use crate::hp_as::HPAidedAccumulationScheme;
+    use crate::hp_as::constraints::HPSplitASVerifierGadget;
+    use crate::hp_as::tests::HPSplitASTestInput;
+    use crate::hp_as::HPSplitAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -314,9 +314,9 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = HPAidedAccumulationScheme<G, ConstraintF, Sponge>;
-    type I = HPAidedAccumulationSchemeTestInput;
-    type ASV = HPAidedAccumulationSchemeVerifierGadget<G, C, SpongeVar>;
+    type AS = HPSplitAS<G, ConstraintF, Sponge>;
+    type I = HPSplitASTestInput;
+    type ASV = HPSplitASVerifierGadget<G, C, SpongeVar>;
 
     #[test]
     pub fn basic_test() {

@@ -4,7 +4,7 @@ use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use crate::AidedAccumulationScheme;
+use crate::SplitAccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, PrimeField, Zero};
 use ark_poly_commit::lh_pc::LHPCError;
@@ -24,7 +24,7 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-pub struct LHAidedAccumulationScheme<G, P, CF, S>
+pub struct LHSplitAS<G, P, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
@@ -40,7 +40,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, P, CF, S> LHAidedAccumulationScheme<G, P, CF, S>
+impl<G, P, CF, S> LHSplitAS<G, P, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
@@ -180,7 +180,7 @@ where
     }
 }
 
-impl<G, P, CF, S> AidedAccumulationScheme for LHAidedAccumulationScheme<G, P, CF, S>
+impl<G, P, CF, S> SplitAccumulationScheme for LHSplitAS<G, P, CF, S>
 where
     G: AffineCurve + ToConstraintField<CF>,
     P: UVPolynomial<G::ScalarField>,
@@ -533,11 +533,11 @@ where
 pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::lh_as::{InputInstance, LHAidedAccumulationScheme};
+    use crate::lh_as::{InputInstance, LHSplitAS};
     use crate::std::ops::Add;
     use crate::std::ops::Div;
     use crate::tests::*;
-    use crate::AidedAccumulationScheme;
+    use crate::SplitAccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_pallas::{Affine, Fq, Fr};
@@ -551,10 +551,10 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct LHAidedAccumulationSchemeTestInput {}
+    pub struct LHSplitASTestInput {}
 
-    impl<G, P, CF, S> AidedAccumulationSchemeTestInput<LHAidedAccumulationScheme<G, P, CF, S>>
-        for LHAidedAccumulationSchemeTestInput
+    impl<G, P, CF, S> SplitASTestInput<LHSplitAS<G, P, CF, S>>
+        for LHSplitASTestInput
     where
         G: AffineCurve + ToConstraintField<CF>,
         P: UVPolynomial<G::ScalarField>,
@@ -572,8 +572,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateParams,
-            <LHAidedAccumulationScheme<G, P, CF, S> as AidedAccumulationScheme>::PredicateIndex,
+            <LHSplitAS<G, P, CF, S> as SplitAccumulationScheme>::PredicateParams,
+            <LHSplitAS<G, P, CF, S> as SplitAccumulationScheme>::PredicateIndex,
         ) {
             // TODO: Change these parameters to test params
             //let max_degree = (1 << 5) - 1;
@@ -591,7 +591,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<LHAidedAccumulationScheme<G, P, CF, S>>> {
+        ) -> Vec<Input<LHSplitAS<G, P, CF, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, P>> = (0..num_inputs)
@@ -624,7 +624,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<LHAidedAccumulationScheme<G, P, CF, S>> {
+                    Input::<LHSplitAS<G, P, CF, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -635,9 +635,9 @@ pub mod tests {
         }
     }
 
-    type AS = LHAidedAccumulationScheme<Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
+    type AS = LHSplitAS<Affine, DensePolynomial<Fr>, Fq, PoseidonSponge<Fq>>;
 
-    type I = LHAidedAccumulationSchemeTestInput;
+    type I = LHSplitASTestInput;
 
     #[test]
     pub fn dl_single_input_test() -> Result<(), BoxedError> {

@@ -1,4 +1,4 @@
-use crate::AidedAccumulationScheme;
+use crate::SplitAccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
@@ -10,8 +10,7 @@ use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisE
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
-// TODO: Refactor by introducing a 'parameter' trait for aided AS
-pub trait AidedAccumulationSchemeVerifierGadget<AS: AidedAccumulationScheme, CF: PrimeField> {
+pub trait SplitASVerifierGadget<AS: SplitAccumulationScheme, CF: PrimeField> {
     type VerifierKey: AllocVar<AS::VerifierKey, CF>;
     type InputInstance: AllocVar<AS::InputInstance, CF>;
     type AccumulatorInstance: AllocVar<AS::AccumulatorInstance, CF>;
@@ -32,9 +31,9 @@ pub trait AidedAccumulationSchemeVerifierGadget<AS: AidedAccumulationScheme, CF:
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::AidedAccumulationSchemeVerifierGadget;
-    use crate::tests::AidedAccumulationSchemeTestInput;
-    use crate::AidedAccumulationScheme;
+    use crate::constraints::SplitASVerifierGadget;
+    use crate::tests::SplitASTestInput;
+    use crate::SplitAccumulationScheme;
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -49,10 +48,10 @@ pub mod tests {
         test_params: &I::TestParams,
         num_iterations: usize,
     ) where
-        AS: AidedAccumulationScheme,
-        I: AidedAccumulationSchemeTestInput<AS>,
+        AS: SplitAccumulationScheme,
+        I: SplitASTestInput<AS>,
         CF: PrimeField,
-        ASV: AidedAccumulationSchemeVerifierGadget<AS, CF>,
+        ASV: SplitASVerifierGadget<AS, CF>,
     {
         let mut rng = ark_std::test_rng();
         for _ in 0..num_iterations {
@@ -110,10 +109,10 @@ pub mod tests {
 
     pub fn print_breakdown<AS, I, CF, ASV>(test_params: &I::TestParams)
     where
-        AS: AidedAccumulationScheme,
-        I: AidedAccumulationSchemeTestInput<AS>,
+        AS: SplitAccumulationScheme,
+        I: SplitASTestInput<AS>,
         CF: PrimeField,
-        ASV: AidedAccumulationSchemeVerifierGadget<AS, CF>,
+        ASV: SplitASVerifierGadget<AS, CF>,
     {
         /*
         let mut layer = ConstraintLayer::default();
