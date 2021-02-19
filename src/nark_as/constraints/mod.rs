@@ -3,7 +3,6 @@ use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
 use crate::hp_as::constraints::HpASVerifierGadget;
-use crate::hp_as::HadamardProductAS;
 use crate::nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
 use crate::nark_as::NarkAS;
 use ark_ec::AffineCurve;

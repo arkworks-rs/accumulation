@@ -1,6 +1,5 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::ipa_as::{InnerProductArgAtomicAS, IpaASDomain, IpaPCDomain};
-use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_poly_commit::ipa_pc;
@@ -426,23 +425,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::ipa_as::constraints::{
-        IPAAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
-    };
+    use crate::ipa_as::constraints::IPAAtomicASVerifierGadget;
     use crate::ipa_as::tests::{IpaAtomicASTestInput, IpaAtomicASTestParams};
     use crate::ipa_as::InnerProductArgAtomicAS;
-    use crate::tests::ASTestInput;
-    use crate::AccumulationScheme;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::bits::boolean::Boolean;
-    use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::ns;
-    use ark_relations::r1cs::ConstraintLayer;
-    use ark_relations::r1cs::{ConstraintSystem, TracingMode};
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_std::test_rng;
-    use tracing_subscriber::layer::SubscriberExt;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;

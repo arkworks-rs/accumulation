@@ -7,7 +7,7 @@ use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, One, PrimeField, Zero};
+use ark_ff::{to_bytes, One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
@@ -514,7 +514,7 @@ where
 
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<Self>,
+        accumulator: AccumulatorRef<'_, Self>,
     ) -> Result<bool, Self::Error> {
         let check = LinearHashPC::check_individual_opening_challenges(
             decider_key,
@@ -536,13 +536,11 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hc_as::{HomomorphicCommitmentAS, InputInstance};
-    use crate::std::ops::Add;
-    use crate::std::ops::Div;
     use crate::tests::*;
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ff::{PrimeField, ToConstraintField};
-    use ark_pallas::{Affine, Fq, Fr};
+    use ark_ff::ToConstraintField;
+    use ark_pallas::{Affine, Fq};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{

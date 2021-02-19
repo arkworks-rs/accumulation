@@ -4,7 +4,7 @@ use crate::error::{ASError, BoxedError};
 use crate::AccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{One, PrimeField, ToConstraintField, Zero};
+use ark_ff::{One, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
@@ -707,7 +707,7 @@ pub mod tests {
     use crate::tests::*;
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ff::{PrimeField, ToConstraintField};
+    use ark_ff::ToConstraintField;
     use ark_pallas::{Affine, Fq};
     use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;

@@ -8,14 +8,10 @@ use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
-use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::FieldElementSize;
+use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
-use std::marker::PhantomData;
 
 pub type FinalCommKeyVar<C> = C;
 

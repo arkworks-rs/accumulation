@@ -1,6 +1,5 @@
 use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::hc_as::HomomorphicCommitmentAS;
-use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_nonnative_field::NonNativeFieldMulResultVar;
@@ -226,21 +225,11 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::hc_as::constraints::{
-        HcASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
-    };
+    use crate::hc_as::constraints::HcASVerifierGadget;
     use crate::hc_as::tests::{HcASTestInput, HcASTestParams};
     use crate::hc_as::HomomorphicCommitmentAS;
-    use crate::tests::ASTestInput;
-    use crate::AccumulationScheme;
-    use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::bits::boolean::Boolean;
-    use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::r1cs::ConstraintSystem;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_std::test_rng;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;

@@ -6,7 +6,7 @@ use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use crate::{AccumulationScheme, AtomicAccumulationScheme};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{to_bytes, One, PrimeField, UniformRand, Zero};
+use ark_ff::{to_bytes, One, UniformRand, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly::{Polynomial, UVPolynomial};
 use ark_poly_commit::ipa_pc::{InnerProductArgPC, SuccinctCheckPolynomial};
@@ -20,7 +20,7 @@ use ark_std::marker::PhantomData;
 use blake2::Blake2s;
 use data_structures::*;
 use digest::Digest;
-use rand_core::{RngCore, SeedableRng};
+use rand_core::RngCore;
 
 pub mod data_structures;
 
@@ -609,12 +609,10 @@ pub mod tests {
     use crate::error::BoxedError;
     use crate::ipa_as::data_structures::{InputInstance, PredicateIndex};
     use crate::ipa_as::{InnerProductArgAtomicAS, IpaPC};
-    use crate::tests::{
-        multiple_inputs_initialization_test, single_input_initialization_test, ASTestInput,
-    };
+    use crate::tests::ASTestInput;
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
+    use ark_ff::{One, ToConstraintField, UniformRand};
     use ark_pallas::{Affine, Fq};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
@@ -622,7 +620,7 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use digest::Digest;
-    use rand_core::{RngCore, SeedableRng};
+    use rand_core::RngCore;
 
     pub struct IpaAtomicASTestParams {
         pub(crate) degree: usize,
