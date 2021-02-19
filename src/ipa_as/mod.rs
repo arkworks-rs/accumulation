@@ -427,16 +427,16 @@ where
         let accumulators: Vec<&InputInstance<G>> =
             AccumulatorRef::<'a, Self>::instances(accumulators).collect::<Vec<_>>();
 
-        let has_hiding = inputs
+        let make_zk = inputs
             .iter()
             .chain(&accumulators)
-            .fold(false, |has_hiding, input| {
-                return has_hiding
+            .fold(false, |make_zk, input| {
+                return make_zk
                     || input.ipa_proof.hiding_comm.is_some()
                     || input.ipa_proof.rand.is_some();
             });
 
-        let proof = if has_hiding {
+        let proof = if make_zk {
             let random_linear_polynomial = DensePolynomial::from_coefficients_slice(&[
                 G::ScalarField::rand(rng),
                 G::ScalarField::rand(rng),
@@ -609,7 +609,9 @@ pub mod tests {
     use crate::error::BoxedError;
     use crate::ipa_as::data_structures::{InputInstance, PredicateIndex};
     use crate::ipa_as::{InnerProductArgAtomicAS, IpaPC};
-    use crate::tests::{multiple_inputs_test, single_input_test, ASTestInput};
+    use crate::tests::{
+        multiple_inputs_initialization_test, single_input_initialization_test, ASTestInput,
+    };
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{One, PrimeField, ToConstraintField, UniformRand};
@@ -622,40 +624,58 @@ pub mod tests {
     use digest::Digest;
     use rand_core::{RngCore, SeedableRng};
 
-    pub struct IpaPCAtomicASTestInput {}
+    pub struct IpaAtomicASTestParams {
+        pub(crate) degree: usize,
+        pub(crate) make_zk: bool,
+    }
 
-    impl<G, S> ASTestInput<InnerProductArgAtomicAS<G, S>> for IpaPCAtomicASTestInput
+    pub struct IpaAtomicASTestInput {}
+
+    impl<G, S> ASTestInput<InnerProductArgAtomicAS<G, S>> for IpaAtomicASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = ();
-        type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>);
+        type TestParams = IpaAtomicASTestParams;
+        type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>, bool);
 
         fn setup(
-            _test_params: &Self::TestParams,
+            test_params: &Self::TestParams,
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
             <InnerProductArgAtomicAS<G, S> as AccumulationScheme>::PredicateParams,
             <InnerProductArgAtomicAS<G, S> as AccumulationScheme>::PredicateIndex,
         ) {
-            let max_degree = (1 << 3) - 1;
+            let max_degree = test_params.degree;
             let supported_degree = max_degree;
             let predicate_params = IpaPC::<G, S>::setup(max_degree, None, rng).unwrap();
+            let supported_hiding_bound = if test_params.make_zk {
+                supported_degree
+            } else {
+                0
+            };
 
-            let (ck, vk) =
-                IpaPC::<G, S>::trim(&predicate_params, supported_degree, supported_degree, None)
-                    .unwrap();
+            let (ck, vk) = IpaPC::<G, S>::trim(
+                &predicate_params,
+                supported_degree,
+                supported_hiding_bound,
+                None,
+            )
+            .unwrap();
 
             let predicate_index = PredicateIndex {
                 supported_degree_bound: supported_degree,
-                supported_hiding_bound: supported_degree,
+                supported_hiding_bound,
             };
 
-            ((ck, vk), predicate_params, predicate_index)
+            (
+                (ck, vk, test_params.make_zk),
+                predicate_params,
+                predicate_index,
+            )
         }
 
         fn generate_inputs(
@@ -664,6 +684,10 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> Vec<Input<InnerProductArgAtomicAS<G, S>>> {
             let ck = &input_params.0;
+            let degree = PCCommitterKey::supported_degree(ck);
+
+            let make_zk = input_params.2;
+            let hiding_bound = if make_zk { Some(degree) } else { None };
 
             let labeled_polynomials: Vec<
                 LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -671,14 +695,10 @@ pub mod tests {
                 .map(|i| {
                     //let degree =
                     //rand::distributions::Uniform::from(1..=ck.supported_degree()).sample(rng);
-                    let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
-
                     let polynomial = DensePolynomial::rand(degree, rng);
-                    let hiding_bound = degree;
-
                     let labeled_polynomial =
-                        LabeledPolynomial::new(label, polynomial, None, Some(hiding_bound));
+                        LabeledPolynomial::new(label, polynomial, None, hiding_bound.clone());
 
                     labeled_polynomial
                 })
@@ -724,31 +744,85 @@ pub mod tests {
     }
 
     type AS = InnerProductArgAtomicAS<Affine, PoseidonSponge<Fq>>;
-    type I = IpaPCAtomicASTestInput;
+    type I = IpaAtomicASTestInput;
 
     #[test]
-    pub fn dl_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&())
+    pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn dl_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&())
-    }
-
-    /*
-    #[test]
-    pub fn dl_multiple_accumulations_test() -> Result<(), BoxedError> {
-        multiple_accumulations_test::<AS, I>(&())
+    pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn dl_multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_accumulations_multiple_inputs_test::<AS, I>(&())
+    pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn dl_accumulators_only_test() -> Result<(), BoxedError> {
-        accumulators_only_test::<AS, I>(&())
-    }*/
+    pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
 }

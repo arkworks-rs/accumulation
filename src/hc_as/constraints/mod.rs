@@ -28,10 +28,10 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
-    pub _affine: PhantomData<G>,
-    pub _curve: PhantomData<C>,
-    pub _sponge: PhantomData<S>,
-    pub _sponge_var: PhantomData<SV>,
+    _affine: PhantomData<G>,
+    _curve: PhantomData<C>,
+    _sponge: PhantomData<S>,
+    _sponge_var: PhantomData<SV>,
 }
 
 impl<G, C, S, SV> HcASVerifierGadget<G, C, S, SV>
@@ -229,7 +229,7 @@ pub mod tests {
     use crate::hc_as::constraints::{
         HcASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
-    use crate::hc_as::tests::HcPcASTestInput;
+    use crate::hc_as::tests::{HcASTestInput, HcASTestParams};
     use crate::hc_as::HomomorphicCommitmentAS;
     use crate::tests::ASTestInput;
     use crate::AccumulationScheme;
@@ -251,6 +251,50 @@ pub mod tests {
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
     type AS = HomomorphicCommitmentAS<G, Sponge>;
-    type I = HcPcASTestInput;
+    type I = HcASTestInput;
     type ASV = HcASVerifierGadget<G, C, Sponge, SpongeVar>;
+
+    #[test]
+    pub fn test_initialization_no_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &HcASTestParams {
+                degree: 8,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_initialization_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &HcASTestParams {
+                degree: 8,
+                make_zk: true,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_no_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &HcASTestParams {
+                degree: 8,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &HcASTestParams {
+                degree: 8,
+                make_zk: true,
+            },
+            1,
+        );
+    }
 }

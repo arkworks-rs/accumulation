@@ -44,7 +44,7 @@ where
     fn squeeze_mu_challenges(
         sponge: &mut SV,
         num_inputs: usize,
-        has_hiding: bool,
+        make_zk: bool,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
         let mut mu_challenges_bits = Vec::with_capacity(num_inputs);
         mu_challenges_bits.push(vec![Boolean::TRUE]);
@@ -57,7 +57,7 @@ where
                 .for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
         }
 
-        if has_hiding {
+        if make_zk {
             let hiding_components_bits =
                 vec![&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
             let mut hiding_components_fe: Vec<NNFieldVar<G>> =
@@ -238,10 +238,10 @@ where
             .collect::<Vec<_>>();
 
         let mut num_inputs = input_instances.len();
-        let has_hiding = proof.hiding_comms.is_some();
+        let make_zk = proof.hiding_comms.is_some();
 
         let mut default_input_instance = None;
-        if has_hiding && num_inputs == 1 {
+        if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 cs.clone(),
                 InputInstance::default(),
@@ -264,7 +264,7 @@ where
         }
 
         let mu_challenges_bits =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding)?;
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk)?;
 
         proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
 
@@ -294,7 +294,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::hp_as::constraints::HpASVerifierGadget;
-    use crate::hp_as::tests::HpASTestInput;
+    use crate::hp_as::tests::{HpASTestInput, HpASTestParams};
     use crate::hp_as::HadamardProductAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
@@ -312,12 +312,46 @@ pub mod tests {
     type ASV = HpASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
-    pub fn basic_test() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(&(1, false), 1);
+    pub fn test_initialization_no_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &HpASTestParams {
+                vector_len: 8,
+                make_zk: false,
+            },
+            1,
+        );
     }
 
     #[test]
-    pub fn basic_test_hiding() {
-        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(&(1, true));
+    pub fn test_initialization_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &HpASTestParams {
+                vector_len: 8,
+                make_zk: true,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_no_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &HpASTestParams {
+                vector_len: 8,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &HpASTestParams {
+                vector_len: 8,
+                make_zk: true,
+            },
+            1,
+        );
     }
 }

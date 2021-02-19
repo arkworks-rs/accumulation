@@ -996,42 +996,95 @@ pub mod tests {
     }
 
     type AS = NarkAS<EdwardsAffine, DummyCircuit<Fr>, PoseidonSponge<Fq>>;
-
     type I = NarkASTestInput;
 
     #[test]
-    pub fn nv_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&NarkASTestParams {
-            num_inputs: 10,
+    pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
         })
     }
 
     #[test]
-    pub fn nv_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&NarkASTestParams {
-            num_inputs: 10,
+    pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
         })
     }
 
-    /*
     #[test]
-    pub fn nv_multiple_accumulations_test() -> Result<(), BoxedError> {
-        multiple_accumulations_test::<AS, I>(&8)
+    pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn nv_multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_accumulations_multiple_inputs_test::<AS, I>(&8)
+    pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn nv_accumulators_only_test() -> Result<(), BoxedError> {
-        accumulators_only_test::<AS, I>(&8)
+    pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
     }
 
-     */
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: true,
+        })
+    }
 }

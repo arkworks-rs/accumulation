@@ -553,30 +553,39 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct HcPcASTestInput {}
+    pub struct HcASTestParams {
+        pub(crate) degree: usize,
+        pub(crate) make_zk: bool,
+    }
 
-    impl<G, S> ASTestInput<HomomorphicCommitmentAS<G, S>> for HcPcASTestInput
+    pub struct HcASTestInput {}
+
+    impl<G, S> ASTestInput<HomomorphicCommitmentAS<G, S>> for HcASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = ();
-        type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>);
+        type TestParams = HcASTestParams;
+        type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>, bool);
 
         fn setup(
-            _: &Self::TestParams,
+            test_params: &Self::TestParams,
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
             <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateParams,
             <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateIndex,
         ) {
-            // TODO: Change these parameters to test params
-            //let max_degree = (1 << 5) - 1;
-            let max_degree = (1 << 2) - 1;
+            let max_degree = test_params.degree;
             let supported_degree = max_degree;
+            let supported_hiding_bound = if test_params.make_zk {
+                supported_degree
+            } else {
+                0
+            };
+
             let predicate_params =
                 LinearHashPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
                     .unwrap();
@@ -584,12 +593,16 @@ pub mod tests {
             let (ck, vk) = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(
                 &predicate_params,
                 supported_degree,
-                0,
+                supported_hiding_bound,
                 None,
             )
             .unwrap();
 
-            ((ck, vk), predicate_params, supported_degree)
+            (
+                (ck, vk, test_params.make_zk),
+                predicate_params,
+                supported_degree,
+            )
         }
 
         fn generate_inputs(
@@ -598,6 +611,10 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> Vec<Input<HomomorphicCommitmentAS<G, S>>> {
             let ck = &input_params.0;
+            let degree = PCCommitterKey::supported_degree(ck);
+
+            let make_zk = input_params.2;
+            let hiding_bound = if make_zk { Some(degree) } else { None };
 
             let labeled_polynomials: Vec<
                 LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -605,11 +622,11 @@ pub mod tests {
                 .map(|i| {
                     //let degree =
                     //rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
-                    let degree = PCCommitterKey::supported_degree(ck);
                     let label = format!("Input{}", i);
 
                     let polynomial = DensePolynomial::rand(degree, rng);
-                    let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
+                    let labeled_polynomial =
+                        LabeledPolynomial::new(label, polynomial, None, hiding_bound);
 
                     labeled_polynomial
                 })
@@ -648,31 +665,85 @@ pub mod tests {
     }
 
     type AS = HomomorphicCommitmentAS<Affine, PoseidonSponge<Fq>>;
-
-    type I = HcPcASTestInput;
+    type I = HcASTestInput;
 
     #[test]
-    pub fn dl_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&())
+    pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn dl_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&())
+    pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn dl_multiple_accumulations_test() -> Result<(), BoxedError> {
-        multiple_accumulations_test::<AS, I>(&())
+    pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn dl_multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_accumulations_multiple_inputs_test::<AS, I>(&())
+    pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn dl_accumulators_only_test() -> Result<(), BoxedError> {
-        accumulators_only_test::<AS, I>(&())
+    pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
     }
 }

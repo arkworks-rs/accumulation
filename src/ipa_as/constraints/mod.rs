@@ -1,5 +1,5 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, ConstraintF, NNFieldVar};
-use crate::ipa_as::{IpaASDomain, InnerProductArgAtomicAS, IpaPCDomain};
+use crate::ipa_as::{InnerProductArgAtomicAS, IpaASDomain, IpaPCDomain};
 use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
@@ -427,9 +427,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::ipa_as::constraints::{
-        InputInstanceVar, IPAAtomicASVerifierGadget, ProofVar, VerifierKeyVar,
+        IPAAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
-    use crate::ipa_as::tests::IpaPCAtomicASTestInput;
+    use crate::ipa_as::tests::{IpaAtomicASTestInput, IpaAtomicASTestParams};
     use crate::ipa_as::InnerProductArgAtomicAS;
     use crate::tests::ASTestInput;
     use crate::AccumulationScheme;
@@ -453,6 +453,50 @@ pub mod tests {
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
     type AS = InnerProductArgAtomicAS<G, Sponge>;
-    type I = IpaPCAtomicASTestInput;
+    type I = IpaAtomicASTestInput;
     type ASV = IPAAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
+
+    #[test]
+    pub fn test_initialization_no_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &IpaAtomicASTestParams {
+                degree: 8,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_initialization_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+            &IpaAtomicASTestParams {
+                degree: 8,
+                make_zk: true,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_no_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &IpaAtomicASTestParams {
+                degree: 8,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &IpaAtomicASTestParams {
+                degree: 8,
+                make_zk: true,
+            },
+            1,
+        );
+    }
 }

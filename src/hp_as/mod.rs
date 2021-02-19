@@ -38,7 +38,7 @@ where
     fn squeeze_mu_challenges(
         sponge: &mut S,
         num_inputs: usize,
-        has_hiding: bool,
+        make_zk: bool,
     ) -> Vec<G::ScalarField> {
         let mut mu_challenges = Vec::with_capacity(num_inputs);
         mu_challenges.push(G::ScalarField::one());
@@ -50,7 +50,7 @@ where
             ));
         }
 
-        if has_hiding {
+        if make_zk {
             mu_challenges.push(mu_challenges[1].mul(mu_challenges[num_inputs - 1]));
         }
 
@@ -469,8 +469,8 @@ where
             .map(|input| input.witness)
             .collect::<Vec<_>>();
 
-        let has_hiding = input_witnesses.iter().fold(false, |has_hiding, witness| {
-            has_hiding || witness.randomness.is_some()
+        let make_zk = input_witnesses.iter().fold(false, |make_zk, witness| {
+            make_zk || witness.randomness.is_some()
         });
 
         let mut num_inputs = input_instances.len();
@@ -478,7 +478,7 @@ where
 
         let mut default_input_instance = None;
         let mut default_input_witness = None;
-        if has_hiding && num_inputs == 1 {
+        if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstance::default());
             default_input_witness = Some(InputWitness::default());
 
@@ -487,7 +487,7 @@ where
             input_witnesses.push(default_input_witness.as_ref().unwrap());
         };
 
-        let (hiding_vecs, hiding_rands, hiding_comms) = if has_hiding {
+        let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk {
             let rng = rng.ok_or(BoxedError::new(ASError::MissingRng(
                 "Accumulating inputs with hiding requires rng.".to_string(),
             )))?;
@@ -554,7 +554,7 @@ where
         challenges_sponge.absorb(&hiding_comms);
 
         let mu_challenges =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding);
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
 
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
             input_witnesses.as_slice(),
@@ -624,10 +624,10 @@ where
         }
 
         let mut num_inputs = input_instances.len();
-        let has_hiding = proof.hiding_comms.is_some();
+        let make_zk = proof.hiding_comms.is_some();
 
         let mut default_input_instance = None;
-        if has_hiding && num_inputs == 1 {
+        if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstance::default());
 
             num_inputs += 1;
@@ -642,7 +642,7 @@ where
         challenges_sponge.absorb(&proof.hiding_comms);
 
         let mu_challenges =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, has_hiding);
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
 
         challenges_sponge.absorb(&proof.t_comms);
 
@@ -716,6 +716,11 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
+    pub struct HpASTestParams {
+        pub(crate) vector_len: usize,
+        pub(crate) make_zk: bool,
+    }
+
     pub struct HpASTestInput {}
 
     impl<G, S> ASTestInput<HadamardProductAS<G, S>> for HpASTestInput
@@ -724,7 +729,7 @@ pub mod tests {
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = (usize, bool);
+        type TestParams = HpASTestParams;
         type InputParams = (PedersenCommitmentCK<G>, bool);
 
         fn setup(
@@ -735,9 +740,9 @@ pub mod tests {
             <HadamardProductAS<G, S> as AccumulationScheme>::PredicateParams,
             <HadamardProductAS<G, S> as AccumulationScheme>::PredicateIndex,
         ) {
-            let pp = PedersenCommitment::setup(test_params.0).unwrap();
-            let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
-            ((ck, test_params.1), (), test_params.0)
+            let pp = PedersenCommitment::setup(test_params.vector_len).unwrap();
+            let ck = PedersenCommitment::trim(&pp, test_params.vector_len).unwrap();
+            ((ck, test_params.make_zk), (), test_params.vector_len)
         }
 
         fn generate_inputs(
@@ -808,37 +813,85 @@ pub mod tests {
     }
 
     type AS = HadamardProductAS<Affine, PoseidonSponge<Fq>>;
-
     type I = HpASTestInput;
 
     #[test]
-    pub fn hp_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&(8, true))
-    }
-
-    /*
-    #[test]
-    pub fn hp_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&(8, true))
-    }
-
-     */
-
-    /*
-    #[test]
-    pub fn hp_multiple_accumulations_test() -> Result<(), BoxedError> {
-        multiple_accumulations_test::<AS, I>(&(8, true))
+    pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn hp_multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_accumulations_multiple_inputs_test::<AS, I>(&(8, true))
+    pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::single_input_initialization_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn hp_accumulators_only_test() -> Result<(), BoxedError> {
-        accumulators_only_test::<AS, I>(&(8, true))
+    pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
     }
 
-     */
+    #[test]
+    pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
+        crate::tests::simple_accumulation_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
+        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
+        crate::tests::accumulators_only_test::<AS, I>(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
+    }
 }

@@ -33,10 +33,10 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
-    _affine_phantom: PhantomData<G>,
-    _curve_phantom: PhantomData<C>,
-    _sponge_phantom: PhantomData<S>,
-    _sponge_var_phantom: PhantomData<SV>,
+    _affine: PhantomData<G>,
+    _curve: PhantomData<C>,
+    _sponge: PhantomData<S>,
+    _sponge_var: PhantomData<SV>,
 }
 
 impl<G, C, S, SV> NarkASVerifierGadget<G, C, S, SV>
@@ -433,7 +433,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::nark_as::constraints::NarkASVerifierGadget;
-    use crate::nark_as::tests::{DummyCircuit, NarkASTestParams, NarkASTestInput};
+    use crate::nark_as::tests::{DummyCircuit, NarkASTestInput, NarkASTestParams};
     use crate::nark_as::NarkAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
@@ -451,24 +451,50 @@ pub mod tests {
     type ASV = NarkASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
-    pub fn test_basic() {
-        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
+    pub fn test_initialization_no_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: false,
             },
+            1,
         );
     }
 
     #[test]
-    pub fn test_basic_2() {
-        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
+    pub fn test_initialization_zk() {
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: true,
             },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_no_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &NarkASTestParams {
+                num_inputs: 1,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            1,
+        );
+    }
+
+    #[test]
+    pub fn test_simple_accumulation_zk() {
+        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+            &NarkASTestParams {
+                num_inputs: 1,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            1,
         );
     }
 }
