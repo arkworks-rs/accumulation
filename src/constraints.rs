@@ -41,6 +41,54 @@ pub mod tests {
         ConstraintLayer, ConstraintSystem, ConstraintSystemRef, TracingMode,
     };
 
+    pub fn test_initialization<AS, I, CF, ASV>(test_params: &I::TestParams, num_iterations: usize)
+    where
+        AS: SplitAccumulationScheme,
+        I: SplitASTestInput<AS>,
+        CF: PrimeField,
+        ASV: SplitASVerifierGadget<AS, CF>,
+    {
+        let mut rng = ark_std::test_rng();
+        for _ in 0..num_iterations {
+            let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
+            let pp = AS::generate(&mut rng).unwrap();
+            let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
+
+            let mut input = I::generate_inputs(&input_params, 1, &mut rng);
+            let input = input.pop().unwrap();
+
+            let (accumulator, proof) =
+                AS::prove(&pk, vec![input.as_ref()], vec![], Some(&mut rng)).unwrap();
+
+            let cs = ConstraintSystem::<CF>::new_ref();
+
+            let vk_var = ASV::VerifierKey::new_constant(cs.clone(), vk.clone()).unwrap();
+
+            let input_instance_var =
+                ASV::InputInstance::new_witness(cs.clone(), || Ok(input.instance)).unwrap();
+
+            let accumulator_instance_var =
+                ASV::AccumulatorInstance::new_witness(cs.clone(), || Ok(accumulator.instance))
+                    .unwrap();
+
+            let proof_var = ASV::Proof::new_witness(cs.clone(), || Ok(proof)).unwrap();
+
+            ASV::verify(
+                cs.clone(),
+                &vk_var,
+                vec![&input_instance_var],
+                vec![],
+                &accumulator_instance_var,
+                &proof_var,
+            )
+            .unwrap()
+            .enforce_equal(&Boolean::TRUE)
+            .unwrap();
+
+            assert!(cs.is_satisfied().unwrap());
+        }
+    }
+
     pub fn test_simple_accumulation<AS, I, CF, ASV>(
         test_params: &I::TestParams,
         num_iterations: usize,
@@ -52,7 +100,6 @@ pub mod tests {
     {
         let mut rng = ark_std::test_rng();
         for _ in 0..num_iterations {
-            let cs = ConstraintSystem::<CF>::new_ref();
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
             let pp = AS::generate(&mut rng).unwrap();
             let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
@@ -72,6 +119,8 @@ pub mod tests {
                 Some(&mut rng),
             )
             .unwrap();
+
+            let cs = ConstraintSystem::<CF>::new_ref();
 
             let vk_var = ASV::VerifierKey::new_constant(cs.clone(), vk.clone()).unwrap();
 
@@ -104,21 +153,13 @@ pub mod tests {
         }
     }
 
-    pub fn print_breakdown<AS, I, CF, ASV>(test_params: &I::TestParams)
+    pub fn print_costs_breakdown<AS, I, CF, ASV>(test_params: &I::TestParams)
     where
         AS: SplitAccumulationScheme,
         I: SplitASTestInput<AS>,
         CF: PrimeField,
         ASV: SplitASVerifierGadget<AS, CF>,
     {
-        /*
-        let mut layer = ConstraintLayer::default();
-        layer.mode = TracingMode::OnlyConstraints;
-        let subscriber = tracing_subscriber::Registry::default().with(layer);
-        tracing::subscriber::set_global_default(subscriber).unwrap();
-
-         */
-
         let mut rng = ark_std::test_rng();
 
         let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
@@ -195,8 +236,12 @@ pub mod tests {
         .unwrap()
         .enforce_equal(&Boolean::TRUE)
         .unwrap();
-
         println!("Cost of verify {:?}", cs.num_constraints() - start_cost);
+
+        println!("Num constaints: {:}", cs.num_constraints());
+        println!("Num instance: {:}", cs.num_instance_variables());
+        println!("Num witness: {:}", cs.num_witness_variables());
+
         assert!(cs.is_satisfied().unwrap());
     }
 }

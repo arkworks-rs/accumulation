@@ -1,7 +1,8 @@
 use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
-use crate::dl_as::{ASDLDomain, PCDLDomain, DLAtomicAS};
+use crate::dl_as::{ASDLDomain, DLAtomicAS, PCDLDomain};
+use crate::SplitAccumulationScheme;
 use ark_ec::AffineCurve;
-use ark_ff::Field;
+use ark_ff::{Field, ToConstraintField};
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
@@ -15,32 +16,36 @@ use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
-use ark_sponge::FieldElementSize;
+use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
-use crate::SplitAccumulationScheme;
 
 pub mod data_structures;
 use data_structures::*;
 
-pub struct DLAtomicASVerifierGadget<G, C, S>
+pub struct DLAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
     _sponge: PhantomData<S>,
+    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S> DLAtomicASVerifierGadget<G, C, S>
+impl<G, C, S, SV> DLAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
     fn deterministic_commit_to_linear_polynomial(
@@ -86,7 +91,8 @@ where
                 let (succinct_check_result, check_polynomial) = InnerProductArgPCGadget::<
                     G,
                     C,
-                    DomainSeparatedSpongeVar<ConstraintF<G>, S, PCDLDomain>,
+                    DomainSeparatedSponge<ConstraintF<G>, S, PCDLDomain>,
+                    DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, PCDLDomain>,
                 >::succinct_check(
                     ns!(cs, "succinct_check").cs(),
                     ipa_vk,
@@ -107,8 +113,8 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
-    fn absorb_check_polynomial_into_sponge(
-        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>>,
+    fn absorb_check_polynomial_into_sponge<Sp: CryptographicSponge<ConstraintF<G>>>(
+        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, Sp>,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
         log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
@@ -152,7 +158,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, ASDLDomain>::new(
                 ns!(cs, "linear_combination_challenge_sponge").cs(),
             );
 
@@ -239,7 +245,7 @@ where
         };
 
         let mut challenge_point_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, ASDLDomain>::new(
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, ASDLDomain>::new(
                 ns!(cs, "challenge_point_sponge").cs(),
             );
         challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
@@ -302,6 +308,22 @@ where
 
         Ok(eval)
     }
+}
+
+impl<G, C, S, SV> SplitASVerifierGadget<DLAtomicAS<G, S>, ConstraintF<G>>
+    for DLAtomicASVerifierGadget<G, C, S, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+{
+    type VerifierKey = VerifierKeyVar<G, C>;
+    type InputInstance = InputInstanceVar<G, C>;
+    type AccumulatorInstance = InputInstanceVar<G, C>;
+    type Proof = ProofVar<G, C>;
 
     #[tracing::instrument(
         target = "r1cs",
@@ -316,12 +338,16 @@ where
     )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
-        verifier_key: &VerifierKeyVar<G, C>,
-        input_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        accumulator_instances: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        new_accumulator_instance: &InputInstanceVar<G, C>,
-        proof: &ProofVar<G, C>,
-    ) -> Result<Boolean<<G::BaseField as Field>::BasePrimeField>, SynthesisError> {
+        verifier_key: &Self::VerifierKey,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
+        proof: &Self::Proof,
+    ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
+    where
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a,
+    {
         let mut verify_result = Boolean::TRUE;
 
         if new_accumulator_instance
@@ -386,29 +412,11 @@ where
     }
 }
 
-/*
-impl<G, C, SV> SplitASVerifierGadget<DLAtomicAS<G, SV>, ConstraintF<G>> for DLAtomicASVerifierGadget<G, C, SV>
-    where
-        G: AffineCurve,
-        C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-        SV: CryptographicSpongeVar<ConstraintF<G>>,
-{
-    type VerifierKey = ();
-    type InputInstance = ();
-    type AccumulatorInstance = ();
-    type Proof = ();
-
-    fn verify<'a>(cs: ConstraintSystemRef<_>, verifier_key: &Self::VerifierKey, input_instances: impl IntoIterator<Item=&'a Self::InputInstance, IntoIter=_>, accumulator_instances: impl IntoIterator<Item=&'a Self::AccumulatorInstance, IntoIter=_>, new_accumulator_instance: &Self::AccumulatorInstance, proof: &Self::Proof) -> Result<Boolean<_>, SynthesisError> where
-        Self::InputInstance: 'a,
-        Self::AccumulatorInstance: 'a {
-        unimplemented!()
-    }
-}*/
-
 #[cfg(test)]
 pub mod tests {
-    use crate::dl_as::constraints::{DLAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar};
+    use crate::dl_as::constraints::{
+        DLAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
+    };
     use crate::dl_as::tests::DLAtomicASTestInput;
     use crate::dl_as::DLAtomicAS;
     use crate::tests::SplitASTestInput;
@@ -428,119 +436,11 @@ pub mod tests {
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
-    // type G = ark_ed_on_bls12_381::EdwardsAffine;
-    // type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    // type F = ark_ed_on_bls12_381::Fr;
-    // type ConstraintF = ark_ed_on_bls12_381::Fq;
 
-    type AS = DLAtomicAS<G, PoseidonSponge<ConstraintF>>;
+    type Sponge = PoseidonSponge<ConstraintF>;
+    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
+    type AS = DLAtomicAS<G, Sponge>;
     type I = DLAtomicASTestInput;
-
-    #[test]
-    pub fn basic() {
-        let mut rng = test_rng();
-
-        let (input_params, predicate_params, predicate_index) =
-            <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
-        let pp = AS::generate(&mut rng).unwrap();
-        let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
-        let old_input = inputs.pop().unwrap();
-        let new_input = inputs.pop().unwrap();
-
-        let (old_accumulator, _) =
-            AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
-        let (new_accumulator, proof) = AS::prove(
-            &pk,
-            vec![new_input.as_ref()],
-            vec![old_accumulator.as_ref()],
-            Some(&mut rng),
-        )
-        .unwrap();
-
-        assert!(AS::verify(
-            &vk,
-            vec![&new_input.instance],
-            vec![&old_accumulator.instance],
-            &new_accumulator.instance,
-            &proof
-        )
-        .unwrap());
-
-        let mut layer = ConstraintLayer::default();
-        layer.mode = TracingMode::OnlyConstraints;
-        let subscriber = tracing_subscriber::Registry::default().with(layer);
-        tracing::subscriber::set_global_default(subscriber).unwrap();
-
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
-
-        let cs_init = ns!(cs, "init var").cs();
-        let cost = cs.num_constraints();
-        let vk = VerifierKeyVar::<G, C>::new_constant(cs_init.clone(), vk.clone()).unwrap();
-        println!(
-            "Cost of declaring verifier_key {:?}",
-            cs.num_constraints() - cost
-        );
-
-        let cost = cs.num_constraints();
-        let new_input_instance = InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
-            Ok(new_input.instance.clone())
-        })
-        .unwrap();
-        println!("Cost of declaring input {:?}", cs.num_constraints() - cost);
-
-        let cost = cs.num_constraints();
-        let old_accumulator_instance =
-            InputInstanceVar::<G, C>::new_witness(cs_init.clone(), || {
-                Ok(old_accumulator.instance.clone())
-            })
-            .unwrap();
-
-        println!(
-            "Cost of declaring old accumulator {:?}",
-            cs.num_constraints() - cost
-        );
-
-        let cost = cs.num_constraints();
-        let new_accumulator_instance = InputInstanceVar::<G, C>::new_input(cs_init.clone(), || {
-            Ok(new_accumulator.instance.clone())
-        })
-        .unwrap();
-
-        println!(
-            "Cost of declaring new accumulator {:?}",
-            cs.num_constraints() - cost
-        );
-
-        let proof = ProofVar::<G, C>::new_witness(cs_init.clone(), || Ok(proof)).unwrap();
-
-        DLAtomicASVerifierGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
-            ns!(cs, "dl_as_verify").cs(),
-            &vk,
-            vec![&new_input_instance],
-            vec![&old_accumulator_instance],
-            &new_accumulator_instance,
-            &proof,
-        )
-        .unwrap()
-        .enforce_equal(&Boolean::TRUE)
-        .unwrap();
-
-        println!("Num constaints: {:}", cs.num_constraints());
-        println!("Num instance: {:}", cs.num_instance_variables());
-        println!("Num witness: {:}", cs.num_witness_variables());
-
-        assert!(cs.is_satisfied().unwrap());
-        /*
-        if !cs.is_satisfied().unwrap() {
-            println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        }*/
-
-        // println!("BEGIN");
-        // for constraint in cs.constraint_names().unwrap() {
-        //     println!("{:}", constraint)
-        // }
-        // println!("END");
-    }
+    type ASV = DLAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
 }

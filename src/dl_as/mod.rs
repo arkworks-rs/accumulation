@@ -43,7 +43,6 @@ pub mod constraints;
 pub struct DLAtomicAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
@@ -54,7 +53,6 @@ where
 impl<G, S> DLAtomicAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
@@ -358,7 +356,6 @@ where
 impl<G, S> SplitAccumulationScheme for DLAtomicAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {

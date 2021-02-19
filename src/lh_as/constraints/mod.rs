@@ -1,6 +1,6 @@
-use crate::constraints::{ConstraintF, NNFieldVar};
+use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
 use ark_ec::AffineCurve;
-use ark_ff::Field;
+use ark_ff::{Field, ToConstraintField};
 use ark_nonnative_field::NonNativeFieldMulResultVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
@@ -9,31 +9,40 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::FieldElementSize;
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::ops::Mul;
 use std::marker::PhantomData;
 
 pub mod data_structures;
+use crate::lh_as::LHSplitAS;
+use crate::SplitAccumulationScheme;
 use data_structures::*;
 
-pub struct LHSplitASVerifierGadget<G, C, S>
+pub struct LHSplitASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     pub _affine: PhantomData<G>,
     pub _curve: PhantomData<C>,
     pub _sponge: PhantomData<S>,
+    pub _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S> LHSplitASVerifierGadget<G, C, S>
+impl<G, C, S, SV> LHSplitASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
-    S: CryptographicSpongeVar<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
     fn combine_evaluation<'a>(
@@ -61,38 +70,59 @@ where
 
         Ok(combined_commitment)
     }
+}
+
+impl<G, C, S, SV> SplitASVerifierGadget<LHSplitAS<G, S>, ConstraintF<G>>
+    for LHSplitASVerifierGadget<G, C, S, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+{
+    type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
+    type InputInstance = InputInstanceVar<G, C>;
+    type AccumulatorInstance = InputInstanceVar<G, C>;
+    type Proof = ProofVar<G, C>;
 
     #[tracing::instrument(
         target = "r1cs",
         skip(
             cs,
             verifier_key,
-            input_instance,
-            accumulator_instance,
+            input_instances,
+            accumulator_instances,
             new_accumulator_instance,
             proof
         )
     )]
     fn verify<'a>(
-        cs: ConstraintSystemRef<<<G as AffineCurve>::BaseField as Field>::BasePrimeField>,
-        verifier_key: &VerifierKeyVar<ConstraintF<G>>,
-        input_instance: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        accumulator_instance: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
-        new_accumulator_instance: &InputInstanceVar<G, C>,
-        proof: &ProofVar<G, C>,
-    ) -> Result<Boolean<<G::BaseField as Field>::BasePrimeField>, SynthesisError> {
+        cs: ConstraintSystemRef<ConstraintF<G>>,
+        verifier_key: &Self::VerifierKey,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
+        proof: &Self::Proof,
+    ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
+    where
+        Self::InputInstance: 'a,
+        Self::AccumulatorInstance: 'a,
+    {
         let mut verify_result = Boolean::TRUE;
 
-        let mut challenge_point_sponge = S::new(cs.clone());
+        let mut challenge_point_sponge = SV::new(cs.clone());
         challenge_point_sponge.absorb(&[verifier_key.0.clone()])?;
 
         let mut commitment = Vec::new();
-        for (input_instance, single_proof) in input_instance
+        for (input_instance, single_proof) in input_instances
             .into_iter()
-            .chain(accumulator_instance)
-            .zip(proof)
+            .chain(accumulator_instances)
+            .zip(&proof.single_proofs)
         {
-            input_instance.absorb_into_sponge::<S>(&mut challenge_point_sponge)?;
+            input_instance.absorb_into_sponge::<S, SV>(&mut challenge_point_sponge)?;
             challenge_point_sponge.absorb(
                 single_proof
                     .witness_commitment
@@ -128,7 +158,7 @@ where
         verify_result =
             verify_result.and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
 
-        let mut linear_combination_challenge_sponge = S::new(cs.clone());
+        let mut linear_combination_challenge_sponge = SV::new(cs.clone());
 
         let challenge_point_bytes = challenge_point_bits
             .chunks(8)
@@ -146,7 +176,7 @@ where
         linear_combination_challenge_sponge
             .absorb(challenge_point_bytes.to_constraint_field()?.as_slice())?;
 
-        for single_proof in proof {
+        for single_proof in &proof.single_proofs {
             linear_combination_challenge_sponge.absorb(
                 single_proof
                     .eval
@@ -165,14 +195,16 @@ where
 
         let (linear_combination_challenge, linear_combination_challenge_bits) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
+                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.single_proofs.len() * 2]
+                    .as_slice(),
             )?;
 
         let combined_eval = Self::combine_evaluation(
             proof
-                .into_iter()
+                .single_proofs
+                .iter()
                 .map(|p| &p.eval)
-                .chain(proof.into_iter().map(|p| &p.witness_eval)),
+                .chain(proof.single_proofs.iter().map(|p| &p.witness_eval)),
             linear_combination_challenge.as_slice(),
         )?;
 
@@ -181,7 +213,7 @@ where
         let combined_commitment = Self::combine_commitment(
             commitment
                 .into_iter()
-                .chain(proof.into_iter().map(|p| &p.witness_commitment)),
+                .chain(proof.single_proofs.iter().map(|p| &p.witness_commitment)),
             linear_combination_challenge_bits.as_slice(),
         )?;
 
@@ -210,93 +242,16 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_std::test_rng;
 
-    /*
-    type G = ark_ed_on_bls12_381::EdwardsAffine;
-    type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
-    */
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
 
-    type AS = LHSplitAS<G, PoseidonSponge<ConstraintF>>;
+    type Sponge = PoseidonSponge<ConstraintF>;
+    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
+    type AS = LHSplitAS<G, Sponge>;
     type I = LHSplitASTestInput;
+    type ASV = LHSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
 
-    #[test]
-    pub fn test() {
-        let mut rng = test_rng();
-
-        let (input_params, predicate_params, predicate_index) =
-            <I as SplitASTestInput<AS>>::setup(&(), &mut rng);
-        let pp = AS::generate(&mut rng).unwrap();
-        let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
-        let mut inputs = <I as SplitASTestInput<AS>>::generate_inputs(&input_params, 2, &mut rng);
-        let old_input = inputs.pop().unwrap();
-        let new_input = inputs.pop().unwrap();
-
-        let (old_accumulator, _) =
-            AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
-        let (new_accumulator, proof) = AS::prove(
-            &pk,
-            vec![new_input.as_ref()],
-            vec![old_accumulator.as_ref()],
-            Some(&mut rng),
-        )
-        .unwrap();
-
-        assert!(AS::verify(
-            &vk,
-            vec![&new_input.instance],
-            vec![&old_accumulator.instance],
-            &new_accumulator.instance,
-            &proof
-        )
-        .unwrap());
-
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let vk = VerifierKeyVar::<ConstraintF>::new_constant(cs.clone(), vk.clone()).unwrap();
-
-        let new_input_instance =
-            InputInstanceVar::<G, C>::new_witness(cs.clone(), || Ok(new_input.instance.clone()))
-                .unwrap();
-
-        let old_accumulator_instance = InputInstanceVar::<G, C>::new_witness(cs.clone(), || {
-            Ok(old_accumulator.instance.clone())
-        })
-        .unwrap();
-
-        let new_accumulator_instance = InputInstanceVar::<G, C>::new_input(cs.clone(), || {
-            Ok(new_accumulator.instance.clone())
-        })
-        .unwrap();
-
-        let proof = ProofVar::<G, C>::new_witness(cs.clone(), || Ok(proof)).unwrap();
-
-        LHSplitASVerifierGadget::<G, C, PoseidonSpongeVar<ConstraintF>>::verify(
-            cs.clone(),
-            &vk,
-            vec![&new_input_instance],
-            vec![&old_accumulator_instance],
-            &new_accumulator_instance,
-            &proof,
-        )
-        .unwrap()
-        .enforce_equal(&Boolean::TRUE)
-        .unwrap();
-
-        println!("Num constaints: {:}", cs.num_constraints());
-        println!("Num instance: {:}", cs.num_instance_variables());
-        println!("Num witness: {:}", cs.num_witness_variables());
-        /*
-        if !cs.is_satisfied().unwrap() {
-            println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
-        }
-
-         */
-
-        assert!(cs.is_satisfied().unwrap());
-    }
 }

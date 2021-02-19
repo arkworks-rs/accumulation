@@ -8,6 +8,7 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::CryptographicSponge;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -86,9 +87,10 @@ where
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + ToConstraintFieldGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S>(&self, sponge: &mut S) -> Result<(), SynthesisError>
+    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
     where
-        S: CryptographicSpongeVar<ConstraintF<G>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
     {
         sponge.absorb(self.commitment.to_constraint_field()?.as_slice())?;
         sponge.absorb(self.point.to_bytes()?.to_constraint_field()?.as_slice())?;
@@ -145,4 +147,37 @@ where
     }
 }
 
-pub type ProofVar<G, C> = Vec<SingleProofVar<G, C>>;
+pub struct ProofVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
+{
+    pub single_proofs: Vec<SingleProofVar<G, C>>,
+}
+
+impl<G, C> AllocVar<Vec<SingleProof<G>>, ConstraintF<G>> for ProofVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<Vec<SingleProof<G>>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|single_proofs| {
+            let single_proof_vars = single_proofs
+                .borrow()
+                .into_iter()
+                .map(|single_proof| {
+                    SingleProofVar::new_variable(ns.clone(), || Ok(single_proof.clone()), mode)
+                })
+                .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+            Ok(Self {
+                single_proofs: single_proof_vars,
+            })
+        })
+    }
+}

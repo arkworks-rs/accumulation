@@ -444,10 +444,6 @@ pub mod tests {
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
-    //type G = ark_ed_on_bls12_381::EdwardsAffine;
-    //type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    //type F = ark_ed_on_bls12_381::Fr;
-    //type ConstraintF = ark_ed_on_bls12_381::Fq;
 
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
@@ -458,7 +454,7 @@ pub mod tests {
 
     #[test]
     pub fn test_basic() {
-        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(
+        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
             &NARKVerifierASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
@@ -469,7 +465,7 @@ pub mod tests {
 
     #[test]
     pub fn test_basic_2() {
-        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(
+        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
             &NARKVerifierASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,

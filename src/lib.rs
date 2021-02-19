@@ -41,9 +41,10 @@ pub mod error;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-//pub mod dl_as;
+pub mod dl_as;
 
-//pub mod lh_as;
+pub mod lh_as;
+
 pub mod hp_as;
 
 pub mod r1cs_nark_as;

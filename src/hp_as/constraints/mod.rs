@@ -303,13 +303,6 @@ pub mod tests {
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
     type ConstraintF = ark_pallas::Fq;
-    /*
-    type G = ark_ed_on_bls12_381::EdwardsAffine;
-    type C = ark_ed_on_bls12_381::constraints::EdwardsVar;
-    type F = ark_ed_on_bls12_381::Fr;
-    type ConstraintF = ark_ed_on_bls12_381::Fq;
-
-     */
 
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
@@ -320,11 +313,11 @@ pub mod tests {
 
     #[test]
     pub fn basic_test() {
-        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&(1, false));
+        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(&(1, false), 1);
     }
 
     #[test]
     pub fn basic_test_hiding() {
-        crate::constraints::tests::print_breakdown::<AS, I, ConstraintF, ASV>(&(1, true));
+        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(&(1, true));
     }
 }

@@ -577,10 +577,17 @@ pub mod tests {
             //let max_degree = (1 << 5) - 1;
             let max_degree = (1 << 2) - 1;
             let supported_degree = max_degree;
-            let predicate_params = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng).unwrap();
+            let predicate_params =
+                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
+                    .unwrap();
 
-            let (ck, vk) =
-                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(&predicate_params, supported_degree, 0, None).unwrap();
+            let (ck, vk) = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(
+                &predicate_params,
+                supported_degree,
+                0,
+                None,
+            )
+            .unwrap();
 
             ((ck, vk), predicate_params, supported_degree)
         }
@@ -592,7 +599,9 @@ pub mod tests {
         ) -> Vec<Input<LHSplitAS<G, S>>> {
             let ck = &input_params.0;
 
-            let labeled_polynomials: Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>> = (0..num_inputs)
+            let labeled_polynomials: Vec<
+                LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+            > = (0..num_inputs)
                 .map(|i| {
                     //let degree =
                     //rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
@@ -607,7 +616,12 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, _) =
-                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::commit(
+                    ck,
+                    &labeled_polynomials,
+                    Some(rng),
+                )
+                .unwrap();
 
             let inputs = labeled_polynomials
                 .into_iter()

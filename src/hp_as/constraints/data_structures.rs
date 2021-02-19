@@ -9,9 +9,9 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToConstraintFieldGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::CryptographicSponge;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-use ark_sponge::CryptographicSponge;
 
 /// Represents the verifier key that is used when accumulating instances and old accumulators.
 pub struct VerifierKeyVar<CF: PrimeField> {
