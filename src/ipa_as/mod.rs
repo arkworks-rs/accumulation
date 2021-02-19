@@ -19,7 +19,6 @@ use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldEl
 use ark_std::marker::PhantomData;
 use blake2::Blake2s;
 use data_structures::*;
-use digest::Digest;
 use rand_core::RngCore;
 
 pub mod data_structures;

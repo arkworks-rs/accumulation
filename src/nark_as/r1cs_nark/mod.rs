@@ -1,5 +1,5 @@
 use crate::constraints::ConstraintF;
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::AffineCurve;
 use ark_ff::{BigInteger, Field, One, PrimeField, ToConstraintField, Zero};
 use ark_poly_commit::pedersen::*;
 use ark_relations::r1cs::{

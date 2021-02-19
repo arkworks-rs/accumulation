@@ -240,7 +240,7 @@ where
         let mut num_inputs = input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
-        let mut default_input_instance = None;
+        let default_input_instance;
         if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 cs.clone(),

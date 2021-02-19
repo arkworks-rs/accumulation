@@ -2,7 +2,6 @@ use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::AccumulationScheme;
-use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -476,8 +475,9 @@ where
         let mut num_inputs = input_instances.len();
         let hp_vec_len = prover_key.supported_elems_len();
 
-        let mut default_input_instance = None;
-        let mut default_input_witness = None;
+        let default_input_instance;
+        let default_input_witness;
+
         if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstance::default());
             default_input_witness = Some(InputWitness::default());
@@ -485,7 +485,7 @@ where
             num_inputs += 1;
             input_instances.push(default_input_instance.as_ref().unwrap());
             input_witnesses.push(default_input_witness.as_ref().unwrap());
-        };
+        }
 
         let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk {
             let rng = rng.ok_or(BoxedError::new(ASError::MissingRng(
@@ -626,13 +626,13 @@ where
         let mut num_inputs = input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
-        let mut default_input_instance = None;
+        let default_input_instance;
         if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstance::default());
 
             num_inputs += 1;
             input_instances.push(default_input_instance.as_ref().unwrap());
-        };
+        }
 
         let mut challenges_sponge = S::new();
         challenges_sponge.absorb(&ConstraintF::<G>::from(*verifier_key as u64));

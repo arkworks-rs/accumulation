@@ -6,7 +6,6 @@ use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
 use crate::nark_as::NarkAS;
 use ark_ec::AffineCurve;
-use ark_ff::One;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -73,7 +72,7 @@ where
             input_bytes.append(&mut elem.to_bytes()?);
         }
         sponge.absorb(input_bytes.to_constraint_field()?.as_slice())?;
-        msg.absorb_into_sponge(sponge);
+        msg.absorb_into_sponge(sponge)?;
 
         let mut squeezed =
             sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
@@ -139,7 +138,7 @@ where
 
         let mut sponge =
             DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKDomain>::new(cs.clone());
-        sponge.absorb(&index_info.matrices_hash.as_ref());
+        sponge.absorb(&index_info.matrices_hash.as_ref())?;
 
         for instance in input_instances {
             let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
