@@ -10,13 +10,13 @@ use ark_serialize::CanonicalSerialize;
 use ark_sponge::*;
 use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
 use blake2::{digest::VariableOutput, VarBlake2b};
+use data_structures::*;
 use rand_core::RngCore;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
 pub mod data_structures;
-use data_structures::*;
 
 type R1CSResult<T> = Result<T, SynthesisError>;
 

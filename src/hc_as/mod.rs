@@ -5,9 +5,10 @@ use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use crate::SplitAccumulationScheme;
+use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, PrimeField, Zero};
+use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LHPCError;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{
@@ -16,17 +17,16 @@ use ark_poly_commit::{
 };
 use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use data_structures::*;
 use rand_core::RngCore;
 use std::ops::Mul;
 
 pub mod data_structures;
-use ark_poly::polynomial::univariate::DensePolynomial;
-use data_structures::*;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-pub struct LHSplitAS<G, S>
+pub struct HomomorphicCommitmentAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -37,7 +37,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, S> LHSplitAS<G, S>
+impl<G, S> HomomorphicCommitmentAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -179,7 +179,7 @@ where
     }
 }
 
-impl<G, S> SplitAccumulationScheme for LHSplitAS<G, S>
+impl<G, S> AccumulationScheme for HomomorphicCommitmentAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -248,7 +248,7 @@ where
     {
         let rng = rng.ok_or_else(|| {
             BoxedError::new(ASError::MissingRng(
-                "RngCore required for lh_as prove".to_string(),
+                "RngCore required for hc_as prove".to_string(),
             ))
         })?;
 
@@ -535,11 +535,11 @@ pub mod tests {
     use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::lh_as::{InputInstance, LHSplitAS};
+    use crate::hc_as::{HomomorphicCommitmentAS, InputInstance};
     use crate::std::ops::Add;
     use crate::std::ops::Div;
     use crate::tests::*;
-    use crate::SplitAccumulationScheme;
+    use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_pallas::{Affine, Fq, Fr};
@@ -553,9 +553,9 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct LHSplitASTestInput {}
+    pub struct HcPcASTestInput {}
 
-    impl<G, S> SplitASTestInput<LHSplitAS<G, S>> for LHSplitASTestInput
+    impl<G, S> ASTestInput<HomomorphicCommitmentAS<G, S>> for HcPcASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -570,8 +570,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <LHSplitAS<G, S> as SplitAccumulationScheme>::PredicateParams,
-            <LHSplitAS<G, S> as SplitAccumulationScheme>::PredicateIndex,
+            <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateParams,
+            <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateIndex,
         ) {
             // TODO: Change these parameters to test params
             //let max_degree = (1 << 5) - 1;
@@ -596,7 +596,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<LHSplitAS<G, S>>> {
+        ) -> Vec<Input<HomomorphicCommitmentAS<G, S>>> {
             let ck = &input_params.0;
 
             let labeled_polynomials: Vec<
@@ -636,7 +636,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<LHSplitAS<G, S>> {
+                    Input::<HomomorphicCommitmentAS<G, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -647,9 +647,9 @@ pub mod tests {
         }
     }
 
-    type AS = LHSplitAS<Affine, PoseidonSponge<Fq>>;
+    type AS = HomomorphicCommitmentAS<Affine, PoseidonSponge<Fq>>;
 
-    type I = LHSplitASTestInput;
+    type I = HcPcASTestInput;
 
     #[test]
     pub fn dl_single_input_test() -> Result<(), BoxedError> {

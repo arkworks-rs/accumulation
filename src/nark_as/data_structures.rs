@@ -1,7 +1,9 @@
 use crate::hp_as::data_structures::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
 };
-use crate::r1cs_nark::data_structures::{
+use crate::nark_as;
+use crate::nark_as::r1cs_nark;
+use crate::nark_as::r1cs_nark::data_structures::{
     FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
 };
 use ark_ec::AffineCurve;
@@ -170,13 +172,13 @@ pub struct Proof<G: AffineCurve> {
 pub struct SimpleNARKDomain {}
 impl DomainSeparator for SimpleNARKDomain {
     fn domain() -> Vec<u8> {
-        crate::r1cs_nark::PROTOCOL_NAME.to_vec()
+        r1cs_nark::PROTOCOL_NAME.to_vec()
     }
 }
 
 pub struct SimpleNARKVerifierASDomain {}
 impl DomainSeparator for SimpleNARKVerifierASDomain {
     fn domain() -> Vec<u8> {
-        crate::r1cs_nark_as::PROTOCOL_NAME.to_vec()
+        nark_as::PROTOCOL_NAME.to_vec()
     }
 }

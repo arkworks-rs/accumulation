@@ -16,7 +16,7 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
-use ark_accumulation::dl_as;
+use ark_accumulation::ipa_as;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
@@ -26,7 +26,7 @@ use ark_std::vec::Vec;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
 
-type PCDL = dl_as::PCDL<G1Affine, PoseidonSponge<Fq>>;
+type PCDL = ipa_as::IpaPC<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_pc<F, PC, R>(min_degree: usize, max_degree: usize, rng: &mut R)
 where

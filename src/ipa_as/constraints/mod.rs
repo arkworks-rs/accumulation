@@ -1,6 +1,6 @@
-use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
-use crate::dl_as::{ASDLDomain, DLAtomicAS, PCDLDomain};
-use crate::SplitAccumulationScheme;
+use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::ipa_as::{IpaASDomain, InnerProductArgAtomicAS, IpaPCDomain};
+use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_poly_commit::ipa_pc;
@@ -18,12 +18,12 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
+use data_structures::*;
 use std::ops::Mul;
 
 pub mod data_structures;
-use data_structures::*;
 
-pub struct DLAtomicASVerifierGadget<G, C, S, SV>
+pub struct IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -38,7 +38,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> DLAtomicASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -91,8 +91,8 @@ where
                 let (succinct_check_result, check_polynomial) = InnerProductArgPCGadget::<
                     G,
                     C,
-                    DomainSeparatedSponge<ConstraintF<G>, S, PCDLDomain>,
-                    DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, PCDLDomain>,
+                    DomainSeparatedSponge<ConstraintF<G>, S, IpaPCDomain>,
+                    DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, IpaPCDomain>,
                 >::succinct_check(
                     ns!(cs, "succinct_check").cs(),
                     ipa_vk,
@@ -158,7 +158,7 @@ where
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
         let mut linear_combination_challenge_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, ASDLDomain>::new(
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, IpaASDomain>::new(
                 ns!(cs, "linear_combination_challenge_sponge").cs(),
             );
 
@@ -245,7 +245,7 @@ where
         };
 
         let mut challenge_point_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, ASDLDomain>::new(
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, IpaASDomain>::new(
                 ns!(cs, "challenge_point_sponge").cs(),
             );
         challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
@@ -310,8 +310,8 @@ where
     }
 }
 
-impl<G, C, S, SV> SplitASVerifierGadget<DLAtomicAS<G, S>, ConstraintF<G>>
-    for DLAtomicASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
+    for IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -412,15 +412,27 @@ where
     }
 }
 
+impl<G, C, S, SV> AtomicASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
+    for IPAAtomicASVerifierGadget<G, C, S, SV>
+where
+    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
+        + ToConstraintFieldGadget<ConstraintF<G>>,
+    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    S: CryptographicSponge<ConstraintF<G>>,
+    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+{
+}
+
 #[cfg(test)]
 pub mod tests {
-    use crate::dl_as::constraints::{
-        DLAtomicASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
+    use crate::ipa_as::constraints::{
+        InputInstanceVar, IPAAtomicASVerifierGadget, ProofVar, VerifierKeyVar,
     };
-    use crate::dl_as::tests::DLAtomicASTestInput;
-    use crate::dl_as::DLAtomicAS;
-    use crate::tests::SplitASTestInput;
-    use crate::SplitAccumulationScheme;
+    use crate::ipa_as::tests::IpaPCAtomicASTestInput;
+    use crate::ipa_as::InnerProductArgAtomicAS;
+    use crate::tests::ASTestInput;
+    use crate::AccumulationScheme;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
@@ -440,7 +452,7 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = DLAtomicAS<G, Sponge>;
-    type I = DLAtomicASTestInput;
-    type ASV = DLAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = InnerProductArgAtomicAS<G, Sponge>;
+    type I = IpaPCAtomicASTestInput;
+    type ASV = IPAAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
 }

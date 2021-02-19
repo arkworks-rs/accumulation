@@ -41,16 +41,13 @@ pub mod error;
 /// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub mod dl_as;
+pub mod ipa_as;
 
-pub mod lh_as;
+pub mod hc_as;
 
 pub mod hp_as;
 
-pub mod r1cs_nark_as;
-
-/// A simple non-interactive argument of knowledge for R1CS
-pub mod r1cs_nark;
+pub mod nark_as;
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
@@ -61,14 +58,14 @@ pub mod r1cs_nark;
 /// Accumulation schemes are aided accumulation schemes with empty witnesses. So, verifiers receive
 /// entire accumulators and inputs.
 pub trait AtomicAccumulationScheme:
-    SplitAccumulationScheme<InputWitness = (), AccumulatorWitness = ()>
+    AccumulationScheme<InputWitness = (), AccumulatorWitness = ()>
 {
 }
 
 /// An interface for an aided accumulation scheme. In an aided accumulation scheme, accumulators
 /// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
 /// accumulators or inputs but instead receive their respective instances.
-pub trait SplitAccumulationScheme: Sized {
+pub trait AccumulationScheme: Sized {
     /// The universal parameters for the accumulation scheme.
     type UniversalParams: Clone;
 
@@ -154,11 +151,11 @@ pub trait SplitAccumulationScheme: Sized {
 pub mod tests {
     use crate::data_structures::{Accumulator, Input};
     use crate::std::vec::Vec;
-    use crate::SplitAccumulationScheme;
+    use crate::AccumulationScheme;
     use rand_core::RngCore;
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
-    pub trait SplitASTestInput<A: SplitAccumulationScheme> {
+    pub trait ASTestInput<A: AccumulationScheme> {
         /// Parameters for setting up the test
         type TestParams;
 
@@ -191,7 +188,7 @@ pub mod tests {
     /// At the end of the iteration, the last accumulator is put through a single decider.
     /// The function will return whether all of the verifiers and deciders returned true
     /// from all of the iterations.
-    pub fn test_template<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn test_template<A: AccumulationScheme, I: ASTestInput<A>>(
         template_params: &TemplateParams,
         test_params: &I::TestParams,
     ) -> Result<bool, A::Error> {
@@ -247,7 +244,7 @@ pub mod tests {
         Ok(true)
     }
 
-    pub fn single_input_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn single_input_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -258,7 +255,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_inputs_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn multiple_inputs_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -269,7 +266,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_accumulations_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn multiple_accumulations_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -280,10 +277,7 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn multiple_accumulations_multiple_inputs_test<
-        A: SplitAccumulationScheme,
-        I: SplitASTestInput<A>,
-    >(
+    pub fn multiple_accumulations_multiple_inputs_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {
@@ -295,7 +289,7 @@ pub mod tests {
     }
 
     // Only add this test if scheme is intended to support cases with accumulators but no inputs
-    pub fn accumulators_only_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn accumulators_only_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let mut num_inputs_per_iteration = vec![0usize; 10];
@@ -312,7 +306,7 @@ pub mod tests {
     }
 
     // Only add this test if scheme is intended to support cases with no accumulators or inputs
-    pub fn no_accumulators_or_inputs_test<A: SplitAccumulationScheme, I: SplitASTestInput<A>>(
+    pub fn no_accumulators_or_inputs_test<A: AccumulationScheme, I: ASTestInput<A>>(
         test_params: &I::TestParams,
     ) -> Result<(), A::Error> {
         let template_params = TemplateParams {

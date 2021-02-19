@@ -1,6 +1,6 @@
-use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
+use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::hp_as::data_structures::InputInstance;
-use crate::hp_as::HPSplitAS;
+use crate::hp_as::HadamardProductAS;
 use ark_ec::AffineCurve;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
@@ -13,13 +13,13 @@ use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use data_structures::*;
 use std::marker::PhantomData;
 use std::ops::Mul;
 
 pub mod data_structures;
-use data_structures::*;
 
-pub struct HPSplitASVerifierGadget<G, C, S, SV>
+pub struct HpASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -33,7 +33,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> HPSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> HpASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -205,8 +205,8 @@ where
     }
 }
 
-impl<G, C, S, SV> SplitASVerifierGadget<HPSplitAS<G, S>, ConstraintF<G>>
-    for HPSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<HadamardProductAS<G, S>, ConstraintF<G>>
+    for HpASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -293,9 +293,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::hp_as::constraints::HPSplitASVerifierGadget;
-    use crate::hp_as::tests::HPSplitASTestInput;
-    use crate::hp_as::HPSplitAS;
+    use crate::hp_as::constraints::HpASVerifierGadget;
+    use crate::hp_as::tests::HpASTestInput;
+    use crate::hp_as::HadamardProductAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -307,9 +307,9 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = HPSplitAS<G, Sponge>;
-    type I = HPSplitASTestInput;
-    type ASV = HPSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = HadamardProductAS<G, Sponge>;
+    type I = HpASTestInput;
+    type ASV = HpASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
     pub fn basic_test() {

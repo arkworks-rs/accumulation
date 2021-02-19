@@ -1,7 +1,7 @@
 use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::SplitAccumulationScheme;
+use crate::AccumulationScheme;
 use ark_ec::group::Group;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, PrimeField, ToConstraintField, Zero};
@@ -10,16 +10,16 @@ use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCo
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::UniformRand;
+use data_structures::*;
 use rand_core::RngCore;
 use std::marker::PhantomData;
 use std::ops::Mul;
 
 pub mod data_structures;
-use data_structures::*;
 
 pub mod constraints;
 
-pub struct HPSplitAS<G, S>
+pub struct HadamardProductAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -29,7 +29,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, S> HPSplitAS<G, S>
+impl<G, S> HadamardProductAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -402,7 +402,7 @@ where
     }
 }
 
-impl<G, S> SplitAccumulationScheme for HPSplitAS<G, S>
+impl<G, S> AccumulationScheme for HadamardProductAS<G, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -703,9 +703,9 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hp_as::data_structures::{InputInstance, InputWitness, InputWitnessRandomness};
-    use crate::hp_as::HPSplitAS;
+    use crate::hp_as::HadamardProductAS;
     use crate::tests::*;
-    use crate::SplitAccumulationScheme;
+    use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{PrimeField, ToConstraintField};
     use ark_pallas::{Affine, Fq};
@@ -716,9 +716,9 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct HPSplitASTestInput {}
+    pub struct HpASTestInput {}
 
-    impl<G, S> SplitASTestInput<HPSplitAS<G, S>> for HPSplitASTestInput
+    impl<G, S> ASTestInput<HadamardProductAS<G, S>> for HpASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -732,8 +732,8 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <HPSplitAS<G, S> as SplitAccumulationScheme>::PredicateParams,
-            <HPSplitAS<G, S> as SplitAccumulationScheme>::PredicateIndex,
+            <HadamardProductAS<G, S> as AccumulationScheme>::PredicateParams,
+            <HadamardProductAS<G, S> as AccumulationScheme>::PredicateIndex,
         ) {
             let pp = PedersenCommitment::setup(test_params.0).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.0).unwrap();
@@ -744,7 +744,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-        ) -> Vec<Input<HPSplitAS<G, S>>> {
+        ) -> Vec<Input<HadamardProductAS<G, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_elems_len();
 
@@ -752,7 +752,8 @@ pub mod tests {
                 .map(|_| {
                     let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
                     let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
-                    let product = HPSplitAS::<G, S>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
+                    let product =
+                        HadamardProductAS::<G, S>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
                     let randomness = if input_params.1 {
                         let rand_1 = G::ScalarField::rand(&mut rng);
@@ -800,15 +801,15 @@ pub mod tests {
                         b_vec,
                         randomness,
                     };
-                    Input::<HPSplitAS<G, S>> { instance, witness }
+                    Input::<HadamardProductAS<G, S>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }
     }
 
-    type AS = HPSplitAS<Affine, PoseidonSponge<Fq>>;
+    type AS = HadamardProductAS<Affine, PoseidonSponge<Fq>>;
 
-    type I = HPSplitASTestInput;
+    type I = HpASTestInput;
 
     #[test]
     pub fn hp_single_input_test() -> Result<(), BoxedError> {

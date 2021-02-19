@@ -1,11 +1,11 @@
-use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
+use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::hp_as::constraints::data_structures::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::hp_as::constraints::HPSplitASVerifierGadget;
-use crate::hp_as::HPSplitAS;
-use crate::r1cs_nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
-use crate::r1cs_nark_as::SimpleNARKSplitAS;
+use crate::hp_as::constraints::HpASVerifierGadget;
+use crate::hp_as::HadamardProductAS;
+use crate::nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
+use crate::nark_as::NarkAS;
 use ark_ec::AffineCurve;
 use ark_ff::One;
 use ark_ff::ToConstraintField;
@@ -19,12 +19,12 @@ use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use data_structures::*;
 use std::marker::PhantomData;
 
 pub mod data_structures;
-use data_structures::*;
 
-pub struct SimpleNARKSplitASVerifierGadget<G, C, S, SV>
+pub struct NarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -39,7 +39,7 @@ where
     _sponge_var_phantom: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> SimpleNARKSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> NarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
@@ -326,8 +326,8 @@ where
     }
 }
 
-impl<G, C, CS, S, SV> SplitASVerifierGadget<SimpleNARKSplitAS<G, CS, S>, ConstraintF<G>>
-    for SimpleNARKSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, CS, S, SV> ASVerifierGadget<NarkAS<G, CS, S>, ConstraintF<G>>
+    for NarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -392,7 +392,7 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify = HPSplitASVerifierGadget::<G, C, S, SV>::verify(
+        let hp_verify = HpASVerifierGadget::<G, C, S, SV>::verify(
             cs.clone(),
             &hp_vk,
             &hp_input_instances,
@@ -432,11 +432,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::r1cs_nark_as::constraints::SimpleNARKSplitASVerifierGadget;
-    use crate::r1cs_nark_as::tests::{
-        DummyCircuit, NARKVerifierASTestParams, SimpleNARKSplitASInput,
-    };
-    use crate::r1cs_nark_as::SimpleNARKSplitAS;
+    use crate::nark_as::constraints::NarkASVerifierGadget;
+    use crate::nark_as::tests::{DummyCircuit, NarkASTestParams, NarkASTestInput};
+    use crate::nark_as::NarkAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -448,14 +446,14 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = SimpleNARKSplitAS<G, DummyCircuit<F>, Sponge>;
-    type I = SimpleNARKSplitASInput;
-    type ASV = SimpleNARKSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = NarkAS<G, DummyCircuit<F>, Sponge>;
+    type I = NarkASTestInput;
+    type ASV = NarkASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_basic() {
         crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
-            &NARKVerifierASTestParams {
+            &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: false,
@@ -466,7 +464,7 @@ pub mod tests {
     #[test]
     pub fn test_basic_2() {
         crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
-            &NARKVerifierASTestParams {
+            &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: true,

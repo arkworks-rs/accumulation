@@ -1,4 +1,4 @@
-use crate::SplitAccumulationScheme;
+use crate::{AccumulationScheme, AtomicAccumulationScheme};
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
@@ -9,7 +9,7 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
-pub trait SplitASVerifierGadget<AS: SplitAccumulationScheme, CF: PrimeField> {
+pub trait ASVerifierGadget<AS: AccumulationScheme, CF: PrimeField> {
     type VerifierKey: AllocVar<AS::VerifierKey, CF>;
     type InputInstance: AllocVar<AS::InputInstance, CF>;
     type AccumulatorInstance: AllocVar<AS::AccumulatorInstance, CF>;
@@ -28,11 +28,16 @@ pub trait SplitASVerifierGadget<AS: SplitAccumulationScheme, CF: PrimeField> {
         Self::AccumulatorInstance: 'a;
 }
 
+pub trait AtomicASVerifierGadget<AS: AtomicAccumulationScheme, CF: PrimeField>:
+    ASVerifierGadget<AS, CF>
+{
+}
+
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::SplitASVerifierGadget;
-    use crate::tests::SplitASTestInput;
-    use crate::SplitAccumulationScheme;
+    use crate::constraints::ASVerifierGadget;
+    use crate::tests::ASTestInput;
+    use crate::AccumulationScheme;
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -43,10 +48,10 @@ pub mod tests {
 
     pub fn test_initialization<AS, I, CF, ASV>(test_params: &I::TestParams, num_iterations: usize)
     where
-        AS: SplitAccumulationScheme,
-        I: SplitASTestInput<AS>,
+        AS: AccumulationScheme,
+        I: ASTestInput<AS>,
         CF: PrimeField,
-        ASV: SplitASVerifierGadget<AS, CF>,
+        ASV: ASVerifierGadget<AS, CF>,
     {
         let mut rng = ark_std::test_rng();
         for _ in 0..num_iterations {
@@ -93,10 +98,10 @@ pub mod tests {
         test_params: &I::TestParams,
         num_iterations: usize,
     ) where
-        AS: SplitAccumulationScheme,
-        I: SplitASTestInput<AS>,
+        AS: AccumulationScheme,
+        I: ASTestInput<AS>,
         CF: PrimeField,
-        ASV: SplitASVerifierGadget<AS, CF>,
+        ASV: ASVerifierGadget<AS, CF>,
     {
         let mut rng = ark_std::test_rng();
         for _ in 0..num_iterations {
@@ -155,10 +160,10 @@ pub mod tests {
 
     pub fn print_costs_breakdown<AS, I, CF, ASV>(test_params: &I::TestParams)
     where
-        AS: SplitAccumulationScheme,
-        I: SplitASTestInput<AS>,
+        AS: AccumulationScheme,
+        I: ASTestInput<AS>,
         CF: PrimeField,
-        ASV: SplitASVerifierGadget<AS, CF>,
+        ASV: ASVerifierGadget<AS, CF>,
     {
         let mut rng = ark_std::test_rng();
 

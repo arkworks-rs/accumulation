@@ -5,31 +5,34 @@ use crate::hp_as::data_structures::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
-use crate::hp_as::HPSplitAS;
-use crate::r1cs_nark::data_structures::{
-    FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
-    SecondRoundMessage,
-};
-use crate::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
+use crate::hp_as::HadamardProductAS;
+use crate::nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
 use crate::std::UniformRand;
-use crate::SplitAccumulationScheme;
+use crate::AccumulationScheme;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
+use data_structures::*;
+use r1cs_nark::data_structures::{
+    FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
+    SecondRoundMessage,
+};
 use rand_core::RngCore;
 use std::marker::PhantomData;
 
 pub mod data_structures;
-use data_structures::*;
+
+/// A simple non-interactive argument of knowledge for R1CS
+pub mod r1cs_nark;
 
 pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
-pub struct SimpleNARKSplitAS<G, CS, S>
+pub struct NarkAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
@@ -42,7 +45,7 @@ where
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, CS, S> SimpleNARKSplitAS<G, CS, S>
+impl<G, CS, S> NarkAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
@@ -362,16 +365,16 @@ where
         };
 
         let combined_r1cs_input =
-            HPSplitAS::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
+            HadamardProductAS::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
 
         let combined_comm_a_proj =
-            HPSplitAS::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
+            HadamardProductAS::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
 
         let combined_comm_b_proj =
-            HPSplitAS::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
+            HadamardProductAS::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
 
         let combined_comm_c_proj =
-            HPSplitAS::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
+            HadamardProductAS::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_c_proj,
@@ -468,18 +471,21 @@ where
                 )
             };
 
-        let combined_r1cs_blinded_witness =
-            HPSplitAS::<G, S>::combine_vectors(r1cs_blinded_witnesses, beta_challenges, None);
+        let combined_r1cs_blinded_witness = HadamardProductAS::<G, S>::combine_vectors(
+            r1cs_blinded_witnesses,
+            beta_challenges,
+            None,
+        );
 
         let witness_randomness = if prover_witness_randomness.is_some() {
             let combined_sigma_a =
-                HPSplitAS::<G, S>::combine_randomness(all_sigma_a, beta_challenges, None);
+                HadamardProductAS::<G, S>::combine_randomness(all_sigma_a, beta_challenges, None);
 
             let combined_sigma_b =
-                HPSplitAS::<G, S>::combine_randomness(all_sigma_b, beta_challenges, None);
+                HadamardProductAS::<G, S>::combine_randomness(all_sigma_b, beta_challenges, None);
 
             let combined_sigma_c =
-                HPSplitAS::<G, S>::combine_randomness(all_sigma_c, beta_challenges, None);
+                HadamardProductAS::<G, S>::combine_randomness(all_sigma_c, beta_challenges, None);
 
             Some(AccumulatorWitnessRandomness {
                 sigma_a: combined_sigma_a,
@@ -494,7 +500,7 @@ where
     }
 }
 
-impl<G, CS, S> SplitAccumulationScheme for SimpleNARKSplitAS<G, CS, S>
+impl<G, CS, S> AccumulationScheme for NarkAS<G, CS, S>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
@@ -502,7 +508,7 @@ where
     Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
-    type UniversalParams = <HPSplitAS<G, S> as SplitAccumulationScheme>::UniversalParams;
+    type UniversalParams = <HadamardProductAS<G, S> as AccumulationScheme>::UniversalParams;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -518,7 +524,7 @@ where
     type Error = BoxedError;
 
     fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
-        <HPSplitAS<G, S> as SplitAccumulationScheme>::generate(rng)
+        <HadamardProductAS<G, S> as AccumulationScheme>::generate(rng)
     }
 
     fn index(
@@ -603,17 +609,19 @@ where
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
             .zip(&combined_hp_input_witnesses)
-            .map(|(instance, witness)| InputRef::<HPSplitAS<_, S>> { instance, witness });
+            .map(|(instance, witness)| InputRef::<HadamardProductAS<_, S>> { instance, witness });
 
         let hp_accumulators_iter = accumulator_instances
             .iter()
             .zip(&accumulator_witnesses)
-            .map(|(instance, witness)| AccumulatorRef::<HPSplitAS<_, S>> {
-                instance: &instance.hp_instance,
-                witness: &witness.hp_witness,
-            });
+            .map(
+                |(instance, witness)| AccumulatorRef::<HadamardProductAS<_, S>> {
+                    instance: &instance.hp_instance,
+                    witness: &witness.hp_witness,
+                },
+            );
 
-        let (hp_accumulator, hp_proof) = HPSplitAS::<_, S>::prove(
+        let (hp_accumulator, hp_proof) = HadamardProductAS::<_, S>::prove(
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
@@ -727,7 +735,7 @@ where
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        let hp_verify = HPSplitAS::<_, S>::verify(
+        let hp_verify = HadamardProductAS::<_, S>::verify(
             &verifier_key.nark_index.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
@@ -816,9 +824,9 @@ where
             && comm_c.eq(&instance.comm_c);
 
         Ok(comm_check
-            && HPSplitAS::<_, S>::decide(
+            && HadamardProductAS::<_, S>::decide(
                 &decider_key.ck,
-                AccumulatorRef::<HPSplitAS<_, S>> {
+                AccumulatorRef::<HadamardProductAS<_, S>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
@@ -831,12 +839,12 @@ pub mod tests {
     use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::r1cs_nark::data_structures::IndexProverKey;
-    use crate::r1cs_nark::SimpleNARK;
-    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
-    use crate::r1cs_nark_as::SimpleNARKSplitAS;
+    use crate::nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
+    use crate::nark_as::r1cs_nark::data_structures::IndexProverKey;
+    use crate::nark_as::r1cs_nark::SimpleNARK;
+    use crate::nark_as::NarkAS;
     use crate::tests::*;
-    use crate::SplitAccumulationScheme;
+    use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
     use ark_ff::{PrimeField, ToConstraintField};
@@ -852,7 +860,7 @@ pub mod tests {
 
     #[derive(Clone)]
     // num_variables = num_inputs + 2
-    pub struct NARKVerifierASTestParams {
+    pub struct NarkASTestParams {
         // At least one input required.
         pub num_inputs: usize,
 
@@ -866,7 +874,7 @@ pub mod tests {
     pub(crate) struct DummyCircuit<F: PrimeField> {
         pub a: Option<F>,
         pub b: Option<F>,
-        pub params: NARKVerifierASTestParams,
+        pub params: NarkASTestParams,
     }
 
     impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
@@ -894,17 +902,16 @@ pub mod tests {
         }
     }
 
-    pub struct SimpleNARKSplitASInput {}
+    pub struct NarkASTestInput {}
 
-    impl<G, S> SplitASTestInput<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>>
-        for SimpleNARKSplitASInput
+    impl<G, S> ASTestInput<NarkAS<G, DummyCircuit<G::ScalarField>, S>> for NarkASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = NARKVerifierASTestParams;
+        type TestParams = NarkASTestParams;
         type InputParams = (Self::TestParams, IndexProverKey<G>);
 
         fn setup(
@@ -912,9 +919,9 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S> as SplitAccumulationScheme>::PredicateParams,
-            <SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S> as SplitAccumulationScheme>::PredicateIndex,
-        ){
+            <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme>::PredicateParams,
+            <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme>::PredicateIndex,
+        ) {
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
                 );
@@ -939,7 +946,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>>> {
+        ) -> Vec<Input<NarkAS<G, DummyCircuit<G::ScalarField>, S>>> {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -978,25 +985,23 @@ pub mod tests {
                     make_zk: proof.make_zk,
                 };
 
-                inputs.push(
-                    Input::<SimpleNARKSplitAS<G, DummyCircuit<G::ScalarField>, S>> {
-                        instance,
-                        witness,
-                    },
-                );
+                inputs.push(Input::<NarkAS<G, DummyCircuit<G::ScalarField>, S>> {
+                    instance,
+                    witness,
+                });
             }
 
             inputs
         }
     }
 
-    type AS = SimpleNARKSplitAS<EdwardsAffine, DummyCircuit<Fr>, PoseidonSponge<Fq>>;
+    type AS = NarkAS<EdwardsAffine, DummyCircuit<Fr>, PoseidonSponge<Fq>>;
 
-    type I = SimpleNARKSplitASInput;
+    type I = NarkASTestInput;
 
     #[test]
     pub fn nv_single_input_test() -> Result<(), BoxedError> {
-        single_input_test::<AS, I>(&NARKVerifierASTestParams {
+        single_input_test::<AS, I>(&NarkASTestParams {
             num_inputs: 10,
             num_constraints: 10,
             make_zk: true,
@@ -1005,7 +1010,7 @@ pub mod tests {
 
     #[test]
     pub fn nv_multiple_inputs_test() -> Result<(), BoxedError> {
-        multiple_inputs_test::<AS, I>(&NARKVerifierASTestParams {
+        multiple_inputs_test::<AS, I>(&NarkASTestParams {
             num_inputs: 10,
             num_constraints: 10,
             make_zk: true,

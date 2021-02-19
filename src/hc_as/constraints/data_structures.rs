@@ -1,5 +1,5 @@
 use crate::constraints::{ConstraintF, NNFieldVar};
-use crate::lh_as::{InputInstance, SingleProof};
+use crate::hc_as::{InputInstance, SingleProof};
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};

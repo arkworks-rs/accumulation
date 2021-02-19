@@ -20,11 +20,11 @@ use std::time::Instant;
 
 use ark_accumulation::{
     data_structures::{Accumulator, Input},
-    dl_as,
-    dl_as::DLAtomicAS,
-    lh_as,
-    lh_as::LHSplitAS,
-    SplitAccumulationScheme,
+    hc_as,
+    hc_as::HomomorphicCommitmentAS,
+    ipa_as,
+    ipa_as::InnerProductArgAtomicAS,
+    AccumulationScheme,
 };
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
@@ -34,11 +34,10 @@ use ark_std::vec::Vec;
 use rand_core::RngCore;
 
 type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
-type AS_LH = LHSplitAS<G1Affine, PoseidonSponge<Fq>>;
+type AS_LH = HomomorphicCommitmentAS<G1Affine, PoseidonSponge<Fq>>;
 
-type PCDL = dl_as::PCDL<G1Affine, PoseidonSponge<Fq>>;
-
-type AS_DL = DLAtomicAS<G1Affine, PoseidonSponge<Fq>>;
+type PCDL = ipa_as::IpaPC<G1Affine, PoseidonSponge<Fq>>;
+type AS_DL = InnerProductArgAtomicAS<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     min_degree: usize,
@@ -50,7 +49,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     F: PrimeField,
     P: UVPolynomial<F>,
     PC: PolynomialCommitment<F, P>,
-    AS: SplitAccumulationScheme,
+    AS: AccumulationScheme,
     ParamGen: Fn(
         usize,
         &mut R,
@@ -147,8 +146,8 @@ fn lh_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     PCLH_Keys,
-    <AS_LH as SplitAccumulationScheme>::PredicateParams,
-    <AS_LH as SplitAccumulationScheme>::PredicateIndex,
+    <AS_LH as AccumulationScheme>::PredicateParams,
+    <AS_LH as AccumulationScheme>::PredicateIndex,
 ) {
     let predicate_params = PCLH::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCLH::trim(&predicate_params, degree, 0, None).unwrap();
@@ -178,7 +177,7 @@ fn lh_input_gen<R: RngCore>(
             let point = Fr::rand(rng);
             let eval = labeled_polynomial.evaluate(&point);
 
-            let instance = lh_as::data_structures::InputInstance {
+            let instance = hc_as::data_structures::InputInstance {
                 commitment: labeled_commitment,
                 point,
                 eval,
@@ -204,12 +203,12 @@ fn dl_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     PCDL_Keys,
-    <AS_DL as SplitAccumulationScheme>::PredicateParams,
-    <AS_DL as SplitAccumulationScheme>::PredicateIndex,
+    <AS_DL as AccumulationScheme>::PredicateParams,
+    <AS_DL as AccumulationScheme>::PredicateIndex,
 ) {
     let predicate_params = PCDL::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();
-    let predicate_index = dl_as::data_structures::PredicateIndex {
+    let predicate_index = ipa_as::data_structures::PredicateIndex {
         supported_degree_bound: degree,
         supported_hiding_bound: 0,
     };
@@ -261,7 +260,7 @@ fn dl_input_gen<R: RngCore>(
             .unwrap();
             assert!(result);
 
-            let input = dl_as::data_structures::InputInstance {
+            let input = ipa_as::data_structures::InputInstance {
                 ipa_commitment: labeled_commitment,
                 point,
                 evaluation: eval,

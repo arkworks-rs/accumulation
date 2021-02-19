@@ -1,4 +1,6 @@
-use crate::constraints::{ConstraintF, NNFieldVar, SplitASVerifierGadget};
+use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::hc_as::HomomorphicCommitmentAS;
+use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_nonnative_field::NonNativeFieldMulResultVar;
@@ -11,14 +13,12 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::ops::Mul;
+use data_structures::*;
 use std::marker::PhantomData;
 
 pub mod data_structures;
-use crate::lh_as::LHSplitAS;
-use crate::SplitAccumulationScheme;
-use data_structures::*;
 
-pub struct LHSplitASVerifierGadget<G, C, S, SV>
+pub struct HcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -34,7 +34,7 @@ where
     pub _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> LHSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> HcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -72,8 +72,8 @@ where
     }
 }
 
-impl<G, C, S, SV> SplitASVerifierGadget<LHSplitAS<G, S>, ConstraintF<G>>
-    for LHSplitASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<HomomorphicCommitmentAS<G, S>, ConstraintF<G>>
+    for HcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -226,13 +226,13 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::lh_as::constraints::{
-        InputInstanceVar, LHSplitASVerifierGadget, ProofVar, VerifierKeyVar,
+    use crate::hc_as::constraints::{
+        HcASVerifierGadget, InputInstanceVar, ProofVar, VerifierKeyVar,
     };
-    use crate::lh_as::tests::LHSplitASTestInput;
-    use crate::lh_as::LHSplitAS;
-    use crate::tests::SplitASTestInput;
-    use crate::SplitAccumulationScheme;
+    use crate::hc_as::tests::HcPcASTestInput;
+    use crate::hc_as::HomomorphicCommitmentAS;
+    use crate::tests::ASTestInput;
+    use crate::AccumulationScheme;
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -250,8 +250,7 @@ pub mod tests {
     type Sponge = PoseidonSponge<ConstraintF>;
     type SpongeVar = PoseidonSpongeVar<ConstraintF>;
 
-    type AS = LHSplitAS<G, Sponge>;
-    type I = LHSplitASTestInput;
-    type ASV = LHSplitASVerifierGadget<G, C, Sponge, SpongeVar>;
-
+    type AS = HomomorphicCommitmentAS<G, Sponge>;
+    type I = HcPcASTestInput;
+    type ASV = HcASVerifierGadget<G, C, Sponge, SpongeVar>;
 }

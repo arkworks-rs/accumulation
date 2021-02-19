@@ -49,16 +49,16 @@ pub struct VerifierKey<G: AffineCurve> {
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
 }
 
-pub struct PCDLDomain {}
-impl DomainSeparator for PCDLDomain {
+pub struct IpaPCDomain {}
+impl DomainSeparator for IpaPCDomain {
     fn domain() -> Vec<u8> {
-        b"PC-DL-in-AS-DL-2020".to_vec()
+        b"PC-IPA-in-AS-IPA-2020".to_vec()
     }
 }
 
-pub struct ASDLDomain {}
-impl DomainSeparator for ASDLDomain {
+pub struct IpaASDomain {}
+impl DomainSeparator for IpaASDomain {
     fn domain() -> Vec<u8> {
-        b"AS_DL-2020".to_vec()
+        b"AS-IPA-2020".to_vec()
     }
 }

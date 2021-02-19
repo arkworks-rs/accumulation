@@ -1,5 +1,5 @@
 use crate::constraints::{ConstraintF, NNFieldVar};
-use crate::dl_as::data_structures::{InputInstance, Randomness, VerifierKey};
+use crate::ipa_as::data_structures::{InputInstance, Randomness, VerifierKey};
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
