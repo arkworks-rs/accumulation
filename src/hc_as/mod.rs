@@ -28,9 +28,8 @@ pub mod constraints;
 
 pub struct HomomorphicCommitmentAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
@@ -39,9 +38,8 @@ where
 
 impl<G, S> HomomorphicCommitmentAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
@@ -181,9 +179,8 @@ where
 
 impl<G, S> AccumulationScheme for HomomorphicCommitmentAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
@@ -322,19 +319,12 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 instance,
-                witness_commitment
-                    .commitment()
-                    .0
-                     .0
-                    .to_field_elements()
-                    .unwrap()
+                witness_commitment.commitment().0 .0
             ];
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 180,
-            }])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
             .pop()
             .unwrap();
 
@@ -369,7 +359,7 @@ where
 
         let linear_combination_challenges = linear_combination_challenges_sponge
             .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
+                vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
             );
 
         let combined_polynomial = Self::combine_polynomials(
@@ -437,12 +427,7 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,
-                p.witness_commitment
-                    .commitment()
-                    .0
-                     .0
-                    .to_field_elements()
-                    .unwrap()
+                p.witness_commitment.commitment().0 .0
             ];
 
             let eval_check_lhs = p.eval - &input_instance.eval;
@@ -458,9 +443,7 @@ where
         }
 
         let challenge_point: G::ScalarField = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 180,
-            }])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
             .pop()
             .unwrap();
 
@@ -483,7 +466,7 @@ where
 
         let linear_combination_challenges = linear_combination_challenges_sponge
             .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.len() * 2].as_slice(),
+                vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
             );
 
         let combined_eval = Self::combine_evaluations(
@@ -560,9 +543,8 @@ pub mod tests {
 
     impl<G, S> ASTestInput<HomomorphicCommitmentAS<G, S>> for HcASTestInput
     where
-        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = HcASTestParams;

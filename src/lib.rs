@@ -49,6 +49,14 @@ pub mod hp_as;
 
 pub mod nark_as;
 
+pub enum ZKConfig<'a> {
+    /// Always enable zero-knowledge accumulation if available.
+    Enabled(&'a mut dyn RngCore),
+
+    /// Enable zero-knowledge accumulation if any input or accumulator requires zero knowledge.
+    Inherited(Option<&'a mut dyn RngCore>),
+}
+
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of inputs into a single accumulator, which holds the necessary properties
 /// to ensure each accumulated input satisfies the predicate. The prover also outputs a proof

@@ -7,7 +7,7 @@ use ark_relations::r1cs::{
     SynthesisMode,
 };
 use ark_serialize::CanonicalSerialize;
-use ark_sponge::*;
+use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
 use blake2::{digest::VariableOutput, VarBlake2b};
 use data_structures::*;
@@ -25,7 +25,8 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
 /// A simple non-interactive argument of knowledge for R1CS.
 pub struct SimpleNARK<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
@@ -34,9 +35,9 @@ where
 
 impl<G, S> SimpleNARK<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
 {
     pub(crate) fn compute_challenge(
         index_info: &IndexInfo,
@@ -45,20 +46,22 @@ where
     ) -> G::ScalarField {
         let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
+
         let input_bytes = input
             .iter()
             .flat_map(|inp| inp.into_repr().to_bytes_le())
             .collect::<Vec<_>>();
 
-        sponge.absorb(&input_bytes);
-        sponge.absorb(msg);
+        absorb!(&mut sponge, input_bytes, msg);
 
-        sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 128,
-            }])
+        let out = sponge
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])
             .pop()
-            .unwrap()
+            .unwrap();
+
+        println!("{}", out);
+
+        out
     }
 
     pub fn setup() -> PublicParameters {}

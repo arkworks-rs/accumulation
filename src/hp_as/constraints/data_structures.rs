@@ -8,8 +8,9 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToConstraintFieldGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::CryptographicSponge;
+use ark_sponge::{collect_sponge_field_elements_gadget, CryptographicSponge};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -76,20 +77,13 @@ where
     }
 }
 
-impl<G, C> InputInstanceVar<G, C>
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
-    where
-        S: CryptographicSponge<ConstraintF<G>>,
-        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
-    {
-        sponge.absorb(&self.comm_1.to_constraint_field()?)?;
-        sponge.absorb(&self.comm_2.to_constraint_field()?)?;
-        sponge.absorb(&self.comm_3.to_constraint_field()?)?;
-        Ok(())
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
     }
 }
 
@@ -183,25 +177,13 @@ where
     }
 }
 
-impl<G, C> ProofTCommitmentsVar<G, C>
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
-    where
-        S: CryptographicSponge<ConstraintF<G>>,
-        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
-    {
-        for t_0 in &self.low {
-            sponge.absorb(&t_0.to_constraint_field()?)?;
-        }
-
-        for t_1 in &self.high {
-            sponge.absorb(&t_1.to_constraint_field()?)?;
-        }
-
-        Ok(())
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(self.low, self.high)
     }
 }
 
@@ -242,19 +224,12 @@ where
     }
 }
 
-impl<G, C> ProofHidingCommitmentsVar<G, C>
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
-    where
-        S: CryptographicSponge<ConstraintF<G>>,
-        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
-    {
-        sponge.absorb(&self.comm_1.to_constraint_field()?)?;
-        sponge.absorb(&self.comm_2.to_constraint_field()?)?;
-        sponge.absorb(&self.comm_3.to_constraint_field()?)?;
-        Ok(())
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
     }
 }

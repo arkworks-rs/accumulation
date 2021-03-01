@@ -14,8 +14,11 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
-use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
+use ark_sponge::{
+    absorb_gadget, Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize,
+};
 use ark_std::marker::PhantomData;
 use data_structures::*;
 use std::ops::Mul;
@@ -24,10 +27,10 @@ pub mod data_structures;
 
 pub struct IPAAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -39,10 +42,10 @@ where
 
 impl<G, C, S, SV> IPAAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -115,22 +118,13 @@ where
     fn absorb_check_polynomial_into_sponge<Sp: CryptographicSponge<ConstraintF<G>>>(
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, Sp>,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
-        log_supported_degree: usize,
     ) -> Result<(), SynthesisError> {
-        assert!(check_polynomial.0.len() <= log_supported_degree);
         let mut bytes_input = Vec::new();
-
-        let elems = &check_polynomial.0;
-        for i in 0..(log_supported_degree + 1) {
-            if i < elems.len() {
-                bytes_input.append(&mut (elems[i].to_bytes()?));
-            } else {
-                // Pad the check polynomial if necessary
-                bytes_input.append(&mut NNFieldVar::<G>::zero().to_bytes()?);
-            }
+        for elem in &check_polynomial.0 {
+            bytes_input.append(&mut elem.to_bytes()?);
         }
 
-        sponge.absorb(bytes_input.to_constraint_field()?.as_slice())?;
+        sponge.absorb(&bytes_input)?;
         Ok(())
     }
 
@@ -163,25 +157,12 @@ where
 
         if let Some(randomness) = proof.randomness.as_ref() {
             let random_coeffs = &randomness.random_linear_polynomial_coeffs;
-            linear_combination_challenge_sponge.absorb(
-                random_coeffs[0]
-                    .to_bytes()?
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
-            linear_combination_challenge_sponge.absorb(
-                random_coeffs[1]
-                    .to_bytes()?
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
-            linear_combination_challenge_sponge.absorb(
-                randomness
-                    .random_linear_polynomial_commitment
-                    .to_bytes()?
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
+            absorb_gadget!(
+                &mut linear_combination_challenge_sponge,
+                random_coeffs[0].to_bytes()?,
+                random_coeffs[1].to_bytes()?,
+                randomness.random_linear_polynomial_commitment
+            );
         }
 
         let mut combined_succinct_check_result = Boolean::TRUE;
@@ -194,17 +175,14 @@ where
             Self::absorb_check_polynomial_into_sponge(
                 &mut linear_combination_challenge_sponge,
                 check_polynomial,
-                log_supported_degree,
             )?;
 
-            linear_combination_challenge_sponge
-                .absorb(commitment.to_constraint_field()?.as_slice())?;
+            linear_combination_challenge_sponge.absorb(&commitment)?;
         }
 
         let (linear_combination_challenges, linear_combination_challenge_bitss) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_checks.len()]
-                    .as_slice(),
+                vec![FieldElementSize::Truncated(128); succinct_checks.len()].as_slice(),
             )?;
 
         let mut combined_commitment = if let Some(randomness) = proof.randomness.as_ref() {
@@ -247,7 +225,7 @@ where
             DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, IpaASDomain>::new(
                 ns!(cs, "challenge_point_sponge").cs(),
             );
-        challenge_point_sponge.absorb(combined_commitment.to_constraint_field()?.as_slice())?;
+        challenge_point_sponge.absorb(&combined_commitment)?;
 
         for ((_, check_polynomial), linear_combination_challenge_bits) in
             combined_check_polynomial_and_addends
@@ -264,23 +242,16 @@ where
                 .map(UInt8::<ConstraintF<G>>::from_bits_le)
                 .collect::<Vec<_>>();
 
-            challenge_point_sponge.absorb(
-                linear_combination_challenge_bytes
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
+            challenge_point_sponge.absorb(&linear_combination_challenge_bytes)?;
 
             Self::absorb_check_polynomial_into_sponge(
                 &mut challenge_point_sponge,
                 *check_polynomial,
-                log_supported_degree,
             )?;
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 180,
-            }])?
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?
             .0
             .pop()
             .unwrap();
@@ -312,10 +283,10 @@ where
 impl<G, C, S, SV> ASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
     for IPAAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -414,10 +385,10 @@ where
 impl<G, C, S, SV> AtomicASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
     for IPAAtomicASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {

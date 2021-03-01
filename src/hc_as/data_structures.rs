@@ -3,7 +3,7 @@ use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField, ToConstraintField};
 use ark_poly_commit::{lh_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::Absorbable;
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]
@@ -19,22 +19,22 @@ pub struct InputInstance<G: AffineCurve> {
     pub eval: G::ScalarField,
 }
 
-impl<G: AffineCurve + ToConstraintField<CF>, CF: PrimeField> Absorbable<CF> for InputInstance<G> {
+impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputInstance<G> {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        to_bytes!(&self.commitment, &self.point, &self.eval).unwrap()
+        collect_sponge_bytes!(
+            CF,
+            self.commitment.commitment().0 .0,
+            to_bytes!(self.point).unwrap(),
+            to_bytes!(self.eval).unwrap()
+        )
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut field_elements: Vec<CF> = self
-            .commitment
-            .commitment()
-            .0
-             .0
-            .to_field_elements()
-            .unwrap();
-        field_elements.append(&mut to_bytes!(self.point).unwrap().to_field_elements().unwrap());
-        field_elements.append(&mut to_bytes!(self.eval).unwrap().to_field_elements().unwrap());
-        field_elements
+        collect_sponge_field_elements!(
+            self.commitment.commitment().0 .0,
+            to_bytes!(self.point).unwrap(),
+            to_bytes!(self.eval).unwrap()
+        )
     }
 }
 

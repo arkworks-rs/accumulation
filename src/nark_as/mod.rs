@@ -14,7 +14,9 @@ use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
-use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
+use ark_sponge::{
+    absorb, Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize,
+};
 use data_structures::*;
 use r1cs_nark::data_structures::{
     FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
@@ -34,10 +36,9 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2
 
 pub struct NarkAS<G, CS, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
@@ -47,10 +48,9 @@ where
 
 impl<G, CS, S> NarkAS<G, CS, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_blinded_commitments(
@@ -284,20 +284,16 @@ where
         let mut sponge =
             DomainSeparatedSponge::<ConstraintF<G>, S, SimpleNARKVerifierASDomain>::new();
 
-        sponge.absorb(&as_matrices_hash.as_ref());
-
-        for acc_instance in accumulator_instances {
-            sponge.absorb(acc_instance);
-        }
-
-        for input_instance in input_instances {
-            sponge.absorb(input_instance);
-        }
-
-        sponge.absorb(proof_randomness);
+        absorb!(
+            &mut sponge,
+            as_matrices_hash.as_ref(),
+            accumulator_instances,
+            input_instances,
+            proof_randomness
+        );
 
         let mut squeeze = sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges - 1].as_slice(),
+            vec![FieldElementSize::Truncated(128); num_challenges - 1].as_slice(),
         );
 
         let mut outputs = Vec::with_capacity(num_challenges);
@@ -502,10 +498,9 @@ where
 
 impl<G, CS, S> AccumulationScheme for NarkAS<G, CS, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = <HadamardProductAS<G, S> as AccumulationScheme>::UniversalParams;
@@ -906,9 +901,8 @@ pub mod tests {
 
     impl<G, S> ASTestInput<NarkAS<G, DummyCircuit<G::ScalarField>, S>> for NarkASTestInput
     where
-        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = NarkASTestParams;

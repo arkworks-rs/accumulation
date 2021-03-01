@@ -41,8 +41,8 @@ pub type IpaPC<G, S> = InnerProductArgPC<
 /// [pcdas]: https://eprint.iacr.org/2020/499
 pub struct InnerProductArgAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
@@ -51,8 +51,8 @@ where
 
 impl<G, S> InnerProductArgAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     fn deterministic_commit_to_linear_polynomial(
@@ -137,19 +137,10 @@ where
     fn absorb_check_polynomial_into_sponge(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
-        log_supported_degree: usize,
     ) {
-        assert!(check_polynomial.0.len() <= log_supported_degree);
         let mut bytes_input = Vec::new();
-
-        let elems = &check_polynomial.0;
-        for i in 0..(log_supported_degree + 1) {
-            if i < elems.len() {
-                bytes_input.append(&mut ark_ff::to_bytes!(elems[i]).unwrap());
-            } else {
-                // Pad the check polynomial if necessary
-                bytes_input.append(&mut ark_ff::to_bytes!(G::ScalarField::zero()).unwrap());
-            }
+        for elem in &check_polynomial.0 {
+            bytes_input.append(&mut ark_ff::to_bytes!(elem).unwrap());
         }
 
         sponge.absorb(&bytes_input);
@@ -167,9 +158,6 @@ where
         ),
         ASError,
     > {
-        let supported_degree = ipa_vk.supported_degree();
-        let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
-
         let mut linear_combination_challenge_sponge =
             DomainSeparatedSponge::<ConstraintF<G>, S, IpaASDomain>::new();
 
@@ -186,22 +174,20 @@ where
             }
 
             linear_combination_challenge_sponge
-                .absorb(&to_bytes!(randomness.random_linear_polynomial_commitment).unwrap());
+                .absorb(&randomness.random_linear_polynomial_commitment);
         }
 
         for (check_polynomial, commitment) in succinct_checks {
             Self::absorb_check_polynomial_into_sponge(
                 &mut linear_combination_challenge_sponge,
                 check_polynomial,
-                log_supported_degree,
             );
-            linear_combination_challenge_sponge.absorb(&commitment.to_field_elements().unwrap());
+            linear_combination_challenge_sponge.absorb(&commitment);
         }
 
         let linear_combination_challenges: Vec<G::ScalarField> =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; succinct_checks.len()]
-                    .as_slice(),
+                vec![FieldElementSize::Truncated(128); succinct_checks.len()].as_slice(),
             );
 
         let mut combined_commitment = if let Some(randomness) = proof.as_ref() {
@@ -246,7 +232,7 @@ where
             DomainSeparatedSponge::<ConstraintF<G>, S, IpaASDomain>::new();
 
         let combined_commitment = commitments.pop().unwrap();
-        challenge_point_sponge.absorb(&combined_commitment.to_field_elements().unwrap());
+        challenge_point_sponge.absorb(&combined_commitment);
 
         for (linear_combination_challenge, check_polynomial) in &combined_check_polynomial_addends {
             let mut linear_combination_challenge_bytes =
@@ -257,14 +243,11 @@ where
             Self::absorb_check_polynomial_into_sponge(
                 &mut challenge_point_sponge,
                 check_polynomial,
-                log_supported_degree,
             );
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 180,
-            }])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
             .pop()
             .unwrap();
 
@@ -354,8 +337,8 @@ where
 
 impl<G, S> AccumulationScheme for InnerProductArgAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
@@ -595,8 +578,8 @@ where
 
 impl<G, S> AtomicAccumulationScheme for InnerProductArgAtomicAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
 }
@@ -630,9 +613,8 @@ pub mod tests {
 
     impl<G, S> ASTestInput<InnerProductArgAtomicAS<G, S>> for IpaAtomicASTestInput
     where
-        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = IpaAtomicASTestParams;

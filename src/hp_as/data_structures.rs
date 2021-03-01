@@ -1,8 +1,7 @@
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField, Zero};
-use ark_relations::r1cs::ToConstraintField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::Absorbable;
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
 
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
@@ -24,18 +23,15 @@ impl<G: AffineCurve> Default for InputInstance<G> {
 
 impl<G, CF> Absorbable<CF> for InputInstance<G>
 where
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
     CF: PrimeField,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        to_bytes![self.comm_1, self.comm_2, self.comm_3].unwrap()
+        collect_sponge_bytes!(CF, self.comm_1, self.comm_2, self.comm_3)
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output: Vec<CF> = self.comm_1.to_field_elements().unwrap();
-        output.append(&mut self.comm_2.to_field_elements().unwrap());
-        output.append(&mut self.comm_3.to_field_elements().unwrap());
-        output
+        collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3)
     }
 }
 
@@ -77,27 +73,15 @@ pub struct ProofTCommitments<G: AffineCurve> {
 
 impl<G, CF> Absorbable<CF> for ProofTCommitments<G>
 where
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
     CF: PrimeField,
 {
-    // TODO: Absorb size?
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        let mut bytes = to_bytes!(self.low).unwrap();
-        bytes.append(&mut to_bytes!(self.high).unwrap());
-        bytes
+        collect_sponge_bytes!(CF, self.low, self.high)
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output: Vec<CF> = Vec::new();
-        for t_comm in &self.low {
-            output.append(&mut t_comm.to_field_elements().unwrap())
-        }
-
-        for t_comm in &self.high {
-            output.append(&mut t_comm.to_field_elements().unwrap())
-        }
-
-        output
+        collect_sponge_field_elements!(self.low, self.high)
     }
 }
 
@@ -110,17 +94,14 @@ pub struct ProofHidingCommitments<G: AffineCurve> {
 
 impl<G, CF> Absorbable<CF> for ProofHidingCommitments<G>
 where
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
     CF: PrimeField,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        to_bytes![self.comm_1, self.comm_2, self.comm_3].unwrap()
+        collect_sponge_bytes!(CF, self.comm_1, self.comm_2, self.comm_3)
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output: Vec<CF> = self.comm_1.to_field_elements().unwrap();
-        output.append(&mut self.comm_2.to_field_elements().unwrap());
-        output.append(&mut self.comm_3.to_field_elements().unwrap());
-        output
+        collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3)
     }
 }

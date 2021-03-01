@@ -10,7 +10,9 @@ use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField};
 use ark_relations::r1cs::{Matrix, ToConstraintField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{Absorbable, DomainSeparator};
+use ark_sponge::{
+    collect_sponge_bytes, collect_sponge_field_elements, Absorbable, DomainSeparator,
+};
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]
@@ -53,24 +55,23 @@ pub struct InputInstance<G: AffineCurve> {
 impl<CF, G> Absorbable<CF> for InputInstance<G>
 where
     CF: PrimeField,
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        let mut output = to_bytes!(self.r1cs_input).unwrap();
-        output.append(&mut self.first_round_message.to_sponge_bytes());
-        output.push(self.make_zk as u8);
-        output
+        collect_sponge_bytes!(
+            CF,
+            to_bytes!(self.r1cs_input).unwrap(),
+            self.first_round_message,
+            self.make_zk
+        )
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output = to_bytes!(self.r1cs_input)
-            .unwrap()
-            .to_field_elements()
-            .unwrap();
-        output.append(&mut self.first_round_message.to_sponge_field_elements());
-        output.push(CF::from(self.make_zk));
-
-        output
+        collect_sponge_field_elements!(
+            to_bytes!(self.r1cs_input).unwrap(),
+            self.first_round_message,
+            self.make_zk
+        )
     }
 }
 
@@ -92,28 +93,27 @@ pub struct AccumulatorInstance<G: AffineCurve> {
 impl<CF, G> Absorbable<CF> for AccumulatorInstance<G>
 where
     CF: PrimeField,
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        let mut output = to_bytes!(self.r1cs_input).unwrap();
-        output.append(&mut to_bytes![self.comm_a, self.comm_b, self.comm_c].unwrap());
-
-        output.append(&mut self.hp_instance.to_sponge_bytes());
-        output
+        collect_sponge_bytes!(
+            CF,
+            to_bytes!(self.r1cs_input).unwrap(),
+            self.comm_a,
+            self.comm_b,
+            self.comm_c,
+            self.hp_instance
+        )
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output = to_bytes!(self.r1cs_input)
-            .unwrap()
-            .to_field_elements()
-            .unwrap();
-
-        output.append(&mut self.comm_a.to_field_elements().unwrap());
-        output.append(&mut self.comm_b.to_field_elements().unwrap());
-        output.append(&mut self.comm_c.to_field_elements().unwrap());
-        output.append(&mut self.hp_instance.to_sponge_field_elements());
-
-        output
+        collect_sponge_field_elements!(
+            to_bytes!(self.r1cs_input).unwrap(),
+            self.comm_a,
+            self.comm_b,
+            self.comm_c,
+            self.hp_instance
+        )
     }
 }
 
@@ -142,24 +142,25 @@ pub struct ProofRandomness<G: AffineCurve> {
 impl<CF, G> Absorbable<CF> for ProofRandomness<G>
 where
     CF: PrimeField,
-    G: AffineCurve + ToConstraintField<CF>,
+    G: AffineCurve + Absorbable<CF>,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
-        let mut output = to_bytes!(self.r1cs_r_input).unwrap();
-        output.append(&mut to_bytes![self.comm_r_a, self.comm_r_b, self.comm_r_c].unwrap());
-        output
+        collect_sponge_bytes!(
+            CF,
+            to_bytes!(self.r1cs_r_input).unwrap(),
+            self.comm_r_a,
+            self.comm_r_b,
+            self.comm_r_c
+        )
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
-        let mut output = to_bytes!(self.r1cs_r_input)
-            .unwrap()
-            .to_field_elements()
-            .unwrap();
-
-        output.append(&mut self.comm_r_a.to_field_elements().unwrap());
-        output.append(&mut self.comm_r_b.to_field_elements().unwrap());
-        output.append(&mut self.comm_r_c.to_field_elements().unwrap());
-        output
+        collect_sponge_field_elements!(
+            to_bytes!(self.r1cs_r_input).unwrap(),
+            self.comm_r_a,
+            self.comm_r_b,
+            self.comm_r_c
+        )
     }
 }
 

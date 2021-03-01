@@ -9,8 +9,9 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::ops::Mul;
 use data_structures::*;
 use std::marker::PhantomData;
@@ -19,11 +20,10 @@ pub mod data_structures;
 
 pub struct HcASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -35,11 +35,10 @@ where
 
 impl<G, C, S, SV> HcASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -74,11 +73,10 @@ where
 impl<G, C, S, SV> ASVerifierGadget<HomomorphicCommitmentAS<G, S>, ConstraintF<G>>
     for HcASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+        + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -113,7 +111,7 @@ where
         let mut verify_result = Boolean::TRUE;
 
         let mut challenge_point_sponge = SV::new(cs.clone());
-        challenge_point_sponge.absorb(&[verifier_key.0.clone()])?;
+        challenge_point_sponge.absorb(&verifier_key.0)?;
 
         let mut commitment = Vec::new();
         for (input_instance, single_proof) in input_instances
@@ -121,13 +119,11 @@ where
             .chain(accumulator_instances)
             .zip(&proof.single_proofs)
         {
-            input_instance.absorb_into_sponge::<S, SV>(&mut challenge_point_sponge)?;
-            challenge_point_sponge.absorb(
-                single_proof
-                    .witness_commitment
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
+            absorb_gadget!(
+                &mut challenge_point_sponge,
+                input_instance,
+                single_proof.witness_commitment
+            );
 
             let eval_check_lhs: NNFieldVar<G> = &single_proof.eval - &input_instance.eval;
             let eval_check_rhs: NNFieldVar<G> = (&single_proof.witness_eval)
@@ -140,9 +136,7 @@ where
         }
 
         let mut challenge_point_sponge_field_element_and_bits = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 180,
-            }])?;
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?;
 
         let challenge_point = challenge_point_sponge_field_element_and_bits
             .0
@@ -161,41 +155,22 @@ where
 
         let challenge_point_bytes = challenge_point_bits
             .chunks(8)
-            .map(|c| {
-                if c.len() != 8 {
-                    let mut padded_c = c.to_vec();
-                    padded_c.resize_with(8, || Boolean::FALSE);
-                    UInt8::<ConstraintF<G>>::from_bits_le(padded_c.as_slice())
-                } else {
-                    UInt8::<ConstraintF<G>>::from_bits_le(c)
-                }
-            })
+            .map(UInt8::<ConstraintF<G>>::from_bits_le)
             .collect::<Vec<_>>();
 
-        linear_combination_challenge_sponge
-            .absorb(challenge_point_bytes.to_constraint_field()?.as_slice())?;
+        linear_combination_challenge_sponge.absorb(&challenge_point_bytes)?;
 
         for single_proof in &proof.single_proofs {
-            linear_combination_challenge_sponge.absorb(
-                single_proof
-                    .eval
-                    .to_bytes()?
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
-            linear_combination_challenge_sponge.absorb(
-                single_proof
-                    .witness_eval
-                    .to_bytes()?
-                    .to_constraint_field()?
-                    .as_slice(),
-            )?;
+            absorb_gadget!(
+                &mut linear_combination_challenge_sponge,
+                single_proof.eval.to_bytes()?,
+                single_proof.witness_eval.to_bytes()?
+            );
         }
 
         let (linear_combination_challenge, linear_combination_challenge_bits) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated { num_bits: 128 }; proof.single_proofs.len() * 2]
-                    .as_slice(),
+                vec![FieldElementSize::Truncated(128); proof.single_proofs.len() * 2].as_slice(),
             )?;
 
         let combined_eval = Self::combine_evaluation(
@@ -284,6 +259,16 @@ pub mod tests {
                 make_zk: true,
             },
             1,
+        );
+    }
+
+    #[test]
+    pub fn print_breakdown() {
+        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
+            &HcASTestParams {
+                degree: 8,
+                make_zk: true,
+            },
         );
     }
 }

@@ -2,7 +2,6 @@ use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HadamardProductAS;
 use ark_ec::AffineCurve;
-use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
@@ -11,8 +10,9 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use data_structures::*;
 use std::marker::PhantomData;
 use std::ops::Mul;
@@ -21,8 +21,8 @@ pub mod data_structures;
 
 pub struct HpASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -35,12 +35,13 @@ where
 
 impl<G, C, S, SV> HpASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
+    #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs, make_zk))]
     fn squeeze_mu_challenges(
         sponge: &mut SV,
         num_inputs: usize,
@@ -74,11 +75,12 @@ where
         Ok(mu_challenges_bits)
     }
 
+    #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs))]
     fn squeeze_nu_challenges(
         sponge: &mut SV,
         num_inputs: usize,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
-        let nu_size = FieldElementSize::Truncated { num_bits: 128 };
+        let nu_size = FieldElementSize::Truncated(128);
         let (mut nu_challenge_fe, mut nu_challenge_bits) =
             sponge.squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())?;
         let nu_challenge_fe: NNFieldVar<G> = nu_challenge_fe.pop().unwrap();
@@ -98,6 +100,10 @@ where
         Ok(nu_challenges_bits)
     }
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(commitments, challenges, extra_challenges, hiding_comms)
+    )]
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
@@ -125,6 +131,10 @@ where
         Ok(combined_commitment)
     }
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(input_instances, proof, mu_challenges, nu_challenges)
+    )]
     fn compute_combined_hp_commitments(
         input_instances: &[&InputInstanceVar<G, C>],
         proof: &ProofVar<G, C>,
@@ -208,8 +218,8 @@ where
 impl<G, C, S, SV> ASVerifierGadget<HadamardProductAS<G, S>, ConstraintF<G>>
     for HpASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -219,6 +229,17 @@ where
     type AccumulatorInstance = AccumulatorInstanceVar<G, C>;
     type Proof = ProofVar<G, C>;
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
+            cs,
+            verifier_key,
+            input_instances,
+            accumulator_instances,
+            new_accumulator_instance,
+            proof
+        )
+    )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
@@ -252,21 +273,17 @@ where
         };
 
         let mut challenges_sponge = SV::new(cs.clone());
-        challenges_sponge.absorb(&[verifier_key.num_supported_elems.clone()])?;
-        for input_instance in input_instances.iter() {
-            input_instance.absorb_into_sponge(&mut challenges_sponge)?;
-        }
-
-        challenges_sponge
-            .absorb(&[FpVar::from(Boolean::constant(proof.hiding_comms.is_some()))])?;
-        if let Some(t_comms) = proof.hiding_comms.as_ref() {
-            t_comms.absorb_into_sponge(&mut challenges_sponge)?;
-        }
+        absorb_gadget!(
+            &mut challenges_sponge,
+            &verifier_key.num_supported_elems,
+            &input_instances,
+            &proof.hiding_comms
+        );
 
         let mu_challenges_bits =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk)?;
 
-        proof.t_comms.absorb_into_sponge(&mut challenges_sponge)?;
+        challenges_sponge.absorb(&proof.t_comms)?;
 
         let nu_challenges_bits = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
 

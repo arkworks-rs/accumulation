@@ -15,8 +15,9 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use data_structures::*;
 use std::marker::PhantomData;
 
@@ -24,10 +25,9 @@ pub mod data_structures;
 
 pub struct NarkASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -39,13 +39,13 @@ where
 
 impl<G, C, S, SV> NarkASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
+    #[tracing::instrument(target = "r1cs", skip(commitments, challenges))]
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
         challenges: &[Vec<Boolean<ConstraintF<G>>>],
@@ -62,6 +62,7 @@ where
         Ok(combined_commitment)
     }
 
+    #[tracing::instrument(target = "r1cs", skip(sponge, input, msg))]
     fn compute_gamma_challenge(
         sponge: &mut DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, SimpleNARKDomain>,
         input: &[NNFieldVar<G>],
@@ -71,17 +72,26 @@ where
         for elem in input {
             input_bytes.append(&mut elem.to_bytes()?);
         }
-        sponge.absorb(input_bytes.to_constraint_field()?.as_slice())?;
-        msg.absorb_into_sponge(sponge)?;
 
-        let mut squeezed =
-            sponge.squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated {
-                num_bits: 128,
-            }])?;
+        absorb_gadget!(sponge, input_bytes, msg);
+
+        let mut squeezed = sponge
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])?;
 
         Ok((squeezed.0.pop().unwrap(), squeezed.1.pop().unwrap()))
     }
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
+            cs,
+            num_challenges,
+            as_matrices_hash,
+            accumulator_instances,
+            input_instances,
+            proof_randomness
+        )
+    )]
     fn compute_beta_challenges(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         num_challenges: usize,
@@ -95,23 +105,16 @@ where
                 cs.clone(),
             );
 
-        sponge.absorb(as_matrices_hash.as_ref())?;
-
-        for acc_instance in accumulator_instances {
-            acc_instance.absorb_into_sponge(&mut sponge)?;
-        }
-
-        for input_instance in input_instances {
-            input_instance.absorb_into_sponge(&mut sponge)?;
-        }
-
-        sponge.absorb(&[FpVar::from(Boolean::Constant(proof_randomness.is_some()))])?;
-        if let Some(proof_randomness) = proof_randomness {
-            proof_randomness.absorb_into_sponge(&mut sponge)?;
-        };
+        absorb_gadget!(
+            &mut sponge,
+            as_matrices_hash,
+            accumulator_instances,
+            input_instances,
+            proof_randomness
+        );
 
         let mut squeeze = sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated { num_bits: 128 }; num_challenges - 1].as_slice(),
+            vec![FieldElementSize::Truncated(128); num_challenges - 1].as_slice(),
         )?;
 
         let mut outputs_fe = Vec::with_capacity(num_challenges);
@@ -126,6 +129,7 @@ where
         Ok((outputs_fe, outputs_bits))
     }
 
+    #[tracing::instrument(target = "r1cs", skip(cs, index_info, input_instances,))]
     fn compute_blinded_commitments(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         index_info: &IndexInfoVar<ConstraintF<G>>,
@@ -138,7 +142,8 @@ where
 
         let mut sponge =
             DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKDomain>::new(cs.clone());
-        sponge.absorb(&index_info.matrices_hash.as_ref())?;
+
+        sponge.absorb(&index_info.matrices_hash)?;
 
         for instance in input_instances {
             let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
@@ -193,6 +198,10 @@ where
         ))
     }
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_prod)
+    )]
     fn compute_hp_input_instances(
         all_blinded_comm_a: &Vec<C>,
         all_blinded_comm_b: &Vec<C>,
@@ -220,6 +229,7 @@ where
         input_instances
     }
 
+    #[tracing::instrument(target = "r1cs", skip(vectors, challenges))]
     fn combine_vectors<'a>(
         vectors: impl IntoIterator<Item = &'a Vec<NNFieldVar<G>>>,
         challenges: &[NNFieldVar<G>],
@@ -244,6 +254,19 @@ where
         Ok(reduced_output)
     }
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
+            input_instances,
+            all_blinded_comm_a,
+            all_blinded_comm_b,
+            all_blinded_comm_c,
+            accumulator_instances,
+            beta_challenges_fe,
+            beta_challenges_bits,
+            proof_randomness
+        )
+    )]
     fn compute_accumulator_instance_components(
         input_instances: &Vec<&InputInstanceVar<G, C>>,
         all_blinded_comm_a: &Vec<C>,
@@ -327,10 +350,9 @@ where
 impl<G, C, CS, S, SV> ASVerifierGadget<NarkAS<G, CS, S>, ConstraintF<G>>
     for NarkASVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    Vec<ConstraintF<G>>: Absorbable<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + ToConstraintFieldGadget<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -340,6 +362,17 @@ where
     type AccumulatorInstance = AccumulatorInstanceVar<G, C>;
     type Proof = ProofVar<G, C>;
 
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
+            cs,
+            verifier_key,
+            input_instances,
+            accumulator_instances,
+            new_accumulator_instance,
+            proof
+        )
+    )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
@@ -352,6 +385,7 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
+        println!("Vons");
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let accumulator_instances = accumulator_instances.into_iter().collect::<Vec<_>>();
 

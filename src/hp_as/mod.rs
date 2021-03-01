@@ -7,7 +7,7 @@ use ark_ff::{One, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::UniformRand;
 use data_structures::*;
 use rand_core::RngCore;
@@ -20,7 +20,7 @@ pub mod constraints;
 
 pub struct HadamardProductAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
@@ -30,7 +30,7 @@ where
 
 impl<G, S> HadamardProductAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
@@ -43,7 +43,7 @@ where
         mu_challenges.push(G::ScalarField::one());
 
         if num_inputs > 1 {
-            let mu_size = FieldElementSize::Truncated { num_bits: 128 };
+            let mu_size = FieldElementSize::Truncated(128);
             mu_challenges.append(&mut sponge.squeeze_nonnative_field_elements_with_sizes(
                 vec![mu_size; num_inputs - 1].as_slice(),
             ));
@@ -57,7 +57,7 @@ where
     }
 
     fn squeeze_nu_challenges(sponge: &mut S, num_inputs: usize) -> Vec<G::ScalarField> {
-        let nu_size = FieldElementSize::Truncated { num_bits: 128 };
+        let nu_size = FieldElementSize::Truncated(128);
         let nu_challenge: G::ScalarField = sponge
             .squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())
             .pop()
@@ -403,7 +403,7 @@ where
 
 impl<G, S> AccumulationScheme for HadamardProductAS<G, S>
 where
-    G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+    G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
@@ -545,13 +545,12 @@ where
         };
 
         let mut challenges_sponge = S::new();
-        challenges_sponge.absorb(&ConstraintF::<G>::from(
-            prover_key.supported_elems_len() as u64
-        ));
-        for input_instance in input_instances.iter() {
-            challenges_sponge.absorb(input_instance);
-        }
-        challenges_sponge.absorb(&hiding_comms);
+        absorb!(
+            &mut challenges_sponge,
+            prover_key.supported_elems_len() as u64,
+            input_instances,
+            hiding_comms
+        );
 
         let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
@@ -635,11 +634,12 @@ where
         }
 
         let mut challenges_sponge = S::new();
-        challenges_sponge.absorb(&ConstraintF::<G>::from(*verifier_key as u64));
-        for input_instance in input_instances.iter() {
-            challenges_sponge.absorb(input_instance);
-        }
-        challenges_sponge.absorb(&proof.hiding_comms);
+        absorb!(
+            &mut challenges_sponge,
+            *verifier_key as u64,
+            input_instances,
+            proof.hiding_comms
+        );
 
         let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
@@ -725,7 +725,7 @@ pub mod tests {
 
     impl<G, S> ASTestInput<HadamardProductAS<G, S>> for HpASTestInput
     where
-        G: AffineCurve + ToConstraintField<ConstraintF<G>>,
+        G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {

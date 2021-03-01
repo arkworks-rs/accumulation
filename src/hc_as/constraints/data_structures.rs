@@ -7,8 +7,9 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::CryptographicSponge;
+use ark_sponge::{collect_sponge_field_elements_gadget, CryptographicSponge};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -81,20 +82,17 @@ where
     }
 }
 
-impl<G, C> InputInstanceVar<G, C>
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + ToConstraintFieldGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
-    pub fn absorb_into_sponge<S, SV>(&self, sponge: &mut SV) -> Result<(), SynthesisError>
-    where
-        S: CryptographicSponge<ConstraintF<G>>,
-        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
-    {
-        sponge.absorb(self.commitment.to_constraint_field()?.as_slice())?;
-        sponge.absorb(self.point.to_bytes()?.to_constraint_field()?.as_slice())?;
-        sponge.absorb(self.eval.to_bytes()?.to_constraint_field()?.as_slice())
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(
+            self.commitment,
+            self.point.to_bytes()?,
+            self.eval.to_bytes()?
+        )
     }
 }
 
