@@ -4,7 +4,7 @@ use crate::error::{ASError, BoxedError};
 use crate::std::ops::Mul;
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use crate::{AccumulationScheme, AtomicAccumulationScheme};
+use crate::{AccumulationScheme, AtomicAccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{to_bytes, One, UniformRand, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -291,9 +291,10 @@ where
         combined_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
         challenge: G::ScalarField,
         proof: Option<&Randomness<G>>,
-        rng: &mut dyn RngCore,
+        rng: Option<&mut dyn RngCore>,
     ) -> Result<InputInstance<G>, PCError> {
         let hiding_bound = if proof.is_some() {
+            assert!(rng.is_some());
             Some(ipa_ck.supported_degree())
         } else {
             None
@@ -321,7 +322,7 @@ where
             &challenge,
             &|_| G::ScalarField::one(),
             vec![&randomness],
-            Some(rng),
+            rng,
         )?;
 
         let accumulator = InputInstance {
@@ -397,31 +398,40 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        rng: Option<&mut dyn RngCore>,
+        make_zk: MakeZK,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        let rng = rng.expect("ipa_as prover requires rng");
-
         let inputs: Vec<&InputInstance<G>> =
             InputRef::<'a, Self>::instances(inputs).collect::<Vec<_>>();
         let accumulators: Vec<&InputInstance<G>> =
             AccumulatorRef::<'a, Self>::instances(accumulators).collect::<Vec<_>>();
 
-        let make_zk = inputs
-            .iter()
-            .chain(&accumulators)
-            .fold(false, |make_zk, input| {
-                return make_zk
-                    || input.ipa_proof.hiding_comm.is_some()
-                    || input.ipa_proof.rand.is_some();
-            });
+        let (make_zk, mut rng) = make_zk.into_components(|| {
+            inputs
+                .iter()
+                .chain(&accumulators)
+                .fold(false, |make_zk, input| {
+                    return make_zk
+                        || input.ipa_proof.hiding_comm.is_some()
+                        || input.ipa_proof.rand.is_some();
+                })
+        });
+
+        if make_zk && rng.is_none() {
+            return Err(BoxedError::new(ASError::MissingRng(
+                "Accumulating inputs with hiding requires rng.".to_string(),
+            )));
+        }
 
         let proof = if make_zk {
+            assert!(rng.is_some());
+            let rng_moved = rng.unwrap();
+
             let random_linear_polynomial = DensePolynomial::from_coefficients_slice(&[
-                G::ScalarField::rand(rng),
-                G::ScalarField::rand(rng),
+                G::ScalarField::rand(rng_moved),
+                G::ScalarField::rand(rng_moved),
             ]);
 
             let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
@@ -430,10 +440,13 @@ where
             )
             .map_err(|e| BoxedError::new(e))?;
 
+            let commitment_randomness = G::ScalarField::rand(rng_moved);
+
+            rng = Some(rng_moved);
             Some(Randomness {
                 random_linear_polynomial,
                 random_linear_polynomial_commitment: linear_polynomial_commitment,
-                commitment_randomness: G::ScalarField::rand(rng),
+                commitment_randomness,
             })
         } else {
             None

@@ -8,7 +8,7 @@ use crate::hp_as::data_structures::{
 use crate::hp_as::HadamardProductAS;
 use crate::nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
 use crate::std::UniformRand;
-use crate::AccumulationScheme;
+use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
@@ -555,13 +555,13 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        mut rng: Option<&mut dyn RngCore>,
+        make_zk: MakeZK,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
         // Collect all of the inputs and accumulators into vectors and extract additional information from them.
-        let mut make_zk = false;
+        let mut make_zk_default = false;
 
         let mut accumulator_instances = Vec::new();
         let mut accumulator_witnesses = Vec::new();
@@ -569,7 +569,7 @@ where
             let instance = acc.instance;
             let witness = acc.witness;
 
-            make_zk = make_zk || witness.randomness.is_some();
+            make_zk_default = make_zk_default || witness.randomness.is_some();
             accumulator_instances.push(instance);
             accumulator_witnesses.push(witness);
         }
@@ -581,11 +581,36 @@ where
             let instance = input.instance;
             let witness = input.witness;
 
-            make_zk = make_zk || instance.make_zk || witness.make_zk;
+            make_zk_default = make_zk_default || instance.make_zk || witness.make_zk;
             input_instances.push(instance);
             input_witnesses.push(witness);
             all_inputs.push(input);
         }
+
+        let (make_zk, mut rng) = make_zk.into_components(|| make_zk_default);
+        if make_zk && rng.is_none() {
+            return Err(BoxedError::new(ASError::MissingRng(
+                "Accumulating inputs with hiding requires rng.".to_string(),
+            )));
+        }
+
+        let (proof_randomness, prover_witness_randomness) = if make_zk {
+            assert!(rng.is_some());
+            let rng_moved = rng.unwrap();
+
+            let index_info = &prover_key.nark_pk.index_info;
+            let (proof_randomness, prover_witness_randomness) = Self::compute_prover_randomness(
+                prover_key,
+                rng_moved,
+                index_info.num_instance_variables,
+                index_info.num_variables - index_info.num_instance_variables,
+            )?;
+
+            rng = Some(rng_moved);
+            (Some(proof_randomness), Some(prover_witness_randomness))
+        } else {
+            (None, None)
+        };
 
         let num_addends =
             input_instances.len() + accumulator_instances.len() + if make_zk { 1 } else { 0 };
@@ -620,26 +645,13 @@ where
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
-            Some(*rng.as_mut().unwrap()),
+            if make_zk {
+                assert!(rng.is_some());
+                MakeZK::Enabled(rng.unwrap())
+            } else {
+                MakeZK::Inherited(rng)
+            },
         )?;
-
-        let (proof_randomness, prover_witness_randomness) = if make_zk {
-            let rng = rng.ok_or(BoxedError::new(ASError::MissingRng(
-                "Accumulating inputs with hiding requires rng.".to_string(),
-            )))?;
-
-            let index_info = &prover_key.nark_pk.index_info;
-            let (proof_randomness, prover_witness_randomness) = Self::compute_prover_randomness(
-                prover_key,
-                rng,
-                index_info.num_instance_variables,
-                index_info.num_variables - index_info.num_instance_variables,
-            )?;
-
-            (Some(proof_randomness), Some(prover_witness_randomness))
-        } else {
-            (None, None)
-        };
 
         let beta_challenges = Self::compute_beta_challenges(
             num_addends,

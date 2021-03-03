@@ -37,7 +37,7 @@ pub trait AtomicASVerifierGadget<AS: AtomicAccumulationScheme, CF: PrimeField>:
 pub mod tests {
     use crate::constraints::ASVerifierGadget;
     use crate::tests::ASTestInput;
-    use crate::AccumulationScheme;
+    use crate::{AccumulationScheme, MakeZK};
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
@@ -62,8 +62,13 @@ pub mod tests {
             let mut input = I::generate_inputs(&input_params, 1, &mut rng);
             let input = input.pop().unwrap();
 
-            let (accumulator, proof) =
-                AS::prove(&pk, vec![input.as_ref()], vec![], Some(&mut rng)).unwrap();
+            let (accumulator, proof) = AS::prove(
+                &pk,
+                vec![input.as_ref()],
+                vec![],
+                MakeZK::Inherited(Some(&mut rng)),
+            )
+            .unwrap();
 
             let cs = ConstraintSystem::<CF>::new_ref();
 
@@ -114,14 +119,19 @@ pub mod tests {
             let old_input = inputs.pop().unwrap();
             let new_input = inputs.pop().unwrap();
 
-            let (old_accumulator, _) =
-                AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
+            let (old_accumulator, _) = AS::prove(
+                &pk,
+                vec![old_input.as_ref()],
+                vec![],
+                MakeZK::Inherited(Some(&mut rng)),
+            )
+            .unwrap();
 
             let (new_accumulator, proof) = AS::prove(
                 &pk,
                 vec![new_input.as_ref()],
                 vec![old_accumulator.as_ref()],
-                Some(&mut rng),
+                MakeZK::Inherited(Some(&mut rng)),
             )
             .unwrap();
 
@@ -176,14 +186,19 @@ pub mod tests {
         let old_input = inputs.pop().unwrap();
         let new_input = inputs.pop().unwrap();
 
-        let (old_accumulator, _) =
-            AS::prove(&pk, vec![old_input.as_ref()], vec![], Some(&mut rng)).unwrap();
+        let (old_accumulator, _) = AS::prove(
+            &pk,
+            vec![old_input.as_ref()],
+            vec![],
+            MakeZK::Inherited(Some(&mut rng)),
+        )
+        .unwrap();
 
         let (new_accumulator, proof) = AS::prove(
             &pk,
             vec![new_input.as_ref()],
             vec![old_accumulator.as_ref()],
-            Some(&mut rng),
+            MakeZK::Inherited(Some(&mut rng)),
         )
         .unwrap();
 

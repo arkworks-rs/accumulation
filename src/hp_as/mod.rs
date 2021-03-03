@@ -1,7 +1,7 @@
 use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::AccumulationScheme;
+use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, ToConstraintField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -441,7 +441,7 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        rng: Option<&mut dyn RngCore>,
+        make_zk: MakeZK,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
@@ -468,9 +468,17 @@ where
             .map(|input| input.witness)
             .collect::<Vec<_>>();
 
-        let make_zk = input_witnesses.iter().fold(false, |make_zk, witness| {
-            make_zk || witness.randomness.is_some()
+        let (make_zk, rng) = make_zk.into_components(|| {
+            input_witnesses.iter().fold(false, |make_zk, witness| {
+                make_zk || witness.randomness.is_some()
+            })
         });
+
+        if make_zk && rng.is_none() {
+            return Err(BoxedError::new(ASError::MissingRng(
+                "Accumulating inputs with hiding requires rng.".to_string(),
+            )));
+        }
 
         let mut num_inputs = input_instances.len();
         let hp_vec_len = prover_key.supported_elems_len();
@@ -488,9 +496,8 @@ where
         }
 
         let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk {
-            let rng = rng.ok_or(BoxedError::new(ASError::MissingRng(
-                "Accumulating inputs with hiding requires rng.".to_string(),
-            )))?;
+            assert!(rng.is_some());
+            let rng = rng.unwrap();
 
             let a = vec![G::ScalarField::rand(rng); hp_vec_len];
             let b = vec![G::ScalarField::rand(rng); hp_vec_len];

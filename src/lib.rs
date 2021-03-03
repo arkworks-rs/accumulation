@@ -49,12 +49,24 @@ pub mod hp_as;
 
 pub mod nark_as;
 
-pub enum ZKConfig<'a> {
+pub enum MakeZK<'a> {
     /// Always enable zero-knowledge accumulation if available.
     Enabled(&'a mut dyn RngCore),
 
-    /// Enable zero-knowledge accumulation if any input or accumulator requires zero knowledge.
+    /// Enable zero-knowledge accumulation if any input or accumulator requires zero-knowledge.
     Inherited(Option<&'a mut dyn RngCore>),
+}
+
+impl<'a> MakeZK<'a> {
+    fn into_components<F: Fn() -> bool>(
+        self,
+        inherit_zk: F,
+    ) -> (bool, Option<&'a mut dyn RngCore>) {
+        match self {
+            MakeZK::Enabled(rng) => (true, Some(rng)),
+            MakeZK::Inherited(rng) => (inherit_zk(), rng)
+        }
+    }
 }
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
@@ -130,7 +142,7 @@ pub trait AccumulationScheme: Sized {
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        rng: Option<&mut dyn RngCore>,
+        make_zk: MakeZK,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a;
@@ -159,7 +171,7 @@ pub trait AccumulationScheme: Sized {
 pub mod tests {
     use crate::data_structures::{Accumulator, Input};
     use crate::std::vec::Vec;
-    use crate::AccumulationScheme;
+    use crate::{AccumulationScheme, MakeZK};
     use rand_core::RngCore;
 
     pub const NUM_ITERATIONS: usize = 1;
@@ -227,7 +239,7 @@ pub mod tests {
                     &pk,
                     Input::<A>::map_to_refs(inputs),
                     Accumulator::<A>::map_to_refs(&old_accumulators),
-                    Some(&mut rng),
+                    MakeZK::Inherited(Some(&mut rng)),
                 )?;
 
                 if !A::verify(

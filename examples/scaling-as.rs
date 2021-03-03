@@ -18,14 +18,7 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
-use ark_accumulation::{
-    data_structures::{Accumulator, Input},
-    hc_as,
-    hc_as::HomomorphicCommitmentAS,
-    ipa_as,
-    ipa_as::InnerProductArgAtomicAS,
-    AccumulationScheme,
-};
+use ark_accumulation::{data_structures::{Accumulator, Input}, hc_as, hc_as::HomomorphicCommitmentAS, ipa_as, ipa_as::InnerProductArgAtomicAS, AccumulationScheme, MakeZK};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
@@ -84,7 +77,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
             &pk,
             Input::<AS>::map_to_refs(&inputs),
             Accumulator::<AS>::map_to_refs(&old_accumulators),
-            Some(rng),
+            MakeZK::Inherited(Some(rng)),
         )
         .unwrap();
 
@@ -97,7 +90,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
             &pk,
             Input::<AS>::map_to_refs(&inputs),
             Accumulator::<AS>::map_to_refs(&old_accumulators),
-            Some(rng),
+            MakeZK::Inherited(Some(rng)),
         )
         .unwrap();
         let prover_time = start.elapsed();

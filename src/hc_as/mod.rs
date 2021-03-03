@@ -5,7 +5,7 @@ use crate::std::marker::PhantomData;
 use crate::std::ops::{Add, Div};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use crate::AccumulationScheme;
+use crate::{AccumulationScheme, MakeZK};
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -48,7 +48,6 @@ where
         input_witnesses: impl IntoIterator<
             Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         >,
-        rng: &mut dyn RngCore,
 
         // Outputs
         witness_polynomials_output: &mut Vec<
@@ -77,7 +76,7 @@ where
             );
 
             let mut witness_commitments =
-                LinearHashPC::commit(ck, vec![&labeled_witness_polynomial], Some(rng))?.0;
+                LinearHashPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
 
             let witness_commitment = witness_commitments.pop().unwrap();
 
@@ -92,7 +91,6 @@ where
         ck: &lh_pc::CommitterKey<G>,
         inputs: &[InputRef<'a, Self>],
         accumulators: &[AccumulatorRef<'a, Self>],
-        rng: &mut dyn RngCore,
     ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
@@ -113,7 +111,6 @@ where
             ck,
             input_instances,
             input_witnesses,
-            rng,
             &mut witness_polynomials,
             &mut witness_commitments,
         )?;
@@ -127,7 +124,6 @@ where
             ck,
             accumulator_instances,
             accumulator_witnesses,
-            rng,
             &mut witness_polynomials,
             &mut witness_commitments,
         )?;
@@ -238,17 +234,11 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        rng: Option<&mut dyn RngCore>,
+        _make_zk: MakeZK,
     ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        let rng = rng.ok_or_else(|| {
-            BoxedError::new(ASError::MissingRng(
-                "RngCore required for hc_as prove".to_string(),
-            ))
-        })?;
-
         let inputs: Vec<InputRef<'a, Self>> = inputs.into_iter().collect();
         let accumulators: Vec<AccumulatorRef<'a, Self>> = accumulators.into_iter().collect();
 
@@ -305,7 +295,6 @@ where
                 &prover_key.lh_ck,
                 inputs.as_slice(),
                 accumulators.as_slice(),
-                rng,
             )
             .map_err(|e| BoxedError::new(e))?;
 
