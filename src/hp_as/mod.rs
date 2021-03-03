@@ -9,12 +9,12 @@ use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCo
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::UniformRand;
-use data_structures::*;
 use rand_core::RngCore;
 use std::marker::PhantomData;
 use std::ops::Mul;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub mod constraints;
 

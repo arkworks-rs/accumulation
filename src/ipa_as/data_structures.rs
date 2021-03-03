@@ -3,7 +3,7 @@ use ark_ec::AffineCurve;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::{ipa_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::DomainSeparator;
+use ark_sponge::domain_separated::DomainSeparator;
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]

@@ -16,7 +16,8 @@ use ark_std::ops::Mul;
 use data_structures::*;
 use std::marker::PhantomData;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub struct HcASVerifierGadget<G, C, S, SV>
 where

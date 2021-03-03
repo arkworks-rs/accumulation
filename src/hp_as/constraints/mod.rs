@@ -13,11 +13,11 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
-use data_structures::*;
 use std::marker::PhantomData;
 use std::ops::Mul;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub struct HpASVerifierGadget<G, C, S, SV>
 where

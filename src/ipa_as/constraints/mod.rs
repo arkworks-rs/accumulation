@@ -15,15 +15,15 @@ use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
-use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
-use ark_sponge::{
-    absorb_gadget, Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize,
-};
+use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
+use ark_sponge::domain_separated::DomainSeparatedSponge;
+use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
-use data_structures::*;
 use std::ops::Mul;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub struct IPAAtomicASVerifierGadget<G, C, S, SV>
 where

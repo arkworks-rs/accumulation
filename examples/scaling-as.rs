@@ -18,7 +18,9 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
-use ark_accumulation::{data_structures::{Accumulator, Input}, hc_as, hc_as::HomomorphicCommitmentAS, ipa_as, ipa_as::InnerProductArgAtomicAS, AccumulationScheme, MakeZK};
+use ark_accumulation::{hc_as, hc_as::HomomorphicCommitmentAS};
+use ark_accumulation::{ipa_as, ipa_as::InnerProductArgAtomicAS};
+use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::lh_pc::LinearHashPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
@@ -170,7 +172,7 @@ fn lh_input_gen<R: RngCore>(
             let point = Fr::rand(rng);
             let eval = labeled_polynomial.evaluate(&point);
 
-            let instance = hc_as::data_structures::InputInstance {
+            let instance = hc_as::InputInstance {
                 commitment: labeled_commitment,
                 point,
                 eval,
@@ -201,7 +203,7 @@ fn dl_param_gen<R: RngCore>(
 ) {
     let predicate_params = PCDL::setup(degree, None, rng).unwrap();
     let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();
-    let predicate_index = ipa_as::data_structures::PredicateIndex {
+    let predicate_index = ipa_as::PredicateIndex {
         supported_degree_bound: degree,
         supported_hiding_bound: 0,
     };
@@ -253,7 +255,7 @@ fn dl_input_gen<R: RngCore>(
             .unwrap();
             assert!(result);
 
-            let input = ipa_as::data_structures::InputInstance {
+            let input = ipa_as::InputInstance {
                 ipa_commitment: labeled_commitment,
                 point,
                 evaluation: eval,

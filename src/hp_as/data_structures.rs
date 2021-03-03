@@ -1,5 +1,5 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, Field, PrimeField, Zero};
+use ark_ff::{to_bytes, Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};

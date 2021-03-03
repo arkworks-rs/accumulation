@@ -1,8 +1,8 @@
 use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
-use crate::hp_as::constraints::data_structures::{
+use crate::hp_as::constraints::HpASVerifierGadget;
+use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
 use crate::nark_as::NarkAS;
 use ark_ec::AffineCurve;
@@ -16,12 +16,13 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
-use ark_sponge::constraints::{CryptographicSpongeVar, DomainSeparatedSpongeVar};
+use ark_sponge::constraints::CryptographicSpongeVar;
+use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
-use data_structures::*;
 use std::marker::PhantomData;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub struct NarkASVerifierGadget<G, C, S, SV>
 where

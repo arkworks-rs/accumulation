@@ -1,18 +1,15 @@
-use crate::hp_as::data_structures::{
+use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
 };
 use crate::nark_as;
 use crate::nark_as::r1cs_nark;
-use crate::nark_as::r1cs_nark::data_structures::{
-    FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
-};
+use crate::nark_as::r1cs_nark::{FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage};
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField};
 use ark_relations::r1cs::{Matrix, ToConstraintField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{
-    collect_sponge_bytes, collect_sponge_field_elements, Absorbable, DomainSeparator,
-};
+use ark_sponge::domain_separated::DomainSeparator;
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
 
 #[derive(Clone)]

@@ -1,11 +1,11 @@
 use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::hp_as::data_structures::{
+use crate::hp_as::HadamardProductAS;
+use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
-use crate::hp_as::HadamardProductAS;
 use crate::nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
 use crate::std::UniformRand;
 use crate::{AccumulationScheme, MakeZK};
@@ -14,18 +14,17 @@ use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
-use ark_sponge::{
-    absorb, Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize,
-};
-use data_structures::*;
-use r1cs_nark::data_structures::{
+use ark_sponge::domain_separated::DomainSeparatedSponge;
+use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use r1cs_nark::{
     FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
     SecondRoundMessage,
 };
 use rand_core::RngCore;
 use std::marker::PhantomData;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 /// A simple non-interactive argument of knowledge for R1CS
 pub mod r1cs_nark;
@@ -847,7 +846,7 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
-    use crate::nark_as::r1cs_nark::data_structures::IndexProverKey;
+    use crate::nark_as::r1cs_nark::IndexProverKey;
     use crate::nark_as::r1cs_nark::SimpleNARK;
     use crate::nark_as::NarkAS;
     use crate::tests::*;
@@ -860,8 +859,9 @@ pub mod tests {
         ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
         SynthesisError,
     };
+    use ark_sponge::domain_separated::DomainSeparatedSponge;
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge};
+    use ark_sponge::{Absorbable, CryptographicSponge};
     use rand_core::RngCore;
     use std::UniformRand;
 

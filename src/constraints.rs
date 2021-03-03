@@ -45,6 +45,8 @@ pub mod tests {
     use ark_relations::r1cs::{
         ConstraintLayer, ConstraintSystem, ConstraintSystemRef, TracingMode,
     };
+    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
+    use ark_sponge::constraints::CryptographicSpongeVar;
 
     pub fn test_initialization<AS, I, CF, ASV>(test_params: &I::TestParams, num_iterations: usize)
     where
@@ -264,4 +266,6 @@ pub mod tests {
 
         assert!(cs.is_satisfied().unwrap());
     }
+
+
 }

@@ -15,13 +15,14 @@ use ark_poly_commit::{
     PolynomialCommitment, PolynomialLabel,
 };
 use ark_relations::r1cs::ToConstraintField;
-use ark_sponge::{Absorbable, CryptographicSponge, DomainSeparatedSponge, FieldElementSize};
+use ark_sponge::domain_separated::DomainSeparatedSponge;
+use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use blake2::Blake2s;
-use data_structures::*;
 use rand_core::RngCore;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;

@@ -17,7 +17,6 @@
 )]
 #![forbid(unsafe_code)]
 
-use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rand_core::RngCore;
 
@@ -30,7 +29,8 @@ extern crate bench_utils;
 extern crate ark_std as std;
 
 /// Common data structures used by `AtomicAccumulationScheme` and `SplitAccumulationScheme`.
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 pub mod constraints;
 
@@ -64,7 +64,7 @@ impl<'a> MakeZK<'a> {
     ) -> (bool, Option<&'a mut dyn RngCore>) {
         match self {
             MakeZK::Enabled(rng) => (true, Some(rng)),
-            MakeZK::Inherited(rng) => (inherit_zk(), rng)
+            MakeZK::Inherited(rng) => (inherit_zk(), rng),
         }
     }
 }

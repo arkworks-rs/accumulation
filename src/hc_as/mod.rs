@@ -17,11 +17,11 @@ use ark_poly_commit::{
 };
 use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
-use data_structures::*;
 use rand_core::RngCore;
 use std::ops::Mul;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 #[cfg(feature = "r1cs")]
 pub mod constraints;

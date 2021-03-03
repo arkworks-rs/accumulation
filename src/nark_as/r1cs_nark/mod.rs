@@ -16,7 +16,8 @@ use rand_core::RngCore;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-pub mod data_structures;
+mod data_structures;
+pub use data_structures::*;
 
 type R1CSResult<T> = Result<T, SynthesisError>;
 
