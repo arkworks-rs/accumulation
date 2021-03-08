@@ -4,7 +4,7 @@
 #![warn(
     const_err,
     future_incompatible,
-    // missing_docs,
+    missing_docs,
     non_shorthand_field_patterns,
     renamed_and_removed_lints,
     rust_2018_idioms,
@@ -34,7 +34,7 @@ mod data_structures;
 /// Common data structures used by `AccumulationScheme`.
 pub use data_structures::*;
 
-/// Common errors for `AidedAccumulationScheme`.
+/// Common errors for `AccumulationScheme`.
 pub mod error;
 
 #[cfg(feature = "r1cs")]
@@ -52,6 +52,7 @@ pub mod ipa_as;
 
 pub mod nark_as;
 
+/// Specifies the zero-knowledge configuration for an accumulation.
 pub enum MakeZK<'a> {
     /// Always enable zero-knowledge accumulation if available.
     Enabled(&'a mut dyn RngCore),
@@ -73,20 +74,13 @@ impl<'a> MakeZK<'a> {
 }
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
-/// to ensure each accumulated input satisfies the predicate. The prover also outputs a proof
-/// attesting that the accumulator was computed correctly, which a verifier can check. At any
-/// point, a decider use an accumulator to determine if each accumulated input satisfies the
-/// predicate.
-/// Accumulation schemes are aided accumulation schemes with empty witnesses. So, verifiers receive
-/// entire accumulators and inputs.
-pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>:
-    AccumulationScheme<CF, S, InputWitness = (), AccumulatorWitness = ()>
-{
-}
-
-/// An interface for an aided accumulation scheme. In an aided accumulation scheme, accumulators
-/// and inputs are split into instance, witness pairs. Verifiers no longer receive entire
-/// accumulators or inputs but instead receive their respective instances.
+/// accumulates a stream of inputs into an object called an `Accumulator`. The prover also
+/// outputs a proof attesting that the `Accumulator` was computed correctly, which a verifier can
+/// check. At any point, a decider can use an `Accumulator` to determine if each accumulated
+/// input satisfied the predicate.
+/// `AccumulationScheme` is defined in [BCLMS20][pcdwsa] as `SplitAccumulationScheme`.
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized {
     /// The universal parameters for the accumulation scheme.
     type UniversalParams: Clone;
@@ -138,12 +132,13 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error>;
 
-    /// Accumulates the inputs and past accumulators. Additionally outputs the proof attesting
-    /// that that the new accumulator was computed properly from the inputs and old accumulators.
+    /// Accumulates inputs and past accumulators. Additionally outputs a proof attesting that the
+    /// new accumulator was computed properly from the inputs and old accumulators.
+    /// Performs the accumulation using a provided sponge.
     fn prove_with_sponge<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
         make_zk: MakeZK<'_>,
         sponge: S,
     ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
@@ -151,27 +146,29 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         Self: 'a,
         S: 'a;
 
-    /// Accumulates the inputs and past accumulators. Additionally outputs the proof attesting
-    /// that that the new accumulator was computed properly from the inputs and old accumulators.
+    /// Accumulates inputs and past accumulators. Additionally outputs a proof attesting that the
+    /// new accumulator was computed properly from the inputs and old accumulators.
+    /// Performs the accumulation using a new sponge.
     fn prove<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
         make_zk: MakeZK<'_>,
     ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
         S: 'a,
     {
-        Self::prove_with_sponge(prover_key, inputs, accumulators, make_zk, S::new())
+        Self::prove_with_sponge(prover_key, inputs, old_accumulators, make_zk, S::new())
     }
 
     /// Verifies using a proof that the new accumulator instance was computed properly from the
     /// input instances and old accumulator instances.
+    /// Performs the verification using a provided sponge.
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
         sponge: S,
@@ -180,10 +177,13 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         Self: 'a,
         S: 'a;
 
+    /// Verifies using a proof that the new accumulator instance was computed properly from the
+    /// input instances and old accumulator instances.
+    /// Performs the verification using a new sponge.
     fn verify<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
     ) -> Result<bool, Self::Error>
@@ -194,7 +194,7 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         Self::verify_with_sponge(
             verifier_key,
             input_instances,
-            accumulator_instances,
+            old_accumulator_instances,
             new_accumulator_instance,
             proof,
             S::new(),
@@ -203,18 +203,34 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
+    /// Performs the decide using a provided sponge.
     fn decide_with_sponge<'a>(
         decider_key: &Self::DeciderKey,
         accumulator: AccumulatorRef<'_, CF, S, Self>,
         sponge: S,
     ) -> Result<bool, Self::Error>;
 
+    /// Determines whether an accumulator is valid, which means every accumulated input satisfies
+    /// the predicate.
+    /// Performs the decide using a new sponge.
     fn decide<'a>(
         decider_key: &Self::DeciderKey,
         accumulator: AccumulatorRef<'_, CF, S, Self>,
     ) -> Result<bool, Self::Error> {
         Self::decide_with_sponge(decider_key, accumulator, S::new())
     }
+}
+
+/// An `AtomicAccumulationScheme` is a special case of an `AccumulationScheme` that has empty
+/// witnesses, so entire `Input`s and `Accumulator`s are passed into the verifier.
+/// `AtomicAccumulationScheme` is defined in [BCMS20][pcdas] as `AccumulationScheme` and in
+/// [BCLMS20][pcdwsa] as `AtomicAccumulationScheme`.
+///
+/// [pcdas]: https://eprint.iacr.org/2020/499.pdf
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>:
+    AccumulationScheme<CF, S, InputWitness = (), AccumulatorWitness = ()>
+{
 }
 
 #[cfg(test)]
