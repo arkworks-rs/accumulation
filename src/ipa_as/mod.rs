@@ -14,8 +14,7 @@ use ark_poly_commit::{
     ipa_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCVerifierKey,
     PolynomialCommitment, PolynomialLabel,
 };
-use ark_relations::r1cs::ToConstraintField;
-use ark_sponge::domain_separated::{DomainSeparatedSponge, DomainSeparator};
+use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use blake2::Blake2s;
@@ -239,7 +238,10 @@ where
             linear_combination_challenge_bytes.resize_with(16, || 0);
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
 
-            Self::absorb_check_polynomial_into_sponge(&mut challenge_point_sponge, check_polynomial);
+            Self::absorb_check_polynomial_into_sponge(
+                &mut challenge_point_sponge,
+                check_polynomial,
+            );
         }
 
         let challenge_point = challenge_point_sponge
@@ -394,7 +396,7 @@ where
         _prover_key: &Self::ProverKey,
         _inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
         _accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        _make_zk: MakeZK,
+        _make_zk: MakeZK<'_>,
         _sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
@@ -409,12 +411,12 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        make_zk: MakeZK,
+        make_zk: MakeZK<'_>,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        let mut sponge = S::new();
+        let sponge = S::new();
 
         let inputs: Vec<&InputInstance<G>> =
             InputRef::<'a, _, _, Self>::instances(inputs).collect::<Vec<_>>();
@@ -650,8 +652,7 @@ pub mod tests {
     use crate::tests::{ASTestInput, ASTests};
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ff::{One, ToConstraintField, UniformRand};
-    use ark_pallas::{Affine, Fq};
+    use ark_ff::{One, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};

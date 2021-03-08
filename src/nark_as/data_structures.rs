@@ -6,7 +6,7 @@ use crate::nark_as::r1cs_nark;
 use crate::nark_as::r1cs_nark::{FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage};
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField};
-use ark_relations::r1cs::{Matrix, ToConstraintField};
+use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::domain_separated::DomainSeparator;
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};

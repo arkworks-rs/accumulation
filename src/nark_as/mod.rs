@@ -11,7 +11,6 @@ use crate::nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
 use crate::std::UniformRand;
 use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::ToConstraintField;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
@@ -71,10 +70,7 @@ where
             let mut comm_prod = first_round_message.comm_c;
 
             if instance.make_zk {
-                let gamma_challenge = SimpleNARK::<
-                    G,
-                    S
-                >::compute_challenge(
+                let gamma_challenge = SimpleNARK::<G, S>::compute_challenge(
                     index_info,
                     instance.r1cs_input.as_slice(),
                     first_round_message,
@@ -502,7 +498,8 @@ where
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
-    type UniversalParams = <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::UniversalParams;
+    type UniversalParams =
+        <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::UniversalParams;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -526,11 +523,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipk, ivk) =
-            SimpleNARK::<G, S>::index(
-                &predicate_params,
-                predicate_index.clone(),
-            )
+        let (ipk, ivk) = SimpleNARK::<G, S>::index(&predicate_params, predicate_index.clone())
             .map_err(BoxedError::new)?;
 
         let as_matrices_hash = hash_matrices(PROTOCOL_NAME, &ipk.a, &ipk.b, &ipk.c);
@@ -554,7 +547,7 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        make_zk: MakeZK,
+        make_zk: MakeZK<'_>,
         mut sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
@@ -562,7 +555,7 @@ where
         S: 'a,
     {
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
-        let mut as_sponge = sponge.new_fork(PROTOCOL_NAME);
+        let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
         sponge.fork(hp_as::PROTOCOL_NAME);
         let hp_sponge = sponge;
@@ -624,7 +617,11 @@ where
 
         // Run HP AS
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
-            Self::compute_blinded_commitments(&prover_key.nark_pk.index_info, &input_instances, nark_sponge);
+            Self::compute_blinded_commitments(
+                &prover_key.nark_pk.index_info,
+                &input_instances,
+                nark_sponge,
+            );
 
         let combined_hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
@@ -637,7 +634,12 @@ where
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
             .zip(&combined_hp_input_witnesses)
-            .map(|(instance, witness)| InputRef::<_, _, HadamardProductAS<_, S>> { instance, witness });
+            .map(
+                |(instance, witness)| InputRef::<_, _, HadamardProductAS<_, S>> {
+                    instance,
+                    witness,
+                },
+            );
 
         let hp_accumulators_iter = accumulator_instances
             .iter()
@@ -726,7 +728,7 @@ where
         Self: 'a,
     {
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
-        let mut as_sponge = sponge.new_fork(PROTOCOL_NAME);
+        let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
         sponge.fork(hp_as::PROTOCOL_NAME);
         let hp_sponge = sponge;
@@ -744,11 +746,15 @@ where
             &accumulator_instances,
             &input_instances,
             &proof.randomness,
-           as_sponge,
+            as_sponge,
         );
 
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
-            Self::compute_blinded_commitments(&verifier_key.nark_index, &input_instances, nark_sponge);
+            Self::compute_blinded_commitments(
+                &verifier_key.nark_index,
+                &input_instances,
+                nark_sponge,
+            );
 
         let hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
@@ -792,7 +798,7 @@ where
         mut sponge: S,
     ) -> Result<bool, Self::Error> {
         sponge.fork(hp_as::PROTOCOL_NAME);
-        let mut hp_sponge = sponge;
+        let hp_sponge = sponge;
 
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -860,7 +866,7 @@ where
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
-            hp_sponge,
+                hp_sponge,
             )?)
     }
 }
@@ -873,12 +879,11 @@ pub mod tests {
     use crate::nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
     use crate::nark_as::r1cs_nark::IndexProverKey;
     use crate::nark_as::r1cs_nark::SimpleNARK;
-    use crate::nark_as::{NarkAS, r1cs_nark};
+    use crate::nark_as::{r1cs_nark, NarkAS};
     use crate::tests::*;
-    use crate::{AccumulationScheme, nark_as};
+    use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ed_on_bls12_381::{EdwardsAffine, Fq, Fr};
-    use ark_ff::{PrimeField, ToConstraintField};
+    use ark_ff::PrimeField;
     use ark_relations::lc;
     use ark_relations::r1cs::{
         ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
@@ -936,7 +941,8 @@ pub mod tests {
 
     pub struct NarkASTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, NarkAS<G, DummyCircuit<G::ScalarField>, S>> for NarkASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, NarkAS<G, DummyCircuit<G::ScalarField>, S>>
+        for NarkASTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -952,7 +958,7 @@ pub mod tests {
             Self::InputParams,
             <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
             <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
-        ) {
+        ){
             let nark_pp =
                 SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
                 );
@@ -991,11 +997,12 @@ pub mod tests {
                 let mut nark_sponge = S::new();
                 nark_sponge.fork(r1cs_nark::PROTOCOL_NAME);
 
-                let proof = SimpleNARK::<
-                    G,
-                    S,
-                >::prove(
-                    ipk, circuit.clone(), test_params.make_zk, nark_sponge, Some(rng)
+                let proof = SimpleNARK::<G, S>::prove(
+                    ipk,
+                    circuit.clone(),
+                    test_params.make_zk,
+                    nark_sponge,
+                    Some(rng),
                 )
                 .unwrap();
 

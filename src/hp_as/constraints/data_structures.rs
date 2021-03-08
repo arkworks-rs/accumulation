@@ -6,11 +6,9 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::ToConstraintFieldGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_sponge::collect_sponge_field_elements_gadget;
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
-use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{collect_sponge_field_elements_gadget, CryptographicSponge};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 

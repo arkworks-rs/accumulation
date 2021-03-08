@@ -1,4 +1,4 @@
-use crate::{AccumulationScheme, AtomicAccumulationScheme};
+use crate::AccumulationScheme;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_nonnative_field::NonNativeFieldVar;
@@ -80,7 +80,6 @@ pub mod tests {
         ConstraintLayer, ConstraintSystem, ConstraintSystemRef, TracingMode,
     };
     use ark_sponge::constraints::CryptographicSpongeVar;
-    use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::CryptographicSponge;
     use std::marker::PhantomData;
 

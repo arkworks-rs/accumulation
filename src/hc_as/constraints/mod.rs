@@ -7,13 +7,12 @@ use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
-use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_r1cs_std::ToBytesGadget;
+use ark_relations::r1cs::SynthesisError;
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::ops::Mul;
-use data_structures::*;
 use std::marker::PhantomData;
 
 mod data_structures;

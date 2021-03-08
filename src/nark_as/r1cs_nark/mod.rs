@@ -1,6 +1,6 @@
 use crate::constraints::ConstraintF;
 use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, Field, One, PrimeField, ToConstraintField, Zero};
+use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 use ark_poly_commit::pedersen::*;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
@@ -10,7 +10,6 @@ use ark_serialize::CanonicalSerialize;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
 use blake2::{digest::VariableOutput, VarBlake2b};
-use data_structures::*;
 use rand_core::RngCore;
 
 #[cfg(feature = "parallel")]
@@ -117,7 +116,7 @@ where
         ipk: &IndexProverKey<G>,
         r1cs: C,
         make_zk: bool,
-        mut sponge: S,
+        sponge: S,
         mut rng: Option<&mut dyn RngCore>,
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover");
@@ -303,7 +302,12 @@ where
         Ok(proof)
     }
 
-    pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>, sponge: S) -> bool {
+    pub fn verify(
+        ivk: &IndexVerifierKey<G>,
+        input: &[G::ScalarField],
+        proof: &Proof<G>,
+        sponge: S,
+    ) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
 

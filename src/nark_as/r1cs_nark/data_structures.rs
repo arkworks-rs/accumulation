@@ -1,7 +1,7 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, Field, PrimeField};
+use ark_ff::{Field, PrimeField};
 use ark_poly_commit::pedersen::*;
-use ark_relations::r1cs::{Matrix, ToConstraintField};
+use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};

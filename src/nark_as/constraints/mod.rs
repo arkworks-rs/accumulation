@@ -1,24 +1,23 @@
 use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::hp_as;
 use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::nark_as::{NarkAS, r1cs_nark, PROTOCOL_NAME};
+use crate::nark_as::{r1cs_nark, NarkAS, PROTOCOL_NAME};
 use ark_ec::AffineCurve;
-use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
+use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
-use crate::hp_as;
 
 mod data_structures;
 pub use data_structures::*;
@@ -149,7 +148,7 @@ where
                 let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
                     &instance.r1cs_input.as_slice(),
                     &instance.first_round_message,
-                   nark_sponge.clone()
+                    nark_sponge.clone(),
                 )?;
 
                 if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
@@ -378,7 +377,7 @@ where
     {
         let cs = sponge.cs();
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME)?;
-        let mut as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
+        let as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
 
         sponge.fork(hp_as::PROTOCOL_NAME)?;
         let hp_sponge = sponge;
@@ -427,7 +426,7 @@ where
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
             &proof.hp_proof,
-            hp_sponge
+            hp_sponge,
         )?;
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
@@ -461,12 +460,12 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::tests::ASVerifierGadgetTests;
     use crate::nark_as::constraints::NarkASVerifierGadget;
     use crate::nark_as::tests::{DummyCircuit, NarkASTestInput, NarkASTestParams};
     use crate::nark_as::NarkAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use crate::constraints::tests::ASVerifierGadgetTests;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;

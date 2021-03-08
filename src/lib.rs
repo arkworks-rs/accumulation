@@ -17,10 +17,10 @@
 )]
 #![forbid(unsafe_code)]
 
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use rand_core::RngCore;
 use ark_ff::PrimeField;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_sponge::CryptographicSponge;
+use rand_core::RngCore;
 
 #[macro_use]
 extern crate derivative;
@@ -144,7 +144,7 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
-        make_zk: MakeZK,
+        make_zk: MakeZK<'_>,
         sponge: S,
     ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
     where
@@ -157,7 +157,7 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
-        make_zk: MakeZK,
+        make_zk: MakeZK<'_>,
     ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,

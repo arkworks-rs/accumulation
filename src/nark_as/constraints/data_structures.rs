@@ -5,17 +5,15 @@ use crate::nark_as::data_structures::{
 };
 use crate::nark_as::r1cs_nark::{FirstRoundMessage, IndexInfo};
 use ark_ec::AffineCurve;
-use ark_ff::{PrimeField, ToConstraintField};
+use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
-use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable, CryptographicSponge};
+use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 

@@ -3,7 +3,7 @@ use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
 use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{One, ToConstraintField, Zero};
+use ark_ff::{One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
@@ -444,7 +444,7 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        make_zk: MakeZK,
+        make_zk: MakeZK<'_>,
         sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
@@ -722,8 +722,6 @@ pub mod tests {
     use crate::tests::*;
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_ff::ToConstraintField;
-    use ark_pallas::{Affine, Fq};
     use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};

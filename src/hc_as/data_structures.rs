@@ -1,6 +1,6 @@
 use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, PrimeField, ToConstraintField};
+use ark_ff::{to_bytes, PrimeField};
 use ark_poly_commit::{lh_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};

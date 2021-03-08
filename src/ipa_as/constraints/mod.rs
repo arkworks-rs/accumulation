@@ -1,7 +1,7 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, ConstraintF, NNFieldVar};
-use crate::ipa_as::{InnerProductArgAtomicAS, IpaASDomain, IpaPCDomain};
+use crate::ipa_as::{InnerProductArgAtomicAS, IpaPCDomain};
 use ark_ec::AffineCurve;
-use ark_ff::{Field, ToConstraintField};
+use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
@@ -11,13 +11,13 @@ use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
+use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
-use ark_sponge::domain_separated::{DomainSeparatedSponge, DomainSeparator};
+use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
@@ -336,7 +336,7 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let mut as_sponge = SV::new(cs.clone());
+        let as_sponge = SV::new(cs.clone());
 
         let mut verify_result = Boolean::TRUE;
 
@@ -416,12 +416,12 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::tests::ASVerifierGadgetTests;
     use crate::ipa_as::constraints::IPAAtomicASVerifierGadget;
     use crate::ipa_as::tests::{IpaAtomicASTestInput, IpaAtomicASTestParams};
     use crate::ipa_as::InnerProductArgAtomicAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
-    use crate::constraints::tests::ASVerifierGadgetTests;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;

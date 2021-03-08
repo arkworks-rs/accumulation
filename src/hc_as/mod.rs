@@ -15,7 +15,6 @@ use ark_poly_commit::{
     lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
     PolynomialLabel, UVPolynomial,
 };
-use ark_relations::r1cs::ToConstraintField;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use rand_core::RngCore;
 use std::ops::Mul;
@@ -215,7 +214,7 @@ where
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
         accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        _make_zk: MakeZK,
+        _make_zk: MakeZK<'_>,
         sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
@@ -498,7 +497,6 @@ pub mod tests {
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::ToConstraintField;
-    use ark_pallas::{Affine, Fq};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::lh_pc::LinearHashPC;
     use ark_poly_commit::{
