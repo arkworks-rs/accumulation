@@ -134,7 +134,6 @@ where
             let a_poly = DensePolynomial::from_coefficients_vec(a_coeffs);
             let b_poly = DensePolynomial::from_coefficients_vec(b_coeffs);
 
-            // TODO: Change to nlogn mul
             let product_polynomial = a_poly.naive_mul(&b_poly);
             let mut product_polynomial_coeffs = product_polynomial.coeffs;
 
@@ -216,8 +215,6 @@ where
         nu_challenges: &[G::ScalarField],
         combined_challenges: &[G::ScalarField],
     ) -> InputInstance<G> {
-        // TODO: Replace into with batch normalization to affine
-
         let num_inputs = input_instances.len();
 
         let hiding_comm_addend_1 = proof
@@ -225,29 +222,27 @@ where
             .as_ref()
             .map(|hiding_comms| hiding_comms.comm_1.mul(mu_challenges[num_inputs].into()));
 
-        let combined_comm_1: G = Self::combine_commitments(
+        let combined_comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
             combined_challenges,
             hiding_comm_addend_1.as_ref(),
-        )
-        .into();
+        );
 
         let hiding_comm_addend_2 = proof
             .hiding_comms
             .as_ref()
             .map(|hiding_comms| hiding_comms.comm_2.mul(mu_challenges[1].into()));
 
-        let combined_comm_2: G = Self::combine_commitments(
+        let combined_comm_2 = Self::combine_commitments(
             input_instances
                 .iter()
                 .map(|instance| &instance.comm_2)
                 .rev(),
             nu_challenges,
             hiding_comm_addend_2.as_ref(),
-        )
-        .into();
+        );
 
-        let combined_comm_3: G = {
+        let combined_comm_3 = {
             let t_comm_low_addend =
                 Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None);
 
@@ -269,13 +264,19 @@ where
             )
             .mul(nu_challenges[num_inputs - 1].into());
 
-            (t_comm_low_addend + &t_comm_high_addend + &comm_3_addend).into()
+            t_comm_low_addend + &t_comm_high_addend + &comm_3_addend
         };
 
+        let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
+            combined_comm_3,
+            combined_comm_2,
+            combined_comm_1,
+        ]);
+
         InputInstance {
-            comm_1: combined_comm_1,
-            comm_2: combined_comm_2,
-            comm_3: combined_comm_3,
+            comm_1: combined_comms.pop().unwrap(),
+            comm_2: combined_comms.pop().unwrap(),
+            comm_3: combined_comms.pop().unwrap(),
         }
     }
 
@@ -401,6 +402,29 @@ where
             b_vec: b_opening_vec,
             randomness,
         }
+    }
+
+    fn basic_verify(inputs: &Vec<&InputInstance<G>>, proof: &Proof<G>) -> bool {
+        let num_inputs = inputs.len();
+        if num_inputs == 0 {
+            return false;
+        }
+
+        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+            return false;
+        }
+
+        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
+            1
+        } else {
+            0
+        };
+
+        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+            return false;
+        }
+
+        true
     }
 }
 
@@ -626,13 +650,12 @@ where
         Self: 'a,
         S: 'a,
     {
-        // TODO: Validate input instances
         let mut input_instances = input_instances
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
 
-        if input_instances.len() == 0 {
+        if !Self::basic_verify(&input_instances, proof) {
             return Ok(false);
         }
 

@@ -210,6 +210,29 @@ where
             _curve: PhantomData,
         })
     }
+
+    fn basic_verify(inputs: &Vec<&InputInstanceVar<G, C>>, proof: &ProofVar<G, C>) -> bool {
+        let num_inputs = inputs.len();
+        if num_inputs == 0 {
+            return false;
+        }
+
+        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+            return false;
+        }
+
+        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
+            1
+        } else {
+            0
+        };
+
+        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+            return false;
+        }
+
+        true
+    }
 }
 
 impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HadamardProductAS<G, S>>
@@ -249,11 +272,14 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        // TODO: Validate input instances
         let mut input_instances = input_instances
             .into_iter()
             .chain(accumulator_instances)
             .collect::<Vec<_>>();
+
+        if !Self::basic_verify(&input_instances, proof) {
+            return Ok(Boolean::FALSE);
+        }
 
         let mut num_inputs = input_instances.len();
         let make_zk = proof.hiding_comms.is_some();

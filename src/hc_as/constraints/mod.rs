@@ -68,6 +68,17 @@ where
 
         Ok(combined_commitment)
     }
+
+    fn basic_verify(
+        input_instances: &Vec<&InputInstanceVar<G, C>>,
+        proof: &ProofVar<G, C>,
+    ) -> bool {
+        if input_instances.len() != proof.single_proofs.len() {
+            return false;
+        }
+
+        true
+    }
 }
 
 impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HomomorphicCommitmentAS<G, S>>
@@ -108,6 +119,15 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
+        let mut input_instances = input_instances
+            .into_iter()
+            .chain(accumulator_instances)
+            .collect::<Vec<_>>();
+
+        if !Self::basic_verify(&input_instances, proof) {
+            return Ok(Boolean::FALSE);
+        }
+
         let mut verify_result = Boolean::TRUE;
 
         let mut challenge_point_sponge = sponge.clone();
@@ -116,7 +136,6 @@ where
         let mut commitment = Vec::new();
         for (input_instance, single_proof) in input_instances
             .into_iter()
-            .chain(accumulator_instances)
             .zip(&proof.single_proofs)
         {
             absorb_gadget!(

@@ -164,6 +164,28 @@ where
         let combined_commitment = scalar_commitment_pairs.into_iter().sum();
         lh_pc::Commitment(combined_commitment)
     }
+
+    fn basic_verify(
+        input_instances: &Vec<&InputInstance<G>>,
+        new_accumulator_instance: &InputInstance<G>,
+        proof: &Proof<G>,
+    ) -> bool {
+        if input_instances.len() != proof.len() {
+            return false;
+        }
+
+        for input_instance in input_instances {
+            if input_instance.commitment.degree_bound().is_some() {
+                return false;
+            }
+        }
+
+        if new_accumulator_instance.commitment.degree_bound().is_some() {
+            return false;
+        }
+
+        true
+    }
 }
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for HomomorphicCommitmentAS<G, S>
@@ -380,7 +402,12 @@ where
         Self: 'a,
         S: 'a,
     {
-        if new_accumulator_instance.commitment.degree_bound().is_some() {
+        let mut input_instances = input_instances
+            .into_iter()
+            .chain(accumulator_instances)
+            .collect::<Vec<_>>();
+
+        if !Self::basic_verify(&input_instances, new_accumulator_instance, proof) {
             return Ok(false);
         }
 
@@ -388,15 +415,8 @@ where
         challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
-        for (input_instance, p) in input_instances
-            .into_iter()
-            .chain(accumulator_instances)
-            .zip(proof)
+        for (input_instance, p) in input_instances.into_iter().zip(proof)
         {
-            if input_instance.commitment.degree_bound().is_some() {
-                return Ok(false);
-            }
-
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,

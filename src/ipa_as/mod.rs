@@ -535,7 +535,6 @@ where
         Self: 'a,
     {
         let sponge = S::new();
-
         if let Some(randomness) = proof.as_ref() {
             if randomness.random_linear_polynomial.degree() > 1 {
                 return Ok(false);
