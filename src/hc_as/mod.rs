@@ -54,10 +54,7 @@ where
             LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         >,
         witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
-    ) -> Result<(), LHPCError>
-    where
-        Self: 'a,
-    {
+    ) -> Result<(), LHPCError> {
         for (instance, witness) in input_instances.into_iter().zip(input_witnesses) {
             let point = instance.point;
             let eval = instance.eval;
@@ -89,18 +86,15 @@ where
 
     fn compute_witness_polynomials_and_commitments<'a>(
         ck: &lh_pc::CommitterKey<G>,
-        inputs: &[InputRef<'a, Self>],
-        accumulators: &[AccumulatorRef<'a, Self>],
+        inputs: &[InputRef<'a, ConstraintF<G>, S, Self>],
+        accumulators: &[AccumulatorRef<'a, ConstraintF<G>, S, Self>],
     ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
             Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
         ),
         LHPCError,
-    >
-    where
-        Self: 'a,
-    {
+    > {
         let mut witness_polynomials = Vec::new();
         let mut witness_commitments = Vec::new();
 
@@ -173,7 +167,7 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme for HomomorphicCommitmentAS<G, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for HomomorphicCommitmentAS<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -183,8 +177,8 @@ where
     type PredicateParams = lh_pc::UniversalParameters<G>;
     type PredicateIndex = usize;
 
-    type ProverKey = ProverKey<G, ConstraintF<G>>;
-    type VerifierKey = ConstraintF<G>;
+    type ProverKey = lh_pc::CommitterKey<G>;
+    type VerifierKey = usize;
     type DeciderKey = lh_pc::VerifierKey<G>;
 
     type InputInstance = InputInstance<G>;
@@ -214,33 +208,22 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let mut degree_challenge_sponge = S::new();
-        degree_challenge_sponge.absorb(predicate_index);
-
-        let degree_challenge = degree_challenge_sponge
-            .squeeze_field_elements(1)
-            .pop()
-            .unwrap();
-
-        let prover_key = ProverKey {
-            lh_ck: ck,
-            degree_challenge: degree_challenge.clone(),
-        };
-
-        Ok((prover_key, degree_challenge, vk))
+        Ok((ck, *predicate_index, vk))
     }
 
-    fn prove<'a>(
+    fn prove_with_sponge<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         _make_zk: MakeZK,
-    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
+        sponge: S,
+    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
+        S: 'a,
     {
-        let inputs: Vec<InputRef<'a, Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<AccumulatorRef<'a, Self>> = accumulators.into_iter().collect();
+        let inputs: Vec<InputRef<'a, _, _, Self>> = inputs.into_iter().collect();
+        let accumulators: Vec<AccumulatorRef<'a, _, _, Self>> = accumulators.into_iter().collect();
 
         for (instance, witness, is_accumulator) in inputs
             .iter()
@@ -263,7 +246,7 @@ where
                 )));
             }
 
-            if witness.degree() < 1 || witness.degree() > prover_key.lh_ck.supported_degree() {
+            if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
                 if is_accumulator {
                     return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
                         "An accumulator witness of degree {} is unsupported for this prover key",
@@ -292,7 +275,7 @@ where
 
         let (witness_polynomials, witness_commitments) =
             Self::compute_witness_polynomials_and_commitments(
-                &prover_key.lh_ck,
+                &prover_key,
                 inputs.as_slice(),
                 accumulators.as_slice(),
             )
@@ -301,8 +284,8 @@ where
         assert_eq!(input_witnesses.len(), witness_polynomials.len());
         assert_eq!(input_witnesses.len(), witness_commitments.len());
 
-        let mut challenge_point_sponge = S::new();
-        challenge_point_sponge.absorb(&prover_key.degree_challenge);
+        let mut challenge_point_sponge = sponge.clone();
+        challenge_point_sponge.absorb(&prover_key.supported_degree());
 
         for (instance, witness_commitment) in input_instances.iter().zip(&witness_commitments) {
             absorb![
@@ -317,7 +300,7 @@ where
             .pop()
             .unwrap();
 
-        let mut linear_combination_challenges_sponge = S::new();
+        let mut linear_combination_challenges_sponge = sponge;
         let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
         challenge_point_bytes.resize_with(23, || 0u8);
         linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
@@ -378,7 +361,7 @@ where
             eval: combined_eval,
         };
 
-        let new_accumulator = Accumulator::<Self> {
+        let new_accumulator = Accumulator::<_, _, Self> {
             instance: new_accumulator_instance,
             witness: combined_polynomial,
         };
@@ -386,21 +369,23 @@ where
         Ok((new_accumulator, proof))
     }
 
-    fn verify<'a>(
+    fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: S,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
+        S: 'a,
     {
         if new_accumulator_instance.commitment.degree_bound().is_some() {
             return Ok(false);
         }
 
-        let mut challenge_point_sponge = S::new();
+        let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
@@ -440,7 +425,7 @@ where
             return Ok(false);
         }
 
-        let mut linear_combination_challenges_sponge = S::new();
+        let mut linear_combination_challenges_sponge = sponge;
         let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
         challenge_point_bytes.resize_with(23, || 0u8);
         linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
@@ -484,9 +469,10 @@ where
         Ok(true)
     }
 
-    fn decide(
+    fn decide_with_sponge(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, Self>,
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
+        _sponge: S,
     ) -> Result<bool, Self::Error> {
         let check = LinearHashPC::check_individual_opening_challenges(
             decider_key,
@@ -530,7 +516,7 @@ pub mod tests {
 
     pub struct HcASTestInput {}
 
-    impl<G, S> ASTestInput<HomomorphicCommitmentAS<G, S>> for HcASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, HomomorphicCommitmentAS<G, S>> for HcASTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -544,9 +530,9 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateParams,
-            <HomomorphicCommitmentAS<G, S> as AccumulationScheme>::PredicateIndex,
-        ) {
+            <HomomorphicCommitmentAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <HomomorphicCommitmentAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+        ){
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
             let supported_hiding_bound = if test_params.make_zk {
@@ -578,7 +564,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<HomomorphicCommitmentAS<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, HomomorphicCommitmentAS<G, S>>> {
             let ck = &input_params.0;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -622,7 +608,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<HomomorphicCommitmentAS<G, S>> {
+                    Input::<_, _, HomomorphicCommitmentAS<G, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -633,12 +619,19 @@ pub mod tests {
         }
     }
 
-    type AS = HomomorphicCommitmentAS<Affine, PoseidonSponge<Fq>>;
+    type G = ark_pallas::Affine;
+    type CF = ark_pallas::Fq;
+
+    type Sponge = PoseidonSponge<CF>;
+
+    type AS = HomomorphicCommitmentAS<G, Sponge>;
     type I = HcASTestInput;
+
+    type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&HcASTestParams {
+        Tests::single_input_initialization_test(&HcASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -646,7 +639,7 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&HcASTestParams {
+        Tests::single_input_initialization_test(&HcASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -654,7 +647,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HcASTestParams {
+        Tests::multiple_inputs_initialization_test(&HcASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -662,7 +655,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HcASTestParams {
+        Tests::multiple_inputs_initialization_test(&HcASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -670,7 +663,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&HcASTestParams {
+        Tests::simple_accumulation_test(&HcASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -678,7 +671,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&HcASTestParams {
+        Tests::simple_accumulation_test(&HcASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -686,7 +679,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HcASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -694,7 +687,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HcASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -702,7 +695,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&HcASTestParams {
+        Tests::accumulators_only_test(&HcASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -710,7 +703,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&HcASTestParams {
+        Tests::accumulators_only_test(&HcASTestParams {
             degree: 8,
             make_zk: true,
         })

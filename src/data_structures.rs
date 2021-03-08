@@ -86,24 +86,24 @@ where
     }
 }
 
-pub type Accumulator<A> = InstanceWitnessPair<
-    <A as AccumulationScheme>::AccumulatorInstance,
-    <A as AccumulationScheme>::AccumulatorWitness,
+pub type Accumulator<CF, S, A> = InstanceWitnessPair<
+    <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
+    <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
 >;
 
-pub type AccumulatorRef<'a, A> = InstanceWitnessPairRef<
+pub type AccumulatorRef<'a, CF, S, A> = InstanceWitnessPairRef<
     'a,
-    <A as AccumulationScheme>::AccumulatorInstance,
-    <A as AccumulationScheme>::AccumulatorWitness,
+    <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
+    <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
 >;
 
-pub type Input<A> = InstanceWitnessPair<
-    <A as AccumulationScheme>::InputInstance,
-    <A as AccumulationScheme>::InputWitness,
+pub type Input<CF, S, A> = InstanceWitnessPair<
+    <A as AccumulationScheme<CF, S>>::InputInstance,
+    <A as AccumulationScheme<CF, S>>::InputWitness,
 >;
 
-pub type InputRef<'a, A> = InstanceWitnessPairRef<
+pub type InputRef<'a, CF, S, A> = InstanceWitnessPairRef<
     'a,
-    <A as AccumulationScheme>::InputInstance,
-    <A as AccumulationScheme>::InputWitness,
+    <A as AccumulationScheme<CF, S>>::InputInstance,
+    <A as AccumulationScheme<CF, S>>::InputWitness,
 >;

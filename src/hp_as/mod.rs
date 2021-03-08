@@ -16,7 +16,10 @@ use std::ops::Mul;
 mod data_structures;
 pub use data_structures::*;
 
+#[cfg(feature = "r1cs")]
 pub mod constraints;
+
+pub(crate) const PROTOCOL_NAME: &[u8] = b"Hadamard-Product-Accumulation-Scheme-2020";
 
 pub struct HadamardProductAS<G, S>
 where
@@ -401,7 +404,7 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme for HadamardProductAS<G, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for HadamardProductAS<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -437,14 +440,16 @@ where
         Ok((ck.clone(), *predicate_index, ck))
     }
 
-    fn prove<'a>(
+    fn prove_with_sponge<'a>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         make_zk: MakeZK,
-    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
+        sponge: S,
+    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
+        S: 'a,
     {
         let inputs = inputs.into_iter().collect::<Vec<_>>();
         let accumulators = accumulators.into_iter().collect::<Vec<_>>();
@@ -551,7 +556,7 @@ where
             (None, None, None)
         };
 
-        let mut challenges_sponge = S::new();
+        let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
             prover_key.supported_elems_len() as u64,
@@ -601,7 +606,7 @@ where
             hiding_rands.as_ref(),
         );
 
-        let accumulator = Accumulator::<Self> {
+        let accumulator = Accumulator::<_, _, Self> {
             instance: accumulator_instance,
             witness: accumulator_witness,
         };
@@ -609,15 +614,17 @@ where
         Ok((accumulator, proof))
     }
 
-    fn verify<'a>(
+    fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: S,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
+        S: 'a,
     {
         // TODO: Validate input instances
         let mut input_instances = input_instances
@@ -640,7 +647,7 @@ where
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
-        let mut challenges_sponge = S::new();
+        let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
             *verifier_key as u64,
@@ -671,9 +678,10 @@ where
         Ok(accumulator_instance.eq(new_accumulator_instance))
     }
 
-    fn decide(
+    fn decide_with_sponge(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, Self>,
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
+        _sponge: S,
     ) -> Result<bool, Self::Error> {
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -730,7 +738,7 @@ pub mod tests {
 
     pub struct HpASTestInput {}
 
-    impl<G, S> ASTestInput<HadamardProductAS<G, S>> for HpASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, HadamardProductAS<G, S>> for HpASTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -744,8 +752,8 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <HadamardProductAS<G, S> as AccumulationScheme>::PredicateParams,
-            <HadamardProductAS<G, S> as AccumulationScheme>::PredicateIndex,
+            <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ) {
             let pp = PedersenCommitment::setup(test_params.vector_len).unwrap();
             let ck = PedersenCommitment::trim(&pp, test_params.vector_len).unwrap();
@@ -756,7 +764,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-        ) -> Vec<Input<HadamardProductAS<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, HadamardProductAS<G, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_elems_len();
 
@@ -813,18 +821,26 @@ pub mod tests {
                         b_vec,
                         randomness,
                     };
-                    Input::<HadamardProductAS<G, S>> { instance, witness }
+
+                    Input::<_, _, HadamardProductAS<G, S>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }
     }
 
-    type AS = HadamardProductAS<Affine, PoseidonSponge<Fq>>;
+    type G = ark_pallas::Affine;
+    type CF = ark_pallas::Fq;
+
+    type Sponge = PoseidonSponge<CF>;
+
+    type AS = HadamardProductAS<G, Sponge>;
     type I = HpASTestInput;
+
+    type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&HpASTestParams {
+        Tests::single_input_initialization_test(&HpASTestParams {
             vector_len: 8,
             make_zk: false,
         })
@@ -832,7 +848,7 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&HpASTestParams {
+        Tests::single_input_initialization_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })
@@ -840,7 +856,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HpASTestParams {
+        Tests::multiple_inputs_initialization_test(&HpASTestParams {
             vector_len: 8,
             make_zk: false,
         })
@@ -848,7 +864,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&HpASTestParams {
+        Tests::multiple_inputs_initialization_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })
@@ -856,7 +872,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&HpASTestParams {
+        Tests::simple_accumulation_test(&HpASTestParams {
             vector_len: 8,
             make_zk: false,
         })
@@ -864,7 +880,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&HpASTestParams {
+        Tests::simple_accumulation_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })
@@ -872,7 +888,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HpASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&HpASTestParams {
             vector_len: 8,
             make_zk: false,
         })
@@ -880,7 +896,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&HpASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })
@@ -888,7 +904,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&HpASTestParams {
+        Tests::accumulators_only_test(&HpASTestParams {
             vector_len: 8,
             make_zk: false,
         })
@@ -896,7 +912,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&HpASTestParams {
+        Tests::accumulators_only_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })

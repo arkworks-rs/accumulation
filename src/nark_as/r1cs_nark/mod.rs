@@ -44,8 +44,8 @@ where
         index_info: &IndexInfo,
         input: &[G::ScalarField],
         msg: &FirstRoundMessage<G>,
+        mut sponge: S,
     ) -> G::ScalarField {
-        let mut sponge = S::new();
         sponge.absorb(&index_info.matrices_hash.as_ref());
 
         let input_bytes = input
@@ -59,8 +59,6 @@ where
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])
             .pop()
             .unwrap();
-
-        println!("{}", out);
 
         out
     }
@@ -119,6 +117,7 @@ where
         ipk: &IndexProverKey<G>,
         r1cs: C,
         make_zk: bool,
+        mut sponge: S,
         mut rng: Option<&mut dyn RngCore>,
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover");
@@ -270,7 +269,7 @@ where
             comm_2,
         };
 
-        let gamma = Self::compute_challenge(&ipk.index_info, &input, &first_msg);
+        let gamma = Self::compute_challenge(&ipk.index_info, &input, &first_msg, sponge);
 
         let mut blinded_witness = witness;
         let (mut sigma_a, mut sigma_b, mut sigma_c) = (None, None, None);
@@ -304,7 +303,7 @@ where
         Ok(proof)
     }
 
-    pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>) -> bool {
+    pub fn verify(ivk: &IndexVerifierKey<G>, input: &[G::ScalarField], proof: &Proof<G>, sponge: S) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
 
@@ -315,7 +314,7 @@ where
             tmp
         };
 
-        let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg);
+        let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, sponge);
 
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
         let a_times_blinded_witness =
@@ -484,13 +483,15 @@ pub(crate) mod test {
                 &ipk,
                 c.clone(),
                 i % 2 == 1,
+                PoseidonSponge::<Fq>::new(),
                 Some(rng),
             )
             .unwrap();
             assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(
                 &ivk,
                 &[v],
-                &proof
+                &proof,
+                PoseidonSponge::<Fq>::new(),
             ))
         }
 

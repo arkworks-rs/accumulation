@@ -15,7 +15,7 @@ use ark_poly_commit::{
     PolynomialCommitment, PolynomialLabel,
 };
 use ark_relations::r1cs::ToConstraintField;
-use ark_sponge::domain_separated::DomainSeparatedSponge;
+use ark_sponge::domain_separated::{DomainSeparatedSponge, DomainSeparator};
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use blake2::Blake2s;
@@ -136,7 +136,7 @@ where
     }
 
     fn absorb_check_polynomial_into_sponge(
-        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
+        sponge: &mut S,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
     ) {
         let mut bytes_input = Vec::new();
@@ -151,6 +151,7 @@ where
         ipa_vk: &ipa_pc::VerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
         proof: Option<&Randomness<G>>,
+        as_sponge: S,
     ) -> Result<
         (
             LabeledCommitment<ipa_pc::Commitment<G>>, // Combined commitment
@@ -159,9 +160,7 @@ where
         ),
         ASError,
     > {
-        let mut linear_combination_challenge_sponge =
-            DomainSeparatedSponge::<ConstraintF<G>, S, IpaASDomain>::new();
-
+        let mut linear_combination_challenge_sponge = as_sponge.clone();
         if let Some(randomness) = proof.as_ref() {
             let random_coeffs = randomness.random_linear_polynomial.coeffs();
             for i in 0..=1 {
@@ -229,8 +228,7 @@ where
             None,
         );
 
-        let mut challenge_point_sponge =
-            DomainSeparatedSponge::<ConstraintF<G>, S, IpaASDomain>::new();
+        let mut challenge_point_sponge = as_sponge;
 
         let combined_commitment = commitments.pop().unwrap();
         challenge_point_sponge.absorb(&combined_commitment);
@@ -241,10 +239,7 @@ where
             linear_combination_challenge_bytes.resize_with(16, || 0);
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
 
-            Self::absorb_check_polynomial_into_sponge(
-                &mut challenge_point_sponge,
-                check_polynomial,
-            );
+            Self::absorb_check_polynomial_into_sponge(&mut challenge_point_sponge, check_polynomial);
         }
 
         let challenge_point = challenge_point_sponge
@@ -337,7 +332,7 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme for InnerProductArgAtomicAS<G, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for InnerProductArgAtomicAS<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -395,19 +390,36 @@ where
         Ok((prover_key, verifier_key, decider_key))
     }
 
-    fn prove<'a>(
-        prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, Self>>,
-        make_zk: MakeZK,
-    ) -> Result<(Accumulator<Self>, Self::Proof), Self::Error>
+    fn prove_with_sponge<'a>(
+        _prover_key: &Self::ProverKey,
+        _inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
+        _accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        _make_zk: MakeZK,
+        _sponge: S,
+    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
+        unimplemented!(
+            "IpaAS is unable to accept sponge objects until IpaPC gets updated to accept them too."
+        );
+    }
+
+    fn prove<'a>(
+        prover_key: &Self::ProverKey,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
+        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        make_zk: MakeZK,
+    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
+    where
+        Self: 'a,
+    {
+        let mut sponge = S::new();
+
         let inputs: Vec<&InputInstance<G>> =
-            InputRef::<'a, Self>::instances(inputs).collect::<Vec<_>>();
+            InputRef::<'a, _, _, Self>::instances(inputs).collect::<Vec<_>>();
         let accumulators: Vec<&InputInstance<G>> =
-            AccumulatorRef::<'a, Self>::instances(accumulators).collect::<Vec<_>>();
+            AccumulatorRef::<'a, _, _, Self>::instances(accumulators).collect::<Vec<_>>();
 
         let (make_zk, mut rng) = make_zk.into_components(|| {
             inputs
@@ -465,6 +477,7 @@ where
                 &prover_key.verifier_key.ipa_vk,
                 &succinct_checks,
                 proof.as_ref(),
+                sponge,
             )
             .map_err(|e| BoxedError::new(e))?;
 
@@ -485,12 +498,28 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let accumulator = Accumulator::<Self> {
+        let accumulator = Accumulator::<_, _, Self> {
             instance: accumulator,
             witness: (),
         };
 
         Ok((accumulator, proof))
+    }
+
+    fn verify_with_sponge<'a>(
+        _verifier_key: &Self::VerifierKey,
+        _inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
+        _accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _new_accumulator: &Self::AccumulatorInstance,
+        _proof: &Self::Proof,
+        _sponge: S,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a,
+    {
+        unimplemented!(
+            "IpaAS is unable to accept sponge objects until IpaPC gets updated to accept them too."
+        );
     }
 
     fn verify<'a>(
@@ -503,6 +532,8 @@ where
     where
         Self: 'a,
     {
+        let sponge = S::new();
+
         if let Some(randomness) = proof.as_ref() {
             if randomness.random_linear_polynomial.degree() > 1 {
                 return Ok(false);
@@ -535,6 +566,7 @@ where
             &verifier_key.ipa_vk,
             &succinct_checks,
             proof.as_ref(),
+            sponge,
         );
 
         if combine_result.is_err() {
@@ -569,9 +601,19 @@ where
         Ok(true)
     }
 
+    fn decide_with_sponge(
+        _decider_key: &Self::DeciderKey,
+        _accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
+        _sponge: S,
+    ) -> Result<bool, Self::Error> {
+        unimplemented!(
+            "IpaAS is unable to accept sponge objects until IpaPC gets updated to accept them too."
+        );
+    }
+
     fn decide(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, Self>,
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
     ) -> Result<bool, Self::Error> {
         let accumulator = accumulator.instance;
 
@@ -590,7 +632,7 @@ where
     }
 }
 
-impl<G, S> AtomicAccumulationScheme for InnerProductArgAtomicAS<G, S>
+impl<G, S> AtomicAccumulationScheme<ConstraintF<G>, S> for InnerProductArgAtomicAS<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -605,7 +647,7 @@ pub mod tests {
     use crate::error::BoxedError;
     use crate::ipa_as::data_structures::{InputInstance, PredicateIndex};
     use crate::ipa_as::{InnerProductArgAtomicAS, IpaPC};
-    use crate::tests::ASTestInput;
+    use crate::tests::{ASTestInput, ASTests};
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
     use ark_ff::{One, ToConstraintField, UniformRand};
@@ -625,7 +667,7 @@ pub mod tests {
 
     pub struct IpaAtomicASTestInput {}
 
-    impl<G, S> ASTestInput<InnerProductArgAtomicAS<G, S>> for IpaAtomicASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, InnerProductArgAtomicAS<G, S>> for IpaAtomicASTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -639,9 +681,9 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <InnerProductArgAtomicAS<G, S> as AccumulationScheme>::PredicateParams,
-            <InnerProductArgAtomicAS<G, S> as AccumulationScheme>::PredicateIndex,
-        ) {
+            <InnerProductArgAtomicAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <InnerProductArgAtomicAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+        ){
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
             let predicate_params = IpaPC::<G, S>::setup(max_degree, None, rng).unwrap();
@@ -675,7 +717,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<InnerProductArgAtomicAS<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, InnerProductArgAtomicAS<G, S>>> {
             let ck = &input_params.0;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -725,7 +767,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<InnerProductArgAtomicAS<G, S>> {
+                    Input::<_, _, InnerProductArgAtomicAS<G, S>> {
                         instance: input,
                         witness: (),
                     }
@@ -736,12 +778,19 @@ pub mod tests {
         }
     }
 
-    type AS = InnerProductArgAtomicAS<Affine, PoseidonSponge<Fq>>;
+    type G = ark_pallas::Affine;
+    type CF = ark_pallas::Fq;
+
+    type Sponge = PoseidonSponge<CF>;
+
+    type AS = InnerProductArgAtomicAS<G, Sponge>;
     type I = IpaAtomicASTestInput;
+
+    type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::single_input_initialization_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -749,7 +798,7 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::single_input_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::single_input_initialization_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -757,7 +806,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::multiple_inputs_initialization_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -765,7 +814,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_inputs_initialization_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::multiple_inputs_initialization_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -773,7 +822,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::simple_accumulation_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -781,7 +830,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        crate::tests::simple_accumulation_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::simple_accumulation_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -789,7 +838,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -797,7 +846,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        crate::tests::multiple_accumulations_multiple_inputs_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -805,7 +854,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::accumulators_only_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -813,7 +862,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        crate::tests::accumulators_only_test::<AS, I>(&IpaAtomicASTestParams {
+        Tests::accumulators_only_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })

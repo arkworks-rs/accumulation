@@ -17,7 +17,7 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
-use ark_sponge::domain_separated::DomainSeparatedSponge;
+use ark_sponge::domain_separated::{DomainSeparatedSponge, DomainSeparator};
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use std::ops::Mul;
@@ -115,8 +115,8 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
-    fn absorb_check_polynomial_into_sponge<Sp: CryptographicSponge<ConstraintF<G>>>(
-        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, Sp>,
+    fn absorb_check_polynomial_into_sponge(
+        sponge: &mut SV,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
     ) -> Result<(), SynthesisError> {
         let mut bytes_input = Vec::new();
@@ -128,9 +128,8 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, succinct_checks, proof))]
+    #[tracing::instrument(target = "r1cs", skip(ipa_vk, succinct_checks, proof, as_sponge))]
     fn combine_succinct_checks_and_proof<'a>(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
         succinct_checks: &'a Vec<(
             Boolean<ConstraintF<G>>,
@@ -138,6 +137,7 @@ where
             &FinalCommKeyVar<C>,
         )>,
         proof: &ProofVar<G, C>,
+        as_sponge: SV,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -150,10 +150,7 @@ where
         let supported_degree = ipa_vk.supported_degree;
         let log_supported_degree = ark_std::log2(supported_degree + 1) as usize;
 
-        let mut linear_combination_challenge_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, IpaASDomain>::new(
-                ns!(cs, "linear_combination_challenge_sponge").cs(),
-            );
+        let mut linear_combination_challenge_sponge = as_sponge.clone();
 
         if let Some(randomness) = proof.randomness.as_ref() {
             let random_coeffs = &randomness.random_linear_polynomial_coeffs;
@@ -221,10 +218,7 @@ where
             combined_commitment.clone()
         };
 
-        let mut challenge_point_sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, IpaASDomain>::new(
-                ns!(cs, "challenge_point_sponge").cs(),
-            );
+        let mut challenge_point_sponge = as_sponge;
         challenge_point_sponge.absorb(&combined_commitment)?;
 
         for ((_, check_polynomial), linear_combination_challenge_bits) in
@@ -280,7 +274,7 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgAtomicAS<G, S>>
     for IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -298,12 +292,36 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
+            _verifier_key,
+            _input_instances,
+            _accumulator_instances,
+            _new_accumulator_instance,
+            _proof,
+            _sponge,
+        )
+    )]
+    fn verify_with_sponge<'a>(
+        _verifier_key: &Self::VerifierKey,
+        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _new_accumulator_instance: &Self::AccumulatorInstance,
+        _proof: &Self::Proof,
+        _sponge: SV,
+    ) -> Result<Boolean<ConstraintF<G>>, SynthesisError> {
+        unimplemented!(
+            "IpaAS is unable to accept sponge objects until IpaPC gets updated to accept them too."
+        );
+    }
+
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(
             cs,
             verifier_key,
             input_instances,
             accumulator_instances,
             new_accumulator_instance,
-            proof
+            proof,
         )
     )]
     fn verify<'a>(
@@ -318,6 +336,8 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
+        let mut as_sponge = SV::new(cs.clone());
+
         let mut verify_result = Boolean::TRUE;
 
         if new_accumulator_instance
@@ -353,10 +373,10 @@ where
             combined_check_poly_addends,
             challenge,
         ) = Self::combine_succinct_checks_and_proof(
-            ns!(cs, "combine_succinct_checks_and_proof").cs(),
             &verifier_key.ipa_vk,
             &succinct_check_result,
             proof,
+            as_sponge,
         )?;
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
@@ -382,7 +402,7 @@ where
     }
 }
 
-impl<G, C, S, SV> AtomicASVerifierGadget<InnerProductArgAtomicAS<G, S>, ConstraintF<G>>
+impl<G, C, S, SV> AtomicASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgAtomicAS<G, S>>
     for IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -401,22 +421,25 @@ pub mod tests {
     use crate::ipa_as::InnerProductArgAtomicAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
+    use crate::constraints::tests::ASVerifierGadgetTests;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
-    type ConstraintF = ark_pallas::Fq;
+    type CF = ark_pallas::Fq;
 
-    type Sponge = PoseidonSponge<ConstraintF>;
-    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
+    type Sponge = PoseidonSponge<CF>;
+    type SpongeVar = PoseidonSpongeVar<CF>;
 
     type AS = InnerProductArgAtomicAS<G, Sponge>;
     type I = IpaAtomicASTestInput;
     type ASV = IPAAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
 
+    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+
     #[test]
     pub fn test_initialization_no_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &IpaAtomicASTestParams {
                 degree: 8,
                 make_zk: false,
@@ -427,7 +450,7 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &IpaAtomicASTestParams {
                 degree: 8,
                 make_zk: true,
@@ -438,7 +461,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &IpaAtomicASTestParams {
                 degree: 8,
                 make_zk: false,
@@ -449,7 +472,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &IpaAtomicASTestParams {
                 degree: 8,
                 make_zk: true,

@@ -3,8 +3,7 @@ use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::nark_as::data_structures::{SimpleNARKDomain, SimpleNARKVerifierASDomain};
-use crate::nark_as::NarkAS;
+use crate::nark_as::{NarkAS, r1cs_nark, PROTOCOL_NAME};
 use ark_ec::AffineCurve;
 use ark_ff::ToConstraintField;
 use ark_r1cs_std::alloc::AllocVar;
@@ -17,9 +16,9 @@ use ark_r1cs_std::{ToBitsGadget, ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;
+use crate::hp_as;
 
 mod data_structures;
 pub use data_structures::*;
@@ -63,20 +62,20 @@ where
         Ok(combined_commitment)
     }
 
-    #[tracing::instrument(target = "r1cs", skip(sponge, input, msg))]
+    #[tracing::instrument(target = "r1cs", skip(input, msg, nark_sponge))]
     fn compute_gamma_challenge(
-        sponge: &mut DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, SimpleNARKDomain>,
         input: &[NNFieldVar<G>],
         msg: &FirstRoundMessageVar<G, C>,
+        mut nark_sponge: SV,
     ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
         let mut input_bytes = Vec::new();
         for elem in input {
             input_bytes.append(&mut elem.to_bytes()?);
         }
 
-        absorb_gadget!(sponge, input_bytes, msg);
+        absorb_gadget!(&mut nark_sponge, input_bytes, msg);
 
-        let mut squeezed = sponge
+        let mut squeezed = nark_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])?;
 
         Ok((squeezed.0.pop().unwrap(), squeezed.1.pop().unwrap()))
@@ -85,36 +84,31 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
-            cs,
             num_challenges,
             as_matrices_hash,
             accumulator_instances,
             input_instances,
-            proof_randomness
+            proof_randomness,
+            as_sponge,
         )
     )]
     fn compute_beta_challenges(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
         num_challenges: usize,
         as_matrices_hash: &Vec<FpVar<ConstraintF<G>>>,
         accumulator_instances: &Vec<&AccumulatorInstanceVar<G, C>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
+        mut as_sponge: SV,
     ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
-        let mut sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKVerifierASDomain>::new(
-                cs.clone(),
-            );
-
         absorb_gadget!(
-            &mut sponge,
+            &mut as_sponge,
             as_matrices_hash,
             accumulator_instances,
             input_instances,
             proof_randomness
         );
 
-        let mut squeeze = sponge.squeeze_nonnative_field_elements_with_sizes(
+        let mut squeeze = as_sponge.squeeze_nonnative_field_elements_with_sizes(
             vec![FieldElementSize::Truncated(128); num_challenges - 1].as_slice(),
         )?;
 
@@ -130,21 +124,18 @@ where
         Ok((outputs_fe, outputs_bits))
     }
 
-    #[tracing::instrument(target = "r1cs", skip(cs, index_info, input_instances,))]
+    #[tracing::instrument(target = "r1cs", skip(index_info, input_instances, nark_sponge))]
     fn compute_blinded_commitments(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
         index_info: &IndexInfoVar<ConstraintF<G>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
+        mut nark_sponge: SV,
     ) -> Result<(Vec<C>, Vec<C>, Vec<C>, Vec<C>), SynthesisError> {
         let mut all_blinded_comm_a = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_b = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_c = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
 
-        let mut sponge =
-            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, SimpleNARKDomain>::new(cs.clone());
-
-        sponge.absorb(&index_info.matrices_hash)?;
+        nark_sponge.absorb(&index_info.matrices_hash)?;
 
         for instance in input_instances {
             let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
@@ -155,11 +146,10 @@ where
             let mut comm_prod = first_round_message.comm_c.clone();
 
             if instance.make_zk {
-                let mut gamma_sponge = sponge.clone();
                 let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
-                    &mut gamma_sponge,
                     &instance.r1cs_input.as_slice(),
                     &instance.first_round_message,
+                   nark_sponge.clone()
                 )?;
 
                 if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
@@ -348,7 +338,7 @@ where
     }
 }
 
-impl<G, C, CS, S, SV> ASVerifierGadget<NarkAS<G, CS, S>, ConstraintF<G>>
+impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, NarkAS<G, CS, S>>
     for NarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -366,27 +356,33 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
-            cs,
             verifier_key,
             input_instances,
             accumulator_instances,
             new_accumulator_instance,
-            proof
+            proof,
+            sponge,
         )
     )]
-    fn verify<'a>(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
+    fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        mut sponge: SV,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        println!("Vons");
+        let cs = sponge.cs();
+        let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME)?;
+        let mut as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
+
+        sponge.fork(hp_as::PROTOCOL_NAME)?;
+        let hp_sponge = sponge;
+
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let accumulator_instances = accumulator_instances.into_iter().collect::<Vec<_>>();
 
@@ -395,19 +391,19 @@ where
             + if proof.randomness.is_some() { 1 } else { 0 };
 
         let (beta_challenges_fe, beta_challenges_bits) = Self::compute_beta_challenges(
-            cs.clone(),
             num_addends,
             &verifier_key.as_matrices_hash,
             &accumulator_instances,
             &input_instances,
             proof.randomness.as_ref(),
+            as_sponge,
         )?;
 
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
-                cs.clone(),
                 &verifier_key.nark_index,
                 &input_instances,
+                nark_sponge,
             )?;
 
         let hp_input_instances = Self::compute_hp_input_instances(
@@ -425,13 +421,13 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify = HpASVerifierGadget::<G, C, S, SV>::verify(
-            cs.clone(),
+        let hp_verify = HpASVerifierGadget::<G, C, S, SV>::verify_with_sponge(
             &hp_vk,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
             &proof.hp_proof,
+            hp_sponge
         )?;
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
@@ -470,22 +466,25 @@ pub mod tests {
     use crate::nark_as::NarkAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
+    use crate::constraints::tests::ASVerifierGadgetTests;
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
-    type ConstraintF = ark_pallas::Fq;
+    type CF = ark_pallas::Fq;
 
-    type Sponge = PoseidonSponge<ConstraintF>;
-    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
+    type Sponge = PoseidonSponge<CF>;
+    type SpongeVar = PoseidonSpongeVar<CF>;
 
     type AS = NarkAS<G, DummyCircuit<F>, Sponge>;
     type I = NarkASTestInput;
     type ASV = NarkASVerifierGadget<G, C, Sponge, SpongeVar>;
 
+    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+
     #[test]
     pub fn test_initialization_no_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
@@ -497,7 +496,7 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
@@ -509,7 +508,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
@@ -521,7 +520,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &NarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,

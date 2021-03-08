@@ -9,24 +9,32 @@ use ark_r1cs_std::{ToBytesGadget, ToConstraintFieldGadget};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{collect_sponge_field_elements_gadget, CryptographicSponge};
+use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable, CryptographicSponge};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 
-impl<CF> AllocVar<CF, CF> for VerifierKeyVar<CF>
+impl<CF> AllocVar<usize, CF> for VerifierKeyVar<CF>
 where
     CF: PrimeField,
 {
-    fn new_variable<T: Borrow<CF>>(
+    fn new_variable<T: Borrow<usize>>(
         cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|vk| {
-            let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk.borrow().clone()), mode)?;
+            let vk = FpVar::<CF>::new_variable(
+                ns.clone(),
+                || {
+                    Ok(Absorbable::<CF>::to_sponge_field_elements(vk.borrow())
+                        .pop()
+                        .unwrap())
+                },
+                mode,
+            )?;
             Ok(VerifierKeyVar(vk))
         })
     }

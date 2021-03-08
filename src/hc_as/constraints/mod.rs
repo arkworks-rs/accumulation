@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<HomomorphicCommitmentAS<G, S>, ConstraintF<G>>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HomomorphicCommitmentAS<G, S>>
     for HcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
@@ -89,21 +89,21 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
-            cs,
             verifier_key,
             input_instances,
             accumulator_instances,
             new_accumulator_instance,
-            proof
+            proof,
+            sponge,
         )
     )]
-    fn verify<'a>(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
+    fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: SV,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
@@ -111,7 +111,7 @@ where
     {
         let mut verify_result = Boolean::TRUE;
 
-        let mut challenge_point_sponge = SV::new(cs.clone());
+        let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(&verifier_key.0)?;
 
         let mut commitment = Vec::new();
@@ -152,7 +152,7 @@ where
         verify_result =
             verify_result.and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
 
-        let mut linear_combination_challenge_sponge = SV::new(cs.clone());
+        let mut linear_combination_challenge_sponge = sponge;
 
         let challenge_point_bytes = challenge_point_bits
             .chunks(8)
@@ -201,6 +201,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::tests::ASVerifierGadgetTests;
     use crate::hc_as::constraints::HcASVerifierGadget;
     use crate::hc_as::tests::{HcASTestInput, HcASTestParams};
     use crate::hc_as::HomomorphicCommitmentAS;
@@ -210,18 +211,20 @@ pub mod tests {
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
-    type ConstraintF = ark_pallas::Fq;
+    type CF = ark_pallas::Fq;
 
-    type Sponge = PoseidonSponge<ConstraintF>;
-    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
+    type Sponge = PoseidonSponge<CF>;
+    type SpongeVar = PoseidonSpongeVar<CF>;
 
     type AS = HomomorphicCommitmentAS<G, Sponge>;
-    type I = HcASTestInput;
     type ASV = HcASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type I = HcASTestInput;
+
+    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
     #[test]
     pub fn test_initialization_no_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &HcASTestParams {
                 degree: 8,
                 make_zk: false,
@@ -232,7 +235,7 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &HcASTestParams {
                 degree: 8,
                 make_zk: true,
@@ -243,7 +246,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &HcASTestParams {
                 degree: 8,
                 make_zk: false,
@@ -254,7 +257,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &HcASTestParams {
                 degree: 8,
                 make_zk: true,
@@ -265,11 +268,9 @@ pub mod tests {
 
     #[test]
     pub fn print_breakdown() {
-        crate::constraints::tests::print_costs_breakdown::<AS, I, ConstraintF, ASV>(
-            &HcASTestParams {
-                degree: 8,
-                make_zk: true,
-            },
-        );
+        Tests::print_costs_breakdown(&HcASTestParams {
+            degree: 8,
+            make_zk: true,
+        });
     }
 }

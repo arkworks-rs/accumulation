@@ -215,7 +215,7 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<HadamardProductAS<G, S>, ConstraintF<G>>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HadamardProductAS<G, S>>
     for HpASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -232,21 +232,21 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
-            cs,
             verifier_key,
             input_instances,
             accumulator_instances,
             new_accumulator_instance,
-            proof
+            proof,
+            sponge
         )
     )]
-    fn verify<'a>(
-        cs: ConstraintSystemRef<ConstraintF<G>>,
+    fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: SV,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
@@ -264,7 +264,7 @@ where
         let default_input_instance;
         if make_zk && num_inputs == 1 {
             default_input_instance = Some(InputInstanceVar::new_constant(
-                cs.clone(),
+                sponge.cs(),
                 InputInstance::default(),
             )?);
 
@@ -272,7 +272,7 @@ where
             input_instances.push(default_input_instance.as_ref().unwrap());
         };
 
-        let mut challenges_sponge = SV::new(cs.clone());
+        let mut challenges_sponge = sponge;
         absorb_gadget!(
             &mut challenges_sponge,
             &verifier_key.num_supported_elems,
@@ -310,6 +310,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constraints::tests::ASVerifierGadgetTests;
     use crate::hp_as::constraints::HpASVerifierGadget;
     use crate::hp_as::tests::{HpASTestInput, HpASTestParams};
     use crate::hp_as::HadamardProductAS;
@@ -319,18 +320,20 @@ pub mod tests {
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
     type F = ark_pallas::Fr;
-    type ConstraintF = ark_pallas::Fq;
+    type CF = ark_pallas::Fq;
 
-    type Sponge = PoseidonSponge<ConstraintF>;
-    type SpongeVar = PoseidonSpongeVar<ConstraintF>;
+    type Sponge = PoseidonSponge<CF>;
+    type SpongeVar = PoseidonSpongeVar<CF>;
 
     type AS = HadamardProductAS<G, Sponge>;
     type I = HpASTestInput;
     type ASV = HpASVerifierGadget<G, C, Sponge, SpongeVar>;
 
+    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+
     #[test]
     pub fn test_initialization_no_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &HpASTestParams {
                 vector_len: 8,
                 make_zk: false,
@@ -341,7 +344,7 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_zk() {
-        crate::constraints::tests::test_initialization::<AS, I, ConstraintF, ASV>(
+        Tests::test_initialization(
             &HpASTestParams {
                 vector_len: 8,
                 make_zk: true,
@@ -352,7 +355,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &HpASTestParams {
                 vector_len: 8,
                 make_zk: false,
@@ -363,7 +366,7 @@ pub mod tests {
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        crate::constraints::tests::test_simple_accumulation::<AS, I, ConstraintF, ASV>(
+        Tests::test_simple_accumulation(
             &HpASTestParams {
                 vector_len: 8,
                 make_zk: true,
