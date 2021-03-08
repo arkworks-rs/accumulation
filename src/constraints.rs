@@ -26,7 +26,7 @@ pub trait ASVerifierGadget<
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
         sponge: SV,

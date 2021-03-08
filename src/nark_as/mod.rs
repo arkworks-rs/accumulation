@@ -546,7 +546,7 @@ where
     fn prove_with_sponge<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         make_zk: MakeZK<'_>,
         mut sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
@@ -565,7 +565,7 @@ where
 
         let mut accumulator_instances = Vec::new();
         let mut accumulator_witnesses = Vec::new();
-        for acc in accumulators {
+        for acc in old_accumulators {
             let instance = acc.instance;
             let witness = acc.witness;
 
@@ -719,7 +719,7 @@ where
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
         mut sponge: S,
@@ -734,7 +734,7 @@ where
         let hp_sponge = sponge;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
-        let accumulator_instances = accumulator_instances.into_iter().collect::<Vec<_>>();
+        let accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
 
         let num_addends = input_instances.len()
             + accumulator_instances.len()

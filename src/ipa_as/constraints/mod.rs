@@ -293,18 +293,18 @@ where
         target = "r1cs",
         skip(
             _verifier_key,
-            _input_instances,
-            _accumulator_instances,
-            _new_accumulator_instance,
+            _inputs,
+            _old_accumulators,
+            _new_accumulator,
             _proof,
             _sponge,
         )
     )]
     fn verify_with_sponge<'a>(
         _verifier_key: &Self::VerifierKey,
-        _input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        _new_accumulator_instance: &Self::AccumulatorInstance,
+        _inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
+        _old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _new_accumulator: &Self::AccumulatorInstance,
         _proof: &Self::Proof,
         _sponge: SV,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError> {
@@ -318,18 +318,18 @@ where
         skip(
             cs,
             verifier_key,
-            input_instances,
-            accumulator_instances,
-            new_accumulator_instance,
+            inputs,
+            old_accumulators,
+            new_accumulator,
             proof,
         )
     )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
-        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator_instance: &Self::AccumulatorInstance,
+        inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
+        old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator: &Self::AccumulatorInstance,
         proof: &Self::Proof,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
@@ -340,7 +340,7 @@ where
 
         let mut verify_result = Boolean::TRUE;
 
-        if new_accumulator_instance
+        if new_accumulator
             .ipa_commitment
             .shifted_comm
             .is_some()
@@ -364,7 +364,7 @@ where
         let succinct_check_result = Self::succinct_check_inputs(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_vk,
-            input_instances.into_iter().chain(accumulator_instances),
+            inputs.into_iter().chain(old_accumulators),
         )?;
 
         let (
@@ -382,9 +382,9 @@ where
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
         verify_result = verify_result
-            .and(&combined_commitment.is_eq(&new_accumulator_instance.ipa_commitment.comm)?)?;
+            .and(&combined_commitment.is_eq(&new_accumulator.ipa_commitment.comm)?)?;
 
-        verify_result = verify_result.and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
+        verify_result = verify_result.and(&challenge.is_eq(&new_accumulator.point)?)?;
 
         let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_poly_addends, &challenge)?;
@@ -396,7 +396,7 @@ where
             );
         };
 
-        verify_result = verify_result.and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
+        verify_result = verify_result.and(&eval.is_eq(&new_accumulator.evaluation)?)?;
 
         Ok(verify_result)
     }

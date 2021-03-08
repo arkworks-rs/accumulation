@@ -101,7 +101,7 @@ where
         skip(
             verifier_key,
             input_instances,
-            accumulator_instances,
+            old_accumulator_instances,
             new_accumulator_instance,
             proof,
             sponge,
@@ -110,7 +110,7 @@ where
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
         sponge: SV,
@@ -121,7 +121,7 @@ where
     {
         let mut input_instances = input_instances
             .into_iter()
-            .chain(accumulator_instances)
+            .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
         if !Self::basic_verify(&input_instances, proof) {

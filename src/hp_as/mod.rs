@@ -467,7 +467,7 @@ where
     fn prove_with_sponge<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         make_zk: MakeZK<'_>,
         sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
@@ -476,7 +476,7 @@ where
         S: 'a,
     {
         let inputs = inputs.into_iter().collect::<Vec<_>>();
-        let accumulators = accumulators.into_iter().collect::<Vec<_>>();
+        let accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
 
         // Combine inputs and accumulators to be processed together
         let mut input_instances = inputs
@@ -641,7 +641,7 @@ where
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
         sponge: S,
@@ -652,7 +652,7 @@ where
     {
         let mut input_instances = input_instances
             .into_iter()
-            .chain(accumulator_instances)
+            .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
         if !Self::basic_verify(&input_instances, proof) {

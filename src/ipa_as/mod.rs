@@ -395,7 +395,7 @@ where
     fn prove_with_sponge<'a>(
         _prover_key: &Self::ProverKey,
         _inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        _accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        _old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         _make_zk: MakeZK<'_>,
         _sponge: S,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
@@ -410,7 +410,7 @@ where
     fn prove<'a>(
         prover_key: &Self::ProverKey,
         inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
         make_zk: MakeZK<'_>,
     ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
     where
@@ -421,7 +421,7 @@ where
         let inputs: Vec<&InputInstance<G>> =
             InputRef::<'a, _, _, Self>::instances(inputs).collect::<Vec<_>>();
         let accumulators: Vec<&InputInstance<G>> =
-            AccumulatorRef::<'a, _, _, Self>::instances(accumulators).collect::<Vec<_>>();
+            AccumulatorRef::<'a, _, _, Self>::instances(old_accumulators).collect::<Vec<_>>();
 
         let (make_zk, mut rng) = make_zk.into_components(|| {
             inputs
@@ -511,7 +511,7 @@ where
     fn verify_with_sponge<'a>(
         _verifier_key: &Self::VerifierKey,
         _inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        _old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         _new_accumulator: &Self::AccumulatorInstance,
         _proof: &Self::Proof,
         _sponge: S,
@@ -527,7 +527,7 @@ where
     fn verify<'a>(
         verifier_key: &Self::VerifierKey,
         inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator: &Self::AccumulatorInstance,
         proof: &Self::Proof,
     ) -> Result<bool, Self::Error>
@@ -554,7 +554,7 @@ where
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators(
             &verifier_key.ipa_vk,
             inputs,
-            accumulators,
+            old_accumulators,
         );
 
         if succinct_check_result.is_err() {
