@@ -52,13 +52,13 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    /// The Pedersen commitment to a polynomial.
+    /// Pedersen commitment to a polynomial.
     pub commitment: C,
 
     /// Point where the proof was opened at.
     pub point: NNFieldVar<G>,
 
-    /// The evaluation of the committed polynomial at the point.
+    /// Evaluation of the committed polynomial at the point.
     pub eval: NNFieldVar<G>,
 
     #[doc(hidden)]
@@ -122,10 +122,16 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// Commitment to the witness polynomial.
     pub(crate) witness_commitment: C,
+
+    /// Evaluation of the witness polynomial at the challenge point.
     pub(crate) witness_eval: NNFieldVar<G>,
+
+    /// Evaluation of the input polynomial at the challenge point.
     pub(crate) eval: NNFieldVar<G>,
 
+    #[doc(hidden)]
     pub(crate) _affine: PhantomData<G>,
 }
 
@@ -175,6 +181,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// List of [`SingleProofVar`] for each input.
     pub(crate) single_proofs: Vec<SingleProofVar<G, C>>,
 }
 

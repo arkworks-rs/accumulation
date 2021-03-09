@@ -10,13 +10,13 @@ use ark_std::io::{Read, Write};
 /// [hp_as]: crate::hp_as::HadamardProductAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
 pub struct InputInstance<G: AffineCurve> {
-    /// The commitment to the `a` vector of the Hadamard product relation.
+    /// Commitment to the `a` vector of the Hadamard product relation.
     pub comm_1: G,
 
-    /// The commitment to the `b` vector of the Hadamard product relation.
+    /// Commitment to the `b` vector of the Hadamard product relation.
     pub comm_2: G,
 
-    /// The commitment to the `a ◦ b` vector of the Hadamard product relation.
+    /// Commitment to the `a ◦ b` vector of the Hadamard product relation.
     pub comm_3: G,
 }
 
@@ -56,7 +56,7 @@ pub struct InputWitness<F: Field> {
     /// The `b` vector of the Hadamard product relation.
     pub b_vec: Vec<F>,
 
-    /// The randomness applied to the vectors during commitment for zero-knowledge.
+    /// Randomness used to compute hiding commitments for zero-knowledge.
     pub randomness: Option<InputWitnessRandomness<F>>,
 }
 
@@ -70,16 +70,18 @@ impl<F: Field> Default for InputWitness<F> {
     }
 }
 
-/// The randomness applied to vectors of the Hadamard product relation in the [`InputWitness`].
+/// The randomness used to compute hiding commitments for zero-knowledge.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWitnessRandomness<F: Field> {
-    /// The randomness applied to the `a` vector of the Hadamard product relation.
+    /// Randomness used to commit the random vector that hides the `a` vector of the Hadamard
+    /// product relation.
     pub rand_1: F,
 
-    /// The randomness applied to the `b` vector of the Hadamard product relation.
+    /// Randomness used to commit the random vector that hides the `b` vector of the Hadamard
+    /// product relation.
     pub rand_2: F,
 
-    /// The randomness applied to the `a ◦ b vector` vector of the Hadamard product relation.
+    /// Randomness used to commit the cross term randomness vector
     pub rand_3: F,
 }
 
@@ -89,13 +91,23 @@ pub struct InputWitnessRandomness<F: Field> {
 /// [hp_as]: crate::hp_as::HadamardProductAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
+    /// Commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
+    /// Excludes `n-1`th commitment (0-index)
     pub(crate) t_comms: ProofTCommitments<G>,
+
+    /// Commitments to the random vectors used to apply zero-knowledge to the vectors of the
+    /// Hadamard product relation.
     pub(crate) hiding_comms: Option<ProofHidingCommitments<G>>,
 }
 
+/// The commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
+/// Excludes `n-1`th commitment (0-index)
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub(crate) struct ProofTCommitments<G: AffineCurve> {
+    /// The first `n-1` commitments.
     pub(crate) low: Vec<G>,
+
+    /// The last `n-1` commitments.
     pub(crate) high: Vec<G>,
 }
 
@@ -113,10 +125,17 @@ where
     }
 }
 
+/// The commitments to the random vectors used to apply zero-knowledge to the vectors of the
+/// Hadamard product relation.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub(crate) struct ProofHidingCommitments<G: AffineCurve> {
+    /// Commitment to the random vector that hides the `a` vector of the Hadamard product relation.
     pub(crate) comm_1: G,
+
+    /// Commitment to the random vector that hides the `b` vector of the Hadamard product relation.
     pub(crate) comm_2: G,
+
+    /// Commitment to the cross term randomness vector
     pub(crate) comm_3: G,
 }
 

@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
 /// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
+    /// Supported vector length of the Hadamard product relation.
     pub(crate) num_supported_elems: FpVar<CF>,
 }
 
@@ -48,13 +49,13 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
-    /// The commitment to the `a` vector of the Hadamard product relation.
+    /// Commitment to the `a` vector of the Hadamard product relation.
     pub comm_1: C,
 
-    /// The commitment to the `b` vector of the Hadamard product relation.
+    /// Commitment to the `b` vector of the Hadamard product relation.
     pub comm_2: C,
 
-    /// The commitment to the `a ◦ b` vector of the Hadamard product relation.
+    /// Commitment to the `a ◦ b` vector of the Hadamard product relation.
     pub comm_3: C,
 
     #[doc(hidden)]
@@ -101,19 +102,26 @@ where
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
 /// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct ProofVar<G, C>
-where
-    G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>,
+    where
+        G: AffineCurve,
+        C: CurveVar<G::Projective, ConstraintF<G>>,
 {
+    /// Commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
+    /// Excludes `n-1`th commitment (0-index)
     pub(crate) t_comms: ProofTCommitmentsVar<G, C>,
+
+    /// Commitments to the random vectors used to apply zero-knowledge to the vectors of the
+    /// Hadamard product relation.
     pub(crate) hiding_comms: Option<ProofHidingCommitmentsVar<G, C>>,
+
+    #[doc(hidden)]
     pub(crate) _curve: PhantomData<G>,
 }
 
 impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
-where
-    G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>,
+    where
+        G: AffineCurve,
+        C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     fn new_variable<T: Borrow<Proof<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
@@ -145,13 +153,20 @@ where
     }
 }
 
+/// The commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
+/// Excludes `n-1`th commitment (0-index)
 pub(crate) struct ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
+    /// The first `n-1` commitments.
     pub(crate) low: Vec<C>,
+
+    /// The last `n-1` commitments.
     pub(crate) high: Vec<C>,
+
+    #[doc(hidden)]
     pub(crate) _curve: PhantomData<G>,
 }
 
@@ -200,14 +215,24 @@ where
     }
 }
 
+/// The commitments to the random vectors used to apply zero-knowledge to the vectors of the
+/// Hadamard product relation.
 pub(crate) struct ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
+    /// Commitment to the random vector that hides the `a` vector of the Hadamard product relation.
     pub(crate) comm_1: C,
+
+    /// Commitment to the random vector that hides the `b` vector of the Hadamard product relation.
     pub(crate) comm_2: C,
+
+    /// Commitment to the vector that applies the random vectors to the product polynomial
+    /// `a(ν, µ) ◦ b(ν)`.
     pub(crate) comm_3: C,
+
+    #[doc(hidden)]
     pub(crate) _curve: PhantomData<G>,
 }
 
@@ -246,3 +271,4 @@ where
         collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
     }
 }
+

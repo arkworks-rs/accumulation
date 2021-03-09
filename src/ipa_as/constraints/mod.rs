@@ -318,14 +318,7 @@ where
 
     #[tracing::instrument(
         target = "r1cs",
-        skip(
-            cs,
-            verifier_key,
-            inputs,
-            old_accumulators,
-            new_accumulator,
-            proof,
-        )
+        skip(cs, verifier_key, inputs, old_accumulators, new_accumulator, proof,)
     )]
     fn verify<'a>(
         cs: ConstraintSystemRef<ConstraintF<G>>,
@@ -343,11 +336,7 @@ where
 
         let mut verify_result = Boolean::TRUE;
 
-        if new_accumulator
-            .ipa_commitment
-            .shifted_comm
-            .is_some()
-        {
+        if new_accumulator.ipa_commitment.shifted_comm.is_some() {
             return Ok(Boolean::FALSE);
         }
 
@@ -384,8 +373,8 @@ where
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
-        verify_result = verify_result
-            .and(&combined_commitment.is_eq(&new_accumulator.ipa_commitment.comm)?)?;
+        verify_result =
+            verify_result.and(&combined_commitment.is_eq(&new_accumulator.ipa_commitment.comm)?)?;
 
         verify_result = verify_result.and(&challenge.is_eq(&new_accumulator.point)?)?;
 

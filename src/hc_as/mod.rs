@@ -252,7 +252,8 @@ where
         S: 'a,
     {
         let inputs: Vec<InputRef<'a, _, _, Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<AccumulatorRef<'a, _, _, Self>> = old_accumulators.into_iter().collect();
+        let accumulators: Vec<AccumulatorRef<'a, _, _, Self>> =
+            old_accumulators.into_iter().collect();
 
         for (instance, witness, is_accumulator) in inputs
             .iter()
@@ -423,8 +424,7 @@ where
         challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
-        for (input_instance, p) in input_instances.into_iter().zip(proof)
-        {
+        for (input_instance, p) in input_instances.into_iter().zip(proof) {
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,

@@ -12,13 +12,13 @@ use ark_std::io::{Read, Write};
 /// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
-    /// The Pedersen commitment to a polynomial.
+    /// Pedersen commitment to a polynomial.
     pub commitment: LabeledCommitment<lh_pc::Commitment<G>>,
 
     /// Point where the proof was opened at.
     pub point: G::ScalarField,
 
-    /// The evaluation of the committed polynomial at the point.
+    /// Evaluation of the committed polynomial at the point.
     pub eval: G::ScalarField,
 }
 
@@ -48,11 +48,17 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
 /// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SingleProof<G: AffineCurve> {
+    /// Commitment to the witness polynomial.
     pub(crate) witness_commitment: LabeledCommitment<lh_pc::Commitment<G>>,
+
+    /// Evaluation of the witness polynomial at the challenge point.
     pub(crate) witness_eval: G::ScalarField,
+
+    /// Evaluation of the input polynomial at the challenge point.
     pub(crate) eval: G::ScalarField,
 }
 
+/// List of [`SingleProof`]s for each accumulated input.
 /// The [`Proof`][proof] of the [`HomomorphicCommitmentAS`][hc_as].
 ///
 /// [proof]: crate::AccumulationScheme::Proof

@@ -16,10 +16,13 @@ pub type PublicParameters = ();
 pub(crate) struct IndexInfo {
     /// The total number of variables in the constraint system.
     pub(crate) num_variables: usize,
+
     /// The number of constraints.
     pub(crate) num_constraints: usize,
+
     /// The number of public input (i.e. instance) variables.
     pub(crate) num_instance_variables: usize,
+
     /// Hash of the matrices.
     pub(crate) matrices_hash: [u8; 32],
 }
@@ -49,13 +52,28 @@ pub type IndexVerifierKey<G> = IndexProverKey<G>;
 /// The sigma protocol's prover commitment.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct FirstRoundMessage<G: AffineCurve> {
+    /// Commitment to the `Az` vector.
     pub(crate) comm_a: G,
+
+    /// Commitment to the `Bz` vector.
     pub(crate) comm_b: G,
+
+    /// Commitment to the `Cz` vector.
     pub(crate) comm_c: G,
+
+    /// Commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: Option<G>,
+
+    /// Commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: Option<G>,
+
+    /// Commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: Option<G>,
+
+    /// Commitment to the first cross term randomness vector
     pub(crate) comm_1: Option<G>,
+
+    /// Commitment to the second cross term randomness vector
     pub(crate) comm_2: Option<G>,
 }
 
@@ -95,16 +113,30 @@ where
 /// The sigma protocol's prover response.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SecondRoundMessage<F: Field> {
+    /// The R1CS witness with randomness applied if zero-knowledge is needed.
     pub(crate) blinded_witness: Vec<F>,
+
+    /// Blinded randomness for the commitment to the linear combination used with the `A` matrix.
     pub(crate) sigma_a: Option<F>,
+
+    /// Blinded randomness for the commitment to the linear combination used with the `B` matrix.
     pub(crate) sigma_b: Option<F>,
+
+    /// Blinded randomness for the commitment to the linear combination used with the `C` matrix.
     pub(crate) sigma_c: Option<F>,
+
+    /// Blinded randomness for the commitment to the cross terms
     pub(crate) sigma_o: Option<F>,
 }
 
 /// The proof for our NARK.
 pub struct Proof<G: AffineCurve> {
+    /// The sigma protocol's prove commitment.
     pub(crate) first_msg: FirstRoundMessage<G>,
+
+    /// The sigma protocol's prove response.
     pub(crate) second_msg: SecondRoundMessage<G::ScalarField>,
+
+    /// The zero-knowledge configuration.
     pub(crate) make_zk: bool,
 }

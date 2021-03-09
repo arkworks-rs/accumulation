@@ -137,9 +137,7 @@ where
         challenge_point_sponge.absorb(&verifier_key.0)?;
 
         let mut commitment = Vec::new();
-        for (input_instance, single_proof) in input_instances
-            .into_iter()
-            .zip(&proof.single_proofs)
+        for (input_instance, single_proof) in input_instances.into_iter().zip(&proof.single_proofs)
         {
             absorb_gadget!(
                 &mut challenge_point_sponge,

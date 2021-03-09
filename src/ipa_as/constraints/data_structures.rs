@@ -69,9 +69,16 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// The IPA_PC commitment that will be or has been accumulated
     pub(crate) ipa_commitment: ipa_pc::constraints::CommitmentVar<G, C>,
+
+    /// Point where the proof was opened at.
     pub(crate) point: NNFieldVar<G>,
+
+    /// Evaluation of the committed polynomial at the point.
     pub(crate) evaluation: NNFieldVar<G>,
+
+    /// The IPA_PC proof of evaluation at the point.
     pub(crate) ipa_proof: ipa_pc::constraints::ProofVar<G, C>,
 }
 
@@ -121,14 +128,20 @@ where
     }
 }
 
-/// The randomness to be accumulated with the inputs to apply zero-knowledge.
+/// The randomness to be accumulated with the inputs and to commit to polynomials.
 pub struct RandomnessVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// A random linear polynomial to be accumulated with the other input polynomials to apply
+    /// zero-knowledge.
     pub(crate) random_linear_polynomial_coeffs: [NNFieldVar<G>; 2],
+
+    /// Commitment to the random linear polynomial.
     pub(crate) random_linear_polynomial_commitment: C,
+
+    /// Randomness used to commit to the linear combination of the input polynomials.
     pub(crate) commitment_randomness: Vec<Boolean<ConstraintF<G>>>,
 }
 
@@ -202,6 +215,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// The randomness to be accumulated with the inputs and to commit to polynomials.
     pub(crate) randomness: Option<RandomnessVar<G, C>>,
 }
 

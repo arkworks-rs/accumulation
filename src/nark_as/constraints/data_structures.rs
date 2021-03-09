@@ -17,13 +17,6 @@ use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
-/*
-/// The [``][] of the [`NarkASVerifierGadget`][nark_as_verifier].
-///
-/// []: crate::constraints::ASVerifierGadget::
-/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
- */
-
 pub(crate) struct IndexInfoVar<CF: PrimeField> {
     /// The total number of variables in the constraint system.
     pub num_variables: usize,
@@ -70,7 +63,10 @@ impl<CF: PrimeField> AllocVar<IndexInfo, CF> for IndexInfoVar<CF> {
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
 /// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
+    /// Information about the index.
     pub(crate) nark_index: IndexInfoVar<CF>,
+
+    /// Hash of the matrices computed for the accumulation scheme.
     pub(crate) as_matrices_hash: Vec<FpVar<CF>>,
 }
 
@@ -105,15 +101,31 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
 
 /// The sigma protocol's prover commitment.
 pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// Commitment to the `Az` vector.
     pub(crate) comm_a: C,
+
+    /// Commitment to the `Bz` vector.
     pub(crate) comm_b: C,
+
+    /// Commitment to the `Cz` vector.
     pub(crate) comm_c: C,
+
+    /// Commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: Option<C>,
+
+    /// Commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: Option<C>,
+
+    /// Commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: Option<C>,
+
+    /// Commitment to the first cross term randomness vector
     pub(crate) comm_1: Option<C>,
+
+    /// Commitment to the second cross term randomness vector
     pub(crate) comm_2: Option<C>,
 
+    #[doc(hidden)]
     pub(crate) _affine_phantom: PhantomData<G>,
 }
 
@@ -272,10 +284,19 @@ where
 /// [acc_instance]: crate::constraints::ASVerifierGadget::AccumulatorInstance
 /// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// An input for the indexed relation.
     pub(crate) r1cs_input: Vec<NNFieldVar<G>>,
+
+    /// Commitment to the `Az` vector.
     pub(crate) comm_a: C,
+
+    /// Commitment to the `Az` vector.
     pub(crate) comm_b: C,
+
+    /// Commitment to the `Az` vector.
     pub(crate) comm_c: C,
+
+    /// The Hadamard product accumulation scheme input instance
     pub(crate) hp_instance: HPInputInstanceVar<G, C>,
 }
 
@@ -340,10 +361,18 @@ where
     }
 }
 
+/// The randomness or their commitments used to blind the vectors of the indexed relation.
 pub(crate) struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// Randomness used to blind the R1CS input.
     pub(crate) r1cs_r_input: Vec<NNFieldVar<G>>,
+
+    /// Commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: C,
+
+    /// Commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: C,
+
+    /// Commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: C,
 }
 
@@ -407,6 +436,7 @@ where
 /// [proof_var]: crate::constraints::ASVerifierGadget::Proof
 /// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// The Hadamard product accumulation scheme proof.
     pub(crate) hp_proof: HPProofVar<G, C>,
     pub(crate) randomness: Option<ProofRandomnessVar<G, C>>,
 }
