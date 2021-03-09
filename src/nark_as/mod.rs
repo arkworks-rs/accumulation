@@ -884,7 +884,7 @@ pub mod tests {
     use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::nark_as::data_structures::{InputInstance, InputWitness, SimpleNARKDomain};
+    use crate::nark_as::data_structures::{InputInstance, InputWitness};
     use crate::nark_as::r1cs_nark::IndexProverKey;
     use crate::nark_as::r1cs_nark::SimpleNARK;
     use crate::nark_as::{r1cs_nark, NarkAS};
@@ -967,9 +967,7 @@ pub mod tests {
             <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
             <NarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ){
-            let nark_pp =
-                SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::setup(
-                );
+            let nark_pp = SimpleNARK::<G, S>::setup();
             let _make_zk = test_params.make_zk;
             let circuit = DummyCircuit {
                 a: Some(G::ScalarField::rand(rng)),
@@ -977,12 +975,7 @@ pub mod tests {
                 params: test_params.clone(),
             };
 
-            let (pk, _) =
-                SimpleNARK::<G, DomainSeparatedSponge<ConstraintF<G>, S, SimpleNARKDomain>>::index(
-                    &nark_pp,
-                    circuit.clone(),
-                )
-                .unwrap();
+            let (pk, _) = SimpleNARK::<G, S>::index(&nark_pp, circuit.clone()).unwrap();
 
             ((test_params.clone(), pk), nark_pp, circuit)
         }

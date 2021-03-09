@@ -8,7 +8,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::collect_sponge_field_elements_gadget;
-use ark_sponge::constraints::absorbable::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbableGadget;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
@@ -102,9 +102,9 @@ where
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
 /// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct ProofVar<G, C>
-    where
-        G: AffineCurve,
-        C: CurveVar<G::Projective, ConstraintF<G>>,
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     /// Commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
     /// Excludes `n-1`th commitment (0-index)
@@ -119,9 +119,9 @@ pub struct ProofVar<G, C>
 }
 
 impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
-    where
-        G: AffineCurve,
-        C: CurveVar<G::Projective, ConstraintF<G>>,
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     fn new_variable<T: Borrow<Proof<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
@@ -271,4 +271,3 @@ where
         collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
     }
 }
-

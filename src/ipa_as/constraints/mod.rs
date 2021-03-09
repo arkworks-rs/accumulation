@@ -14,7 +14,7 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::absorbable::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
 use ark_sponge::domain_separated::DomainSeparatedSponge;

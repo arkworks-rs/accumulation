@@ -7,7 +7,7 @@ use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBitsGadget;
 use ark_relations::r1cs::SynthesisError;
-use ark_sponge::constraints::absorbable::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use std::marker::PhantomData;

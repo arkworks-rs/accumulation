@@ -7,7 +7,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use ark_sponge::constraints::absorbable::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
