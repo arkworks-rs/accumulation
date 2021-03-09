@@ -22,9 +22,17 @@ use std::ops::Mul;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier constraints of [`HomomorphicCommitmentAS`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
+/// An accumulation scheme for Pedersen polynomial commitment schemes.
+/// The construction is described in detail in [BCLMS20][pcdwsa].
+///
+/// The implementation substitutes power challenges with multiple independent challenges where
+/// possible to lower constraint costs for the verifier.
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub struct HomomorphicCommitmentAS<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -402,7 +410,7 @@ where
         Self: 'a,
         S: 'a,
     {
-        let mut input_instances = input_instances
+        let input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();

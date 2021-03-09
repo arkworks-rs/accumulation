@@ -18,6 +18,9 @@ use std::marker::PhantomData;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier gadget of [`HomomorphicCommitmentAS`][hc_as].
+///
+/// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
 pub struct HcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
@@ -119,7 +122,7 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let mut input_instances = input_instances
+        let input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();

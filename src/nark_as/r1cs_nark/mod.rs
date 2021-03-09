@@ -62,8 +62,10 @@ where
         out
     }
 
+    /// Performs a setup for R1CS. This function does not currently do anything meaning.
     pub fn setup() -> PublicParameters {}
 
+    /// Outputs a specialized prover and verifier key for some R1CS instance.
     pub fn index<C: ConstraintSynthesizer<G::ScalarField>>(
         _pp: &PublicParameters,
         r1cs_instance: C,
@@ -112,6 +114,7 @@ where
         Ok((ipk, ivk))
     }
 
+    /// Proves that some R1CS relation holds.
     pub fn prove<C: ConstraintSynthesizer<G::ScalarField>>(
         ipk: &IndexProverKey<G>,
         r1cs: C,
@@ -302,6 +305,7 @@ where
         Ok(proof)
     }
 
+    /// Verifies that some R1CS relation holds.
     pub fn verify(
         ivk: &IndexVerifierKey<G>,
         input: &[G::ScalarField],

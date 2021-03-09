@@ -16,6 +16,9 @@ use std::ops::Mul;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier gadget of [`HadamardProductAS`][hp_as].
+///
+/// [hp_as]: crate::hp_as::HadamardProductAS
 pub struct HpASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -246,7 +249,7 @@ where
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
-    type AccumulatorInstance = AccumulatorInstanceVar<G, C>;
+    type AccumulatorInstance = InputInstanceVar<G, C>;
     type Proof = ProofVar<G, C>;
 
     #[tracing::instrument(

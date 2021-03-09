@@ -51,7 +51,7 @@ where
     Instance: Clone + CanonicalSerialize + CanonicalDeserialize,
     Witness: Clone + CanonicalSerialize + CanonicalDeserialize,
 {
-    /// Return references to the instances of `InstanceWitnessPair`s.
+    /// Returns a reference for each instance in the list of [`InstanceWitnessPair`]s.
     pub fn instances<'a>(
         pairs: impl IntoIterator<Item = &'a Self>,
     ) -> impl Iterator<Item = &'a Instance>
@@ -61,7 +61,7 @@ where
         pairs.into_iter().map(|p| &p.instance)
     }
 
-    /// Return the `InstanceWitnessPairRef`s to `InstanceWitnessPair`s.
+    /// Returns a [`InstanceWitnessPairRef`] for each [`InstanceWitnessPair`] reference.
     pub fn map_to_refs<'a>(
         pairs: impl IntoIterator<Item = &'a Self>,
     ) -> impl Iterator<Item = InstanceWitnessPairRef<'a, Instance, Witness>>
@@ -74,7 +74,7 @@ where
         })
     }
 
-    /// Return the `InstanceWitnessPairRef` to the `InstanceWitnessPair`.
+    /// Returns the [`InstanceWitnessPairRef`] for a [`InstanceWitnessPair`] reference.
     pub fn as_ref(&self) -> InstanceWitnessPairRef<'_, Instance, Witness> {
         InstanceWitnessPairRef {
             instance: &self.instance,
@@ -96,26 +96,39 @@ where
     }
 }
 
-/// The `AccumulatorInstance` and `AccumulatorWitness` of an `AccumulationScheme`.
+/// A pair of [`AccumulatorInstance`][instance] and [`AccumulatorWitness`][witness].
+///
+/// [instance]: AccumulationScheme::AccumulatorInstance
+/// [witness]: AccumulationScheme::AccumulatorWitness
 pub type Accumulator<CF, S, A> = InstanceWitnessPair<
     <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
     <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
 >;
 
-/// References to the `AccumulatorInstance` and `AccumulatorWitness` of an `AccumulationScheme`.
+/// A pair of references to an [`AccumulatorInstance`][instance] and
+/// [`AccumulatorWitness`][witness].
+///
+/// [instance]: AccumulationScheme::AccumulatorInstance
+/// [witness]: AccumulationScheme::AccumulatorWitness
 pub type AccumulatorRef<'a, CF, S, A> = InstanceWitnessPairRef<
     'a,
     <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
     <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
 >;
 
-/// The `InputInstance` and `InputWitness` of an `AccumulationScheme`.
+/// A pair of [`InputInstance`][instance] and [`InputWitness`][witness].
+///
+/// [instance]: AccumulationScheme::InputInstance
+/// [witness]: AccumulationScheme::InputWitness
 pub type Input<CF, S, A> = InstanceWitnessPair<
     <A as AccumulationScheme<CF, S>>::InputInstance,
     <A as AccumulationScheme<CF, S>>::InputWitness,
 >;
 
-/// References to the `InputInstance` and `InputWitness` of an `AccumulationScheme`.
+/// A pair of references to an [`InputInstance`][instance] and [`InputWitness`][witness].
+///
+/// [instance]: AccumulationScheme::InputInstance
+/// [witness]: AccumulationScheme::InputWitness
 pub type InputRef<'a, CF, S, A> = InstanceWitnessPairRef<
     'a,
     <A as AccumulationScheme<CF, S>>::InputInstance,

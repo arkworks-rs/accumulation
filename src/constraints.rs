@@ -8,9 +8,10 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::CryptographicSponge;
 
-pub type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
-pub type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
+pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
+pub(crate) type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
+/// The verifier gadget of an [`AccumulationScheme`].
 pub trait ASVerifierGadget<
     CF: PrimeField,
     S: CryptographicSponge<CF>,
@@ -18,11 +19,27 @@ pub trait ASVerifierGadget<
     AS: AccumulationScheme<CF, S>,
 >
 {
+    /// The key used to check that an accumulator was computed correctly from the inputs
+    /// and old accumulators.
+    /// The constraints equivalent of [`AccumulationScheme::VerifierKey`].
     type VerifierKey: AllocVar<AS::VerifierKey, CF>;
+
+    /// The instance of the input that was accumulated.
+    /// The constraints equivalent of [`AccumulationScheme::InputInstance`].
     type InputInstance: AllocVar<AS::InputInstance, CF>;
+
+    /// The instance of the accumulator.
+    /// The constraints equivalent of [`AccumulationScheme::AccumulatorInstance`].
     type AccumulatorInstance: AllocVar<AS::AccumulatorInstance, CF>;
+
+    /// The proof attesting that an accumulator was properly computed.
+    /// The constraints equivalent of [`AccumulationScheme::Proof`].
     type Proof: AllocVar<AS::Proof, CF>;
 
+    /// Verifies that the new accumulator instance was computed properly from the input instances
+    /// and old accumulator instances.
+    /// Performs the verification using a provided sponge.
+    /// The constraints equivalent of [`AccumulationScheme::verify_with_sponge`].
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
@@ -35,6 +52,10 @@ pub trait ASVerifierGadget<
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a;
 
+    /// Verifies that the new accumulator instance was computed properly from the input instances
+    /// and old accumulator instances.
+    /// Performs the verification using a new sponge.
+    /// The constraints equivalent of [`AccumulationScheme::verify`].
     fn verify<'a>(
         cs: ConstraintSystemRef<CF>,
         verifier_key: &Self::VerifierKey,
@@ -58,6 +79,7 @@ pub trait ASVerifierGadget<
     }
 }
 
+/// The verifier gadget of an [`AtomicAccumulationScheme`][crate::AtomicAccumulationScheme].
 pub trait AtomicASVerifierGadget<
     CF: PrimeField,
     S: CryptographicSponge<CF>,

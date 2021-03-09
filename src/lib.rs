@@ -1,6 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! A crate for accumulation schemes.
+//! A crate that provides infrastructure to implement accumulation schemes.
+//! The interface for accumulation schemes were introduced in [BCMS20][pcdas] and [BCLMS20][pcdwsa].
+//!
+//! [pcdas]: https://eprint.iacr.org/2020/499.pdf
+//! [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+
 #![warn(
     const_err,
     future_incompatible,
@@ -30,26 +35,39 @@ extern crate bench_utils;
 
 extern crate ark_std as std;
 
-mod data_structures;
-/// Common data structures used by `AccumulationScheme`.
+/// Common data structures used by [`AccumulationScheme`].
 pub use data_structures::*;
+mod data_structures;
 
-/// Common errors for `AccumulationScheme`.
+/// Common errors for [`AccumulationScheme`].
 pub mod error;
 
+/// Traits for [`AccumulationScheme`] verifier gadgets.
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
+/// An accumulation scheme for Pedersen polynomial commitment schemes.
+/// The construction is described in detail in [BCLMS20][pcdwsa].
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub mod hc_as;
 
+/// An accumulation scheme for the Hadamard product relation.
+/// The construction is described in detail in [BCLMS20][pcdwsa].
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub mod hp_as;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
-/// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
+/// The construction is described in detail in [BCMS20][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
 pub mod ipa_as;
 
+/// An accumulation scheme for a NARK for R1CS.
+/// The construction is described in detail in [BCLMS20][pcdwsa].
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub mod nark_as;
 
 /// Specifies the zero-knowledge configuration for an accumulation.
@@ -74,12 +92,15 @@ impl<'a> MakeZK<'a> {
 }
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
-/// accumulates a stream of inputs into an object called an `Accumulator`. The prover also
-/// outputs a proof attesting that the `Accumulator` was computed correctly, which a verifier can
-/// check. At any point, a decider can use an `Accumulator` to determine if each accumulated
-/// input satisfied the predicate.
-/// `AccumulationScheme` is defined in [BCLMS20][pcdwsa] as `SplitAccumulationScheme`.
+/// accumulates a stream of [`Inputs`][in] into an object called an [`Accumulator`][acc]. The prover
+/// also outputs a [`Proof`][pf] attesting that the [`Accumulator`][acc] was computed correctly,
+/// which a verifier can check. At any point, a decider can use an [`Accumulator`][acc] to determine
+/// if each accumulated input satisfied the predicate.
+/// The interface is defined in [BCLMS20][pcdwsa] as `SplitAccumulationScheme`.
 ///
+/// [in]: Input
+/// [acc]: Accumulator
+/// [pf]: AccumulationScheme::Proof
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized {
     /// The universal parameters for the accumulation scheme.
@@ -91,16 +112,15 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
     /// The index of the accumulation scheme's predicate.
     type PredicateIndex: Clone;
 
-    /// The prover key, used to accumulate inputs and past accumulators and to prove that the
-    /// new accumulator was computed correctly from the inputs and old accumulators.
+    /// The key used to accumulate inputs and old accumulators and to prove that the accumulation was
+    /// computed correctly.
     type ProverKey: Clone;
 
-    /// The verifier key, used to check that an accumulator was computed correctly from the inputs
+    /// The key used to check that an accumulator was computed correctly from the inputs
     /// and old accumulators.
     type VerifierKey: Clone;
 
-    /// The decider key, used to establish whether each of the accumulated inputs satisfes the
-    /// predicate.
+    /// The key used to establish whether each of the accumulated inputs satisfies the predicate.
     type DeciderKey: Clone;
 
     /// The instance of the input to be accumulated.
@@ -115,7 +135,7 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
     /// The witness of the accumulator.
     type AccumulatorWitness: Clone + CanonicalSerialize + CanonicalDeserialize;
 
-    /// The proof, used to prove that the accumulator was properly computed.
+    /// The proof attesting that an accumulator was properly computed.
     type Proof: Clone;
 
     /// The error type used in the scheme.
@@ -162,8 +182,8 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         Self::prove_with_sponge(prover_key, inputs, old_accumulators, make_zk, S::new())
     }
 
-    /// Verifies using a proof that the new accumulator instance was computed properly from the
-    /// input instances and old accumulator instances.
+    /// Verifies that the new accumulator instance was computed properly from the input instances
+    /// and old accumulator instances.
     /// Performs the verification using a provided sponge.
     fn verify_with_sponge<'a>(
         verifier_key: &Self::VerifierKey,
@@ -177,8 +197,8 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
         Self: 'a,
         S: 'a;
 
-    /// Verifies using a proof that the new accumulator instance was computed properly from the
-    /// input instances and old accumulator instances.
+    /// Verifies that the new accumulator instance was computed properly from the input instances
+    /// and old accumulator instances.
     /// Performs the verification using a new sponge.
     fn verify<'a>(
         verifier_key: &Self::VerifierKey,
@@ -221,10 +241,10 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
     }
 }
 
-/// An `AtomicAccumulationScheme` is a special case of an `AccumulationScheme` that has empty
-/// witnesses, so entire `Input`s and `Accumulator`s are passed into the verifier.
-/// `AtomicAccumulationScheme` is defined in [BCMS20][pcdas] as `AccumulationScheme` and in
-/// [BCLMS20][pcdwsa] as `AtomicAccumulationScheme`.
+/// A special case of an [`AccumulationScheme`] that has empty witnesses, so entire
+/// [`Inputs`][Input] and [`Accumulators`][Accumulator] are passed into the verifier.
+/// The interface is defined in [BCMS20][pcdas] as `AccumulationScheme` and in [BCLMS20][pcdwsa] as
+/// `AtomicAccumulationScheme`.
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499.pdf
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf

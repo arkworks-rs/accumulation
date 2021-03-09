@@ -12,8 +12,12 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
 
-pub type FinalCommKeyVar<C> = C;
+pub(crate) type FinalCommKeyVar<C> = C;
 
+/// The [`VerifierKey`][vk] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+///
+/// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
+/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
 pub struct VerifierKeyVar<G, C>
 where
     G: AffineCurve,
@@ -56,6 +60,10 @@ where
     }
 }
 
+/// The [`InputInstance`][input_instance] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+///
+/// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
+/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -113,6 +121,7 @@ where
     }
 }
 
+/// The randomness to be accumulated with the inputs to apply zero-knowledge.
 pub struct RandomnessVar<G, C>
 where
     G: AffineCurve,
@@ -184,6 +193,10 @@ where
     }
 }
 
+/// The [`Proof`][proof] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+///
+/// [proof]: crate::constraints::ASVerifierGadget::Proof
+/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

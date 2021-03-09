@@ -12,6 +12,10 @@ use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
+/// The [`VerifierKey`][vk] of the [`HcASVerifierGadget`][hc_as_verifier].
+///
+/// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
+/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 
 impl<CF> AllocVar<usize, CF> for VerifierKeyVar<CF>
@@ -39,16 +43,25 @@ where
     }
 }
 
-// Specialized for Pedersen commitments
+/// The [`InputInstance`][input] of the [`HcASVerifierGadget`][hc_as_verifier].
+///
+/// [input]: crate::constraints::ASVerifierGadget::InputInstance
+/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
+    /// The Pedersen commitment to a polynomial.
     pub commitment: C,
+
+    /// Point where the proof was opened at.
     pub point: NNFieldVar<G>,
+
+    /// The evaluation of the committed polynomial at the point.
     pub eval: NNFieldVar<G>,
 
+    #[doc(hidden)]
     pub _affine: PhantomData<G>,
 }
 
@@ -103,16 +116,17 @@ where
     }
 }
 
+/// A proof attesting that a single input was properly accumulated.
 pub struct SingleProofVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub witness_commitment: C,
-    pub witness_eval: NNFieldVar<G>,
-    pub eval: NNFieldVar<G>,
+    pub(crate) witness_commitment: C,
+    pub(crate) witness_eval: NNFieldVar<G>,
+    pub(crate) eval: NNFieldVar<G>,
 
-    pub _affine: PhantomData<G>,
+    pub(crate) _affine: PhantomData<G>,
 }
 
 impl<G, C> AllocVar<SingleProof<G>, ConstraintF<G>> for SingleProofVar<G, C>
@@ -152,12 +166,16 @@ where
     }
 }
 
+/// The [`Proof`][proof] of the [`HcASVerifierGadget`][hc_as_verifier].
+///
+/// [proof]: crate::constraints::ASVerifierGadget::Proof
+/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub single_proofs: Vec<SingleProofVar<G, C>>,
+    pub(crate) single_proofs: Vec<SingleProofVar<G, C>>,
 }
 
 impl<G, C> AllocVar<Vec<SingleProof<G>>, ConstraintF<G>> for ProofVar<G, C>

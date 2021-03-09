@@ -22,6 +22,9 @@ use std::marker::PhantomData;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier gadget of [`NarkAS`][nark_as].
+///
+/// [nark_as]: crate::nark_as::NarkAS
 pub struct NarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

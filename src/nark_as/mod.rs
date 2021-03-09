@@ -25,13 +25,21 @@ use std::marker::PhantomData;
 mod data_structures;
 pub use data_structures::*;
 
-/// A simple non-interactive argument of knowledge for R1CS
+/// A simple non-interactive argument of knowledge for R1CS.
 pub mod r1cs_nark;
 
+/// The verifier constraints of [`NarkAS`].
 pub mod constraints;
 
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
+/// An accumulation scheme for a NARK for R1CS.
+/// The construction is described in detail in [BCLMS20][pcdwsa].
+///
+/// The implementation substitutes power challenges with multiple independent challenges where
+/// possible to lower constraint costs for the verifier.
+///
+/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub struct NarkAS<G, CS, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

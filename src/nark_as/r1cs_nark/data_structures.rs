@@ -13,47 +13,50 @@ pub type PublicParameters = ();
 /// variables, the number of constraints, and the maximum number of non-zero
 /// entries in any of the constraint matrices.
 #[derive(Clone, Copy)]
-pub struct IndexInfo {
+pub(crate) struct IndexInfo {
     /// The total number of variables in the constraint system.
-    pub num_variables: usize,
+    pub(crate) num_variables: usize,
     /// The number of constraints.
-    pub num_constraints: usize,
+    pub(crate) num_constraints: usize,
     /// The number of public input (i.e. instance) variables.
-    pub num_instance_variables: usize,
+    pub(crate) num_instance_variables: usize,
     /// Hash of the matrices.
-    pub matrices_hash: [u8; 32],
+    pub(crate) matrices_hash: [u8; 32],
 }
 
 /// The index prover key for our NARK.
 #[derive(Clone)]
 pub struct IndexProverKey<G: AffineCurve> {
     /// Information about the index.
-    pub index_info: IndexInfo,
+    pub(crate) index_info: IndexInfo,
 
-    /// The A matrix for the R1CS instance.
-    pub a: Matrix<G::ScalarField>,
-    /// The B matrix for the R1CS instance.
-    pub b: Matrix<G::ScalarField>,
-    /// The C matrix for the R1CS instance.
-    pub c: Matrix<G::ScalarField>,
+    /// The `A` matrix of the R1CS instance.
+    pub(crate) a: Matrix<G::ScalarField>,
+
+    /// The `B` matrix of the R1CS instance.
+    pub(crate) b: Matrix<G::ScalarField>,
+
+    /// The `C` matrix of the R1CS instance.
+    pub(crate) c: Matrix<G::ScalarField>,
 
     /// The group elements required by the Pedersen commitment.
-    pub ck: CommitterKey<G>,
+    pub(crate) ck: CommitterKey<G>,
 }
 
 /// Index verifier key for our NARK.
 pub type IndexVerifierKey<G> = IndexProverKey<G>;
 
+/// The sigma protocol's prover commitment.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct FirstRoundMessage<G: AffineCurve> {
-    pub comm_a: G,
-    pub comm_b: G,
-    pub comm_c: G,
-    pub comm_r_a: Option<G>,
-    pub comm_r_b: Option<G>,
-    pub comm_r_c: Option<G>,
-    pub comm_1: Option<G>,
-    pub comm_2: Option<G>,
+    pub(crate) comm_a: G,
+    pub(crate) comm_b: G,
+    pub(crate) comm_c: G,
+    pub(crate) comm_r_a: Option<G>,
+    pub(crate) comm_r_b: Option<G>,
+    pub(crate) comm_r_c: Option<G>,
+    pub(crate) comm_1: Option<G>,
+    pub(crate) comm_2: Option<G>,
 }
 
 impl<CF, G> Absorbable<CF> for FirstRoundMessage<G>
@@ -89,18 +92,19 @@ where
     }
 }
 
+/// The sigma protocol's prover response.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SecondRoundMessage<F: Field> {
-    pub blinded_witness: Vec<F>,
-    pub sigma_a: Option<F>,
-    pub sigma_b: Option<F>,
-    pub sigma_c: Option<F>,
-    pub sigma_o: Option<F>,
+    pub(crate) blinded_witness: Vec<F>,
+    pub(crate) sigma_a: Option<F>,
+    pub(crate) sigma_b: Option<F>,
+    pub(crate) sigma_c: Option<F>,
+    pub(crate) sigma_o: Option<F>,
 }
 
 /// The proof for our NARK.
 pub struct Proof<G: AffineCurve> {
-    pub first_msg: FirstRoundMessage<G>,
-    pub second_msg: SecondRoundMessage<G::ScalarField>,
-    pub make_zk: bool,
+    pub(crate) first_msg: FirstRoundMessage<G>,
+    pub(crate) second_msg: SecondRoundMessage<G::ScalarField>,
+    pub(crate) make_zk: bool,
 }

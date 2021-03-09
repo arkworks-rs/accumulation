@@ -12,9 +12,12 @@ use ark_sponge::constraints::absorbable::AbsorbableGadget;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
-/// Represents the verifier key that is used when accumulating instances and old accumulators.
+/// The [`VerifierKey`][vk] of the [`HpASVerifierGadget`][hp_as_verifier].
+///
+/// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
+/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
-    pub num_supported_elems: FpVar<CF>,
+    pub(crate) num_supported_elems: FpVar<CF>,
 }
 
 impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
@@ -36,19 +39,27 @@ impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
     }
 }
 
-/// Represents an accumulatable instance of the Hadamard product relation.
+/// The [`InputInstance`][input] of the [`HpASVerifierGadget`][hp_as_verifier].
+///
+/// [input]: crate::constraints::ASVerifierGadget::InputInstance
+/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
+    /// The commitment to the `a` vector of the Hadamard product relation.
     pub comm_1: C,
-    pub comm_2: C,
-    pub comm_3: C,
-    pub(crate) _curve: PhantomData<G>,
-}
 
-pub type AccumulatorInstanceVar<G, C> = InputInstanceVar<G, C>;
+    /// The commitment to the `b` vector of the Hadamard product relation.
+    pub comm_2: C,
+
+    /// The commitment to the `a ◦ b` vector of the Hadamard product relation.
+    pub comm_3: C,
+
+    #[doc(hidden)]
+    pub _curve: PhantomData<G>,
+}
 
 impl<G, C> AllocVar<InputInstance<G>, ConstraintF<G>> for InputInstanceVar<G, C>
 where
@@ -85,13 +96,17 @@ where
     }
 }
 
+/// The [`Proof`][proof] of the [`HpASVerifierGadget`][hp_as_verifier].
+///
+/// [proof]: crate::constraints::ASVerifierGadget::Proof
+/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
-    pub t_comms: ProofTCommitmentsVar<G, C>,
-    pub hiding_comms: Option<ProofHidingCommitmentsVar<G, C>>,
+    pub(crate) t_comms: ProofTCommitmentsVar<G, C>,
+    pub(crate) hiding_comms: Option<ProofHidingCommitmentsVar<G, C>>,
     pub(crate) _curve: PhantomData<G>,
 }
 
@@ -130,13 +145,13 @@ where
     }
 }
 
-pub struct ProofTCommitmentsVar<G, C>
+pub(crate) struct ProofTCommitmentsVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
-    pub low: Vec<C>,
-    pub high: Vec<C>,
+    pub(crate) low: Vec<C>,
+    pub(crate) high: Vec<C>,
     pub(crate) _curve: PhantomData<G>,
 }
 
@@ -185,14 +200,14 @@ where
     }
 }
 
-pub struct ProofHidingCommitmentsVar<G, C>
+pub(crate) struct ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
-    pub comm_1: C,
-    pub comm_2: C,
-    pub comm_3: C,
+    pub(crate) comm_1: C,
+    pub(crate) comm_2: C,
+    pub(crate) comm_3: C,
     pub(crate) _curve: PhantomData<G>,
 }
 

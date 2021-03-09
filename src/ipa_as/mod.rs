@@ -23,11 +23,12 @@ use rand_core::RngCore;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier constraints of [`InnerProductArgAtomicAS`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
 type FinalCommKey<G> = G;
-pub type IpaPC<G, S> = InnerProductArgPC<
+type IpaPC<G, S> = InnerProductArgPC<
     G,
     Blake2s,
     DensePolynomial<<G as AffineCurve>::ScalarField>,
@@ -36,7 +37,10 @@ pub type IpaPC<G, S> = InnerProductArgPC<
 >;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
-/// The construction for the accumulation scheme is taken from [[BCMS20]][pcdas].
+/// The construction is described in detail in [BCMS20][pcdas].
+///
+/// The implementation substitutes power challenges with multiple independent challenges where
+/// possible to lower constraint costs for the verifier.
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
 pub struct InnerProductArgAtomicAS<G, S>

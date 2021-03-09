@@ -25,6 +25,9 @@ use std::ops::Mul;
 mod data_structures;
 pub use data_structures::*;
 
+/// The verifier gadget of [`InnerProductArgAtomicAS`][ipa_as].
+///
+/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
 pub struct IPAAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

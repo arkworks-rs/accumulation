@@ -17,13 +17,23 @@ use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
-pub struct IndexInfoVar<CF: PrimeField> {
+/*
+/// The [``][] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// []: crate::constraints::ASVerifierGadget::
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
+ */
+
+pub(crate) struct IndexInfoVar<CF: PrimeField> {
     /// The total number of variables in the constraint system.
     pub num_variables: usize,
+
     /// The number of constraints.
     pub num_constraints: usize,
+
     /// The number of public input (i.e. instance) variables.
     pub num_instance_variables: usize,
+
     /// Hash of the matrices.
     pub matrices_hash: Vec<FpVar<CF>>,
 }
@@ -55,9 +65,13 @@ impl<CF: PrimeField> AllocVar<IndexInfo, CF> for IndexInfoVar<CF> {
     }
 }
 
+/// The [`VerifierKey`][vk] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
-    pub nark_index: IndexInfoVar<CF>,
-    pub as_matrices_hash: Vec<FpVar<CF>>,
+    pub(crate) nark_index: IndexInfoVar<CF>,
+    pub(crate) as_matrices_hash: Vec<FpVar<CF>>,
 }
 
 impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
@@ -89,17 +103,18 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
     }
 }
 
+/// The sigma protocol's prover commitment.
 pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    pub comm_a: C,
-    pub comm_b: C,
-    pub comm_c: C,
-    pub comm_r_a: Option<C>,
-    pub comm_r_b: Option<C>,
-    pub comm_r_c: Option<C>,
-    pub comm_1: Option<C>,
-    pub comm_2: Option<C>,
+    pub(crate) comm_a: C,
+    pub(crate) comm_b: C,
+    pub(crate) comm_c: C,
+    pub(crate) comm_r_a: Option<C>,
+    pub(crate) comm_r_b: Option<C>,
+    pub(crate) comm_r_c: Option<C>,
+    pub(crate) comm_1: Option<C>,
+    pub(crate) comm_2: Option<C>,
 
-    pub _affine_phantom: PhantomData<G>,
+    pub(crate) _affine_phantom: PhantomData<G>,
 }
 
 impl<G, C> AbsorbableGadget<ConstraintF<G>> for FirstRoundMessageVar<G, C>
@@ -183,9 +198,18 @@ where
     }
 }
 
+/// The [`InputInstance`][input_instance] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// The R1CS input.
     pub r1cs_input: Vec<NNFieldVar<G>>,
+
+    /// The sigma protocol's prover commitment of the NARK.
     pub first_round_message: FirstRoundMessageVar<G, C>,
+
+    /// The zero-knowledge configuration.
     pub make_zk: bool,
 }
 
@@ -243,12 +267,16 @@ where
     }
 }
 
+/// The [`AccumulatorInstance`][acc_instance] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// [acc_instance]: crate::constraints::ASVerifierGadget::AccumulatorInstance
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    pub r1cs_input: Vec<NNFieldVar<G>>,
-    pub comm_a: C,
-    pub comm_b: C,
-    pub comm_c: C,
-    pub hp_instance: HPInputInstanceVar<G, C>,
+    pub(crate) r1cs_input: Vec<NNFieldVar<G>>,
+    pub(crate) comm_a: C,
+    pub(crate) comm_b: C,
+    pub(crate) comm_c: C,
+    pub(crate) hp_instance: HPInputInstanceVar<G, C>,
 }
 
 impl<G, C> AbsorbableGadget<ConstraintF<G>> for AccumulatorInstanceVar<G, C>
@@ -312,11 +340,11 @@ where
     }
 }
 
-pub struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    pub r1cs_r_input: Vec<NNFieldVar<G>>,
-    pub comm_r_a: C,
-    pub comm_r_b: C,
-    pub comm_r_c: C,
+pub(crate) struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    pub(crate) r1cs_r_input: Vec<NNFieldVar<G>>,
+    pub(crate) comm_r_a: C,
+    pub(crate) comm_r_b: C,
+    pub(crate) comm_r_c: C,
 }
 
 impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofRandomnessVar<G, C>
@@ -374,9 +402,13 @@ where
     }
 }
 
+/// The [`Proof`][proof_var] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// [proof_var]: crate::constraints::ASVerifierGadget::Proof
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    pub hp_proof: HPProofVar<G, C>,
-    pub randomness: Option<ProofRandomnessVar<G, C>>,
+    pub(crate) hp_proof: HPProofVar<G, C>,
+    pub(crate) randomness: Option<ProofRandomnessVar<G, C>>,
 }
 
 impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
