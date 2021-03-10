@@ -242,48 +242,26 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_no_zk() {
-        Tests::test_initialization(
-            &HcASTestParams {
-                degree: 8,
-            },
-            1,
-        );
+        Tests::test_initialization(&HcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_initialization_zk() {
-        Tests::test_initialization(
-            &HcASTestParams {
-                degree: 8,
-            },
-            1,
-        );
+        Tests::test_initialization(&HcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        Tests::test_simple_accumulation(
-            &HcASTestParams {
-                degree: 8,
-            },
-            1,
-        );
+        Tests::test_simple_accumulation(&HcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        Tests::test_simple_accumulation(
-            &HcASTestParams {
-                degree: 8,
-            },
-            1,
-        );
+        Tests::test_simple_accumulation(&HcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn print_breakdown() {
-        Tests::print_costs_breakdown(&HcASTestParams {
-            degree: 8,
-        });
+        Tests::print_costs_breakdown(&HcASTestParams { degree: 8 });
     }
 }

@@ -374,9 +374,9 @@ pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> 
 }
 
 impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
-    where
-        G: AffineCurve,
-        C: CurveVar<G::Projective, ConstraintF<G>>,
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
 {
     fn new_variable<T: Borrow<Proof<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
@@ -475,4 +475,3 @@ where
         })
     }
 }
-

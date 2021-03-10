@@ -576,11 +576,7 @@ pub mod tests {
             )
             .unwrap();
 
-            (
-                ck,
-                predicate_params,
-                supported_degree,
-            )
+            (ck, predicate_params, supported_degree)
         }
 
         fn generate_inputs(
@@ -598,8 +594,7 @@ pub mod tests {
                     let label = format!("Input{}", i);
 
                     let polynomial = DensePolynomial::rand(degree, rng);
-                    let labeled_polynomial =
-                        LabeledPolynomial::new(label, polynomial, None, None);
+                    let labeled_polynomial = LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
                 })
@@ -649,36 +644,26 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&HcASTestParams {
-            degree: 8,
-        })
+        Tests::single_input_initialization_test(&HcASTestParams { degree: 8 })
     }
 
     #[test]
     pub fn multiple_inputs_initialization_test() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&HcASTestParams {
-            degree: 8,
-        })
+        Tests::multiple_inputs_initialization_test(&HcASTestParams { degree: 8 })
     }
 
     #[test]
     pub fn simple_accumulation_test() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&HcASTestParams {
-            degree: 8,
-        })
+        Tests::simple_accumulation_test(&HcASTestParams { degree: 8 })
     }
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams {
-            degree: 8,
-        })
+        Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams { degree: 8 })
     }
 
     #[test]
     pub fn accumulators_only_test() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&HcASTestParams {
-            degree: 8,
-        })
+        Tests::accumulators_only_test(&HcASTestParams { degree: 8 })
     }
 }
