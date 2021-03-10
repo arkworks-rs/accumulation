@@ -24,7 +24,7 @@ pub struct PredicateIndex<F: Field> {
     /// The `C` matrix for the R1CS instance.
     pub c: Matrix<F>,
 
-    /// The index of the relation verified by the NARK.
+    /// The index of the relation to be verified by the NARK.
     pub index: usize,
 }
 
@@ -34,10 +34,10 @@ pub struct PredicateIndex<F: Field> {
 /// [nark_as]: crate::nark_as::NarkAS
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
-    /// The underlying NARK prover key
+    /// The NARK prover key.
     pub(crate) nark_pk: IndexProverKey<G>,
 
-    /// The hash of the matrices for the accumulation scheme.
+    /// Hash of the matrices for the accumulation scheme.
     pub(crate) as_matrices_hash: [u8; 32],
 }
 
@@ -47,10 +47,10 @@ pub struct ProverKey<G: AffineCurve> {
 /// [nark_as]: crate::nark_as::NarkAS
 #[derive(Clone)]
 pub struct VerifierKey {
-    /// The underlying NARK index
+    /// Information about the index.
     pub(crate) nark_index: IndexInfo,
 
-    /// The hash of the matrices for the accumulation scheme.
+    /// Hash of the matrices for the accumulation scheme.
     pub(crate) as_matrices_hash: [u8; 32],
 }
 
@@ -60,7 +60,7 @@ pub struct VerifierKey {
 /// [nark_as]: crate::nark_as::NarkAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
-    /// The R1CS input for the indexed relation.
+    /// An R1CS input for the indexed relation.
     pub r1cs_input: Vec<G::ScalarField>,
 
     /// The sigma protocol's prover commitment of the NARK.
@@ -115,16 +115,16 @@ pub struct AccumulatorInstance<G: AffineCurve> {
     /// An input for the indexed relation.
     pub(crate) r1cs_input: Vec<G::ScalarField>,
 
-    /// Commitment to the `Az` vector.
+    /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_a: G,
 
-    /// Commitment to the `Bz` vector.
+    /// Pedersen commitment to the `Bz` vector.
     pub(crate) comm_b: G,
 
-    /// Commitment to the `Cz` vector.
+    /// Pedersen commitment to the `Cz` vector.
     pub(crate) comm_c: G,
 
-    /// The Hadamard product accumulation scheme input instance
+    /// The Hadamard product accumulation scheme input instance.
     pub(crate) hp_instance: HPInputInstance<G>,
 }
 
@@ -155,16 +155,19 @@ where
     }
 }
 
-/// The randomness for the linear combinations of Pedersen commitment randomness
+/// The randomness for the Pedersen commitments to the linear combinations.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub(crate) struct AccumulatorWitnessRandomness<F: Field> {
-    /// Blinded randomness for the commitment to the linear combination used with the `A` matrix.
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `A` matrix.
     pub(crate) sigma_a: F,
 
-    /// Blinded randomness for the commitment to the linear combination used with the `B` matrix.
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `B` matrix.
     pub(crate) sigma_b: F,
 
-    /// Blinded randomness for the commitment to the linear combination used with the `C` matrix.
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `C` matrix.
     pub(crate) sigma_c: F,
 }
 
@@ -180,8 +183,21 @@ pub struct AccumulatorWitness<F: Field> {
     /// The Hadamard product accumulation scheme input witness.
     pub(crate) hp_witness: HPInputWitness<F>,
 
-    /// Randomness for the linear combinations of Pedersen commitment randomness
+    /// Randomness for the Pedersen commitments to the linear combinations.
     pub(crate) randomness: Option<AccumulatorWitnessRandomness<F>>,
+}
+
+/// The [`Proof`][proof] of the [`NarkAS`][nark_as].
+///
+/// [proof]: crate::AccumulationScheme::Proof
+/// [nark_as]: crate::nark_as::NarkAS
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct Proof<G: AffineCurve> {
+    /// The Hadamard product accumulation scheme proof.
+    pub(crate) hp_proof: HPProof<G>,
+
+    /// Randomness or their commitments used to blind the vectors of the indexed relation.
+    pub(crate) randomness: Option<ProofRandomness<G>>,
 }
 
 /// The randomness or their commitments used to blind the vectors of the indexed relation.
@@ -190,13 +206,13 @@ pub(crate) struct ProofRandomness<G: AffineCurve> {
     /// Randomness used to blind the R1CS input.
     pub(crate) r1cs_r_input: Vec<G::ScalarField>,
 
-    /// Commitment to the vector that blinds the witness in `Az`.
+    /// Pedersen commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: G,
 
-    /// Commitment to the vector that blinds the witness in `Bz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: G,
 
-    /// Commitment to the vector that blinds the witness in `Cz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: G,
 }
 
@@ -225,15 +241,3 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`NarkAS`][nark_as].
-///
-/// [proof]: crate::AccumulationScheme::Proof
-/// [nark_as]: crate::nark_as::NarkAS
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<G: AffineCurve> {
-    /// The Hadamard product accumulation scheme proof.
-    pub(crate) hp_proof: HPProof<G>,
-
-    /// The randomness or their commitments used to blind the vectors of the indexed relation.
-    pub(crate) randomness: Option<ProofRandomness<G>>,
-}

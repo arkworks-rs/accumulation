@@ -36,7 +36,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2
 /// An accumulation scheme for a NARK for R1CS.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
-/// The implementation substitutes power challenges with multiple independent challenges where
+/// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf

@@ -26,12 +26,13 @@ pub use data_structures::*;
 pub mod constraints;
 
 /// An accumulation scheme for Homomorphic commitment schemes. The implementation is specialized
-/// for Pedersen polynomial commitment schemes.
+/// for the [`PedersenPC`][pc_ped] scheme.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
-/// The implementation substitutes power challenges with multiple independent challenges where
+/// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
+/// [pc_ped]: ark_poly_commit::pedersen_pc::PedersenPC
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub struct HomomorphicCommitmentAS<G, S>
 where

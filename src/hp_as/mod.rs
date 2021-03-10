@@ -25,7 +25,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"Hadamard-Product-Accumulation-Scheme-2
 /// An accumulation scheme for the Hadamard product relation.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
-/// The implementation substitutes power challenges with multiple independent challenges where
+/// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf

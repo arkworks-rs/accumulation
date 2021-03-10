@@ -12,48 +12,11 @@ use ark_std::io::{Read, Write};
 /// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
 #[derive(Clone)]
 pub struct PredicateIndex {
-    /// The degree bound supported by IPA_PC.
+    /// The degree bound supported by IpaPC.
     pub supported_degree_bound: usize,
 
-    /// The hiding bound supported by IPA_PC.
+    /// The hiding bound supported by IpaPC.
     pub supported_hiding_bound: usize,
-}
-
-/// The [`InputInstance`][input_instance] of the [`InnerProductArgAtomicAS`][ipa_as].
-///
-/// [input_instance]: crate::AccumulationScheme::InputInstance
-/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct InputInstance<G: AffineCurve> {
-    /// The IPA_PC commitment that will be or has been accumulated
-    pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
-
-    /// Point where the proof was opened at.
-    pub point: G::ScalarField,
-
-    /// Evaluation of the committed polynomial at the point.
-    pub evaluation: G::ScalarField,
-
-    /// The IPA_PC proof of evaluation at the point.
-    pub ipa_proof: ipa_pc::Proof<G>,
-}
-
-/// The randomness to be accumulated with the inputs and to commit to polynomials.
-/// If used, the randomness is the  [`Proof`][proof] of the [`InnerProductArgAtomicAS`][ipa_as].
-///
-/// [Proof]: crate::AccumulationScheme::Proof
-/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct Randomness<G: AffineCurve> {
-    /// A random linear polynomial to be accumulated with the other input polynomials to apply
-    /// zero-knowledge.
-    pub(crate) random_linear_polynomial: DensePolynomial<G::ScalarField>,
-
-    /// Commitment to the random linear polynomial.
-    pub(crate) random_linear_polynomial_commitment: G,
-
-    /// Randomness used to commit to the linear combination of the input polynomials.
-    pub(crate) commitment_randomness: G::ScalarField,
 }
 
 /// The [`ProverKey`][pk] of the [`InnerProductArgAtomicAS`][ipa_as].
@@ -62,7 +25,7 @@ pub struct Randomness<G: AffineCurve> {
 /// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
-    /// The IPA_PC committer key for inputs.
+    /// The IpaPC committer key for committing input polynomials.
     pub(crate) ipa_ck: ipa_pc::CommitterKey<G>,
 
     /// The accumulation scheme's [`VerifierKey`].
@@ -75,11 +38,47 @@ pub struct ProverKey<G: AffineCurve> {
 /// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
 #[derive(Clone)]
 pub struct VerifierKey<G: AffineCurve> {
-    /// The IPA_PC succinct check key for inputs.
+    /// The IpaPC succinct check key for inputs.
     pub(crate) ipa_svk: ipa_pc::SuccinctVerifierKey<G>,
 
-    /// The IPA_PC committer key for random linear polynomials.
+    /// The IpaPC committer key for random linear polynomials.
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
+}
+
+/// The [`InputInstance`][input_instance] of the [`InnerProductArgAtomicAS`][ipa_as].
+///
+/// [input_instance]: crate::AccumulationScheme::InputInstance
+/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct InputInstance<G: AffineCurve> {
+    /// The IpaPC commitment to a polynomial.
+    pub ipa_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
+
+    /// Point where the proof was opened at.
+    pub point: G::ScalarField,
+
+    /// Evaluation of the committed polynomial at the point.
+    pub evaluation: G::ScalarField,
+
+    /// The IpaPC proof of evaluation at the point.
+    pub ipa_proof: ipa_pc::Proof<G>,
+}
+
+/// The randomness used to apply zero-knowledge to commitment and accumulation.
+/// If used, the randomness is the  [`Proof`][proof] of the [`InnerProductArgAtomicAS`][ipa_as].
+///
+/// [Proof]: crate::AccumulationScheme::Proof
+/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct Randomness<G: AffineCurve> {
+    /// A random linear polynomial to be accumulated
+    pub(crate) random_linear_polynomial: DensePolynomial<G::ScalarField>,
+
+    /// The IpaPC commitment to the random linear polynomial.
+    pub(crate) random_linear_polynomial_commitment: G,
+
+    /// Randomness used to commit to the linear combination of the input polynomials.
+    pub(crate) commitment_randomness: G::ScalarField,
 }
 
 pub(crate) struct IpaPCDomain {}

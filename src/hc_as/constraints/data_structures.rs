@@ -120,7 +120,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    /// Commitment to the witness polynomial.
+    /// Pedersen commitment to the witness polynomial.
     pub(crate) witness_commitment: C,
 
     /// Evaluation of the witness polynomial at the challenge point.
@@ -177,7 +177,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    /// List of [`SingleProofVar`] for each input.
+    /// A list of [`SingleProofVar`] for each input.
     pub(crate) single_proofs: Vec<SingleProofVar<G, C>>,
 }
 

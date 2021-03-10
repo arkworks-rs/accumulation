@@ -48,7 +48,7 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
 /// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SingleProof<G: AffineCurve> {
-    /// Commitment to the witness polynomial.
+    /// Pedersen commitment to the witness polynomial.
     pub(crate) witness_commitment: LabeledCommitment<pedersen_pc::Commitment<G>>,
 
     /// Evaluation of the witness polynomial at the challenge point.
@@ -58,7 +58,7 @@ pub struct SingleProof<G: AffineCurve> {
     pub(crate) eval: G::ScalarField,
 }
 
-/// List of [`SingleProof`]s for each accumulated input.
+/// The list of [`SingleProof`]s for each accumulated input.
 /// The [`Proof`][proof] of the [`HomomorphicCommitmentAS`][hc_as].
 ///
 /// [proof]: crate::AccumulationScheme::Proof

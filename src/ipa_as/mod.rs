@@ -39,7 +39,7 @@ type IpaPC<G, S> = InnerProductArgPC<
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction is described in detail in [BCMS20][pcdas].
 ///
-/// The implementation substitutes power challenges with multiple independent challenges where
+/// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499

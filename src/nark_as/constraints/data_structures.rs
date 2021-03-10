@@ -101,28 +101,28 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
 
 /// The sigma protocol's prover commitment.
 pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    /// Commitment to the `Az` vector.
+    /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_a: C,
 
-    /// Commitment to the `Bz` vector.
+    /// Pedersen commitment to the `Bz` vector.
     pub(crate) comm_b: C,
 
-    /// Commitment to the `Cz` vector.
+    /// Pedersen commitment to the `Cz` vector.
     pub(crate) comm_c: C,
 
-    /// Commitment to the vector that blinds the witness in `Az`.
+    /// Pedersen commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: Option<C>,
 
-    /// Commitment to the vector that blinds the witness in `Bz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: Option<C>,
 
-    /// Commitment to the vector that blinds the witness in `Cz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: Option<C>,
 
-    /// Commitment to the first cross term randomness vector
+    /// Pedersen commitment to the first cross term randomness vector.
     pub(crate) comm_1: Option<C>,
 
-    /// Commitment to the second cross term randomness vector
+    /// Pedersen commitment to the second cross term randomness vector.
     pub(crate) comm_2: Option<C>,
 
     #[doc(hidden)]
@@ -215,7 +215,7 @@ where
 /// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
 /// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
 pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    /// The R1CS input.
+    /// An R1CS input.
     pub r1cs_input: Vec<NNFieldVar<G>>,
 
     /// The sigma protocol's prover commitment of the NARK.
@@ -287,16 +287,16 @@ pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Con
     /// An input for the indexed relation.
     pub(crate) r1cs_input: Vec<NNFieldVar<G>>,
 
-    /// Commitment to the `Az` vector.
+    /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_a: C,
 
-    /// Commitment to the `Az` vector.
+    /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_b: C,
 
-    /// Commitment to the `Az` vector.
+    /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_c: C,
 
-    /// The Hadamard product accumulation scheme input instance
+    /// The Hadamard product accumulation scheme input instance.
     pub(crate) hp_instance: HPInputInstanceVar<G, C>,
 }
 
@@ -361,18 +361,63 @@ where
     }
 }
 
+/// The [`Proof`][proof_var] of the [`NarkASVerifierGadget`][nark_as_verifier].
+///
+/// [proof_var]: crate::constraints::ASVerifierGadget::Proof
+/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
+pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
+    /// The Hadamard product accumulation scheme proof.
+    pub(crate) hp_proof: HPProofVar<G, C>,
+
+    /// Randomness or their commitments used to blind the vectors of the indexed relation.
+    pub(crate) randomness: Option<ProofRandomnessVar<G, C>>,
+}
+
+impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
+    where
+        G: AffineCurve,
+        C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<Proof<G>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|proof| {
+            let proof = proof.borrow();
+
+            let hp_proof =
+                HPProofVar::new_variable(ns.clone(), || Ok(proof.hp_proof.clone()), mode)?;
+
+            let randomness = proof
+                .randomness
+                .as_ref()
+                .map(|randomness| {
+                    ProofRandomnessVar::new_variable(ns.clone(), || Ok(randomness.clone()), mode)
+                })
+                .transpose()?;
+
+            Ok(Self {
+                hp_proof,
+                randomness,
+            })
+        })
+    }
+}
+
 /// The randomness or their commitments used to blind the vectors of the indexed relation.
 pub(crate) struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// Randomness used to blind the R1CS input.
     pub(crate) r1cs_r_input: Vec<NNFieldVar<G>>,
 
-    /// Commitment to the vector that blinds the witness in `Az`.
+    /// Pedersen commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: C,
 
-    /// Commitment to the vector that blinds the witness in `Bz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
     pub(crate) comm_r_b: C,
 
-    /// Commitment to the vector that blinds the witness in `Cz`.
+    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
     pub(crate) comm_r_c: C,
 }
 
@@ -431,45 +476,3 @@ where
     }
 }
 
-/// The [`Proof`][proof_var] of the [`NarkASVerifierGadget`][nark_as_verifier].
-///
-/// [proof_var]: crate::constraints::ASVerifierGadget::Proof
-/// [nark_as_verifier]: crate::nark_as::constraints::NarkASVerifierGadget
-pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
-    /// The Hadamard product accumulation scheme proof.
-    pub(crate) hp_proof: HPProofVar<G, C>,
-    pub(crate) randomness: Option<ProofRandomnessVar<G, C>>,
-}
-
-impl<G, C> AllocVar<Proof<G>, ConstraintF<G>> for ProofVar<G, C>
-where
-    G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>>,
-{
-    fn new_variable<T: Borrow<Proof<G>>>(
-        cs: impl Into<Namespace<ConstraintF<G>>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let ns = cs.into();
-        f().and_then(|proof| {
-            let proof = proof.borrow();
-
-            let hp_proof =
-                HPProofVar::new_variable(ns.clone(), || Ok(proof.hp_proof.clone()), mode)?;
-
-            let randomness = proof
-                .randomness
-                .as_ref()
-                .map(|randomness| {
-                    ProofRandomnessVar::new_variable(ns.clone(), || Ok(randomness.clone()), mode)
-                })
-                .transpose()?;
-
-            Ok(Self {
-                hp_proof,
-                randomness,
-            })
-        })
-    }
-}
