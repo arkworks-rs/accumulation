@@ -98,9 +98,7 @@ pub mod tests {
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::r1cs::{
-        ConstraintLayer, ConstraintSystem, ConstraintSystemRef, TracingMode,
-    };
+    use ark_relations::r1cs::ConstraintSystem;
     use ark_sponge::constraints::CryptographicSpongeVar;
     use ark_sponge::CryptographicSponge;
     use std::marker::PhantomData;

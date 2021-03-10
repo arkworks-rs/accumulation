@@ -4,7 +4,6 @@ use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
 use ark_poly_commit::ipa_pc;
-use ark_poly_commit::ipa_pc::SuccinctVerifierKey;
 use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;

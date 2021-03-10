@@ -229,7 +229,6 @@ pub mod tests {
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
-    type F = ark_pallas::Fr;
     type CF = ark_pallas::Fq;
 
     type Sponge = PoseidonSponge<CF>;

@@ -661,7 +661,6 @@ pub mod tests {
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
-    use digest::Digest;
     use rand_core::RngCore;
 
     pub struct IpaAtomicASTestParams {

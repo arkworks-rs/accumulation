@@ -567,7 +567,7 @@ pub mod tests {
                 PedersenPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
                     .unwrap();
 
-            let (ck, vk) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
+            let (ck, _) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
                 &predicate_params,
                 supported_degree,
                 supported_hiding_bound,

@@ -885,7 +885,6 @@ pub mod tests {
         ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,
         SynthesisError,
     };
-    use ark_sponge::domain_separated::DomainSeparatedSponge;
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use rand_core::RngCore;
