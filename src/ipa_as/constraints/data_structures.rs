@@ -23,7 +23,7 @@ where
     G: AffineCurve,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
-    pub(crate) ipa_vk: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
+    pub(crate) ipa_svk: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
     pub(crate) ipa_ck_linear: ipa_pc::constraints::VerifierKeyVar<G, C>,
 }
 
@@ -39,10 +39,9 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|verifier_key| {
-            let succinct_verifier_key = SuccinctVerifierKey::from_vk(&verifier_key.borrow().ipa_vk);
-            let ipa_vk = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
+            let ipa_svk = ipa_pc::constraints::SuccinctVerifierKeyVar::<G, C>::new_variable(
                 ns.clone(),
-                || Ok(succinct_verifier_key),
+                || Ok(verifier_key.borrow().ipa_svk.clone()),
                 mode,
             )?;
 
@@ -53,7 +52,7 @@ where
             )?;
 
             Ok(Self {
-                ipa_vk,
+                ipa_svk,
                 ipa_ck_linear,
             })
         })

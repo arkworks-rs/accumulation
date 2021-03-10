@@ -75,8 +75,8 @@ pub struct ProverKey<G: AffineCurve> {
 /// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
 #[derive(Clone)]
 pub struct VerifierKey<G: AffineCurve> {
-    /// The IPA_PC verifier key for inputs.
-    pub(crate) ipa_vk: ipa_pc::VerifierKey<G>,
+    /// The IPA_PC succinct check key for inputs.
+    pub(crate) ipa_svk: ipa_pc::SuccinctVerifierKey<G>,
 
     /// The IPA_PC committer key for random linear polynomials.
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,

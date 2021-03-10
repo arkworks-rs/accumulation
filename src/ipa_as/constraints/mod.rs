@@ -54,7 +54,7 @@ where
 {
     #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
     fn deterministic_commit_to_linear_polynomial(
-        ck: &ipa_pc::constraints::CommitterKeyVar<G, C>,
+        ck: &ipa_pc::constraints::VerifierKeyVar<G, C>,
         linear_polynomial: &[NNFieldVar<G>; 2],
     ) -> Result<FinalCommKeyVar<C>, SynthesisError> {
         let linear_polynomial_bits = linear_polynomial
@@ -355,7 +355,7 @@ where
         // let cost = cs.num_constraints();
         let succinct_check_result = Self::succinct_check_inputs(
             ns!(cs, "succinct_check_results").cs(),
-            &verifier_key.ipa_vk,
+            &verifier_key.ipa_svk,
             inputs.into_iter().chain(old_accumulators),
         )?;
 
@@ -365,7 +365,7 @@ where
             combined_check_poly_addends,
             challenge,
         ) = Self::combine_succinct_checks_and_proof(
-            &verifier_key.ipa_vk,
+            &verifier_key.ipa_svk,
             &succinct_check_result,
             proof,
             as_sponge,

@@ -77,7 +77,7 @@ where
     }
 
     fn succinct_check_inputs<'a>(
-        ipa_vk: &ipa_pc::VerifierKey<G>,
+        ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         inputs: impl IntoIterator<Item = &'a InputInstance<G>>,
         inputs_are_accumulators: bool, // For error handling
         output: &mut Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
@@ -97,7 +97,7 @@ where
             }
 
             let check_polynomial = IpaPC::<G, S>::succinct_check(
-                ipa_vk,
+                ipa_svk,
                 vec![ipa_commitment],
                 input.point.clone(),
                 vec![input.evaluation],
@@ -122,14 +122,14 @@ where
     }
 
     fn succinct_check_inputs_and_accumulators<'a>(
-        ipa_vk: &ipa_pc::VerifierKey<G>,
+        ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         inputs: impl IntoIterator<Item = &'a InputInstance<G>>,
         accumulators: impl IntoIterator<Item = &'a InputInstance<G>>,
     ) -> Result<Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>, ASError> {
         let mut output: Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)> =
             Vec::new();
-        Self::succinct_check_inputs(ipa_vk, inputs, false, &mut output)?;
-        Self::succinct_check_inputs(ipa_vk, accumulators, true, &mut output)?;
+        Self::succinct_check_inputs(ipa_svk, inputs, false, &mut output)?;
+        Self::succinct_check_inputs(ipa_svk, accumulators, true, &mut output)?;
         if output.len() == 0 {
             return Err(ASError::MissingAccumulatorsAndInputs(
                 "Nothing to accumulate".to_string(),
@@ -151,7 +151,7 @@ where
     }
 
     fn combine_succinct_checks_and_proof<'a>(
-        ipa_vk: &ipa_pc::VerifierKey<G>,
+        ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
         proof: Option<&Randomness<G>>,
         as_sponge: S,
@@ -211,7 +211,7 @@ where
         }
 
         let randomized_combined_commitment = if let Some(randomness) = proof.as_ref() {
-            combined_commitment + &ipa_vk.s.mul(randomness.commitment_randomness)
+            combined_commitment + &ipa_svk.s.mul(randomness.commitment_randomness)
         } else {
             combined_commitment.clone()
         };
@@ -382,7 +382,7 @@ where
             .map_err(|e| BoxedError::new(e))?;
 
         let verifier_key = VerifierKey {
-            ipa_vk,
+            ipa_svk: ipa_vk.svk.clone(),
             ipa_ck_linear,
         };
 
@@ -391,7 +391,7 @@ where
             verifier_key: verifier_key.clone(),
         };
 
-        let decider_key = ipa_ck;
+        let decider_key = ipa_vk;
 
         Ok((prover_key, verifier_key, decider_key))
     }
@@ -472,7 +472,7 @@ where
         };
 
         let succinct_checks = Self::succinct_check_inputs_and_accumulators(
-            &prover_key.verifier_key.ipa_vk,
+            &prover_key.verifier_key.ipa_svk,
             inputs,
             accumulators,
         )
@@ -480,7 +480,7 @@ where
 
         let (combined_commitment, combined_check_polynomial_addends, challenge) =
             Self::combine_succinct_checks_and_proof(
-                &prover_key.verifier_key.ipa_vk,
+                &prover_key.verifier_key.ipa_svk,
                 &succinct_checks,
                 proof.as_ref(),
                 sponge,
@@ -556,7 +556,7 @@ where
         }
 
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators(
-            &verifier_key.ipa_vk,
+            &verifier_key.ipa_svk,
             inputs,
             old_accumulators,
         );
@@ -568,7 +568,7 @@ where
         let succinct_checks = succinct_check_result.ok().unwrap();
 
         let combine_result = Self::combine_succinct_checks_and_proof(
-            &verifier_key.ipa_vk,
+            &verifier_key.ipa_svk,
             &succinct_checks,
             proof.as_ref(),
             sponge,
