@@ -516,7 +516,7 @@ where
         }
 
         let mut num_inputs = input_instances.len();
-        let hp_vec_len = prover_key.supported_elems_len();
+        let hp_vec_len = prover_key.supported_num_elems();
 
         let default_input_instance;
         let default_input_witness;
@@ -582,7 +582,7 @@ where
         let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
-            prover_key.supported_elems_len() as u64,
+            prover_key.supported_num_elems() as u64,
             input_instances,
             hiding_comms
         );
@@ -783,7 +783,7 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> Vec<Input<ConstraintF<G>, S, HadamardProductAS<G, S>>> {
             let mut rng = test_rng();
-            let vector_len = input_params.0.supported_elems_len();
+            let vector_len = input_params.0.supported_num_elems();
 
             (0..num_inputs)
                 .map(|_| {
