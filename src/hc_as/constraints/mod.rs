@@ -246,7 +246,6 @@ pub mod tests {
         Tests::test_initialization(
             &HcASTestParams {
                 degree: 8,
-                make_zk: false,
             },
             1,
         );
@@ -257,7 +256,6 @@ pub mod tests {
         Tests::test_initialization(
             &HcASTestParams {
                 degree: 8,
-                make_zk: true,
             },
             1,
         );
@@ -268,7 +266,6 @@ pub mod tests {
         Tests::test_simple_accumulation(
             &HcASTestParams {
                 degree: 8,
-                make_zk: false,
             },
             1,
         );
@@ -279,7 +276,6 @@ pub mod tests {
         Tests::test_simple_accumulation(
             &HcASTestParams {
                 degree: 8,
-                make_zk: true,
             },
             1,
         );
@@ -289,7 +285,6 @@ pub mod tests {
     pub fn print_breakdown() {
         Tests::print_costs_breakdown(&HcASTestParams {
             degree: 8,
-            make_zk: true,
         });
     }
 }

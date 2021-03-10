@@ -538,7 +538,6 @@ pub mod tests {
 
     pub struct HcASTestParams {
         pub(crate) degree: usize,
-        pub(crate) make_zk: bool,
     }
 
     pub struct HcASTestInput {}
@@ -550,7 +549,7 @@ pub mod tests {
         S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = HcASTestParams;
-        type InputParams = (pedersen_pc::CommitterKey<G>, bool);
+        type InputParams = pedersen_pc::CommitterKey<G>;
 
         fn setup(
             test_params: &Self::TestParams,
@@ -562,11 +561,7 @@ pub mod tests {
         ){
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
-            let supported_hiding_bound = if test_params.make_zk {
-                supported_degree
-            } else {
-                0
-            };
+            let supported_hiding_bound = 0;
 
             let predicate_params =
                 PedersenPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
@@ -581,7 +576,7 @@ pub mod tests {
             .unwrap();
 
             (
-                (ck, test_params.make_zk),
+                ck,
                 predicate_params,
                 supported_degree,
             )
@@ -592,23 +587,18 @@ pub mod tests {
             num_inputs: usize,
             rng: &mut impl RngCore,
         ) -> Vec<Input<ConstraintF<G>, S, HomomorphicCommitmentAS<G, S>>> {
-            let ck = &input_params.0;
+            let ck = input_params;
             let degree = PCCommitterKey::supported_degree(ck);
-
-            let make_zk = input_params.1;
-            let hiding_bound = if make_zk { Some(degree) } else { None };
 
             let labeled_polynomials: Vec<
                 LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
             > = (0..num_inputs)
                 .map(|i| {
-                    //let degree =
-                    //rand::distributions::Uniform::from(2..=ck.supported_degree()).sample(rng);
                     let label = format!("Input{}", i);
 
                     let polynomial = DensePolynomial::rand(degree, rng);
                     let labeled_polynomial =
-                        LabeledPolynomial::new(label, polynomial, None, hiding_bound);
+                        LabeledPolynomial::new(label, polynomial, None, None);
 
                     labeled_polynomial
                 })
@@ -657,82 +647,37 @@ pub mod tests {
     type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
-    pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
+    pub fn single_input_initialization_test() -> Result<(), BoxedError> {
         Tests::single_input_initialization_test(&HcASTestParams {
             degree: 8,
-            make_zk: false,
         })
     }
 
     #[test]
-    pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&HcASTestParams {
-            degree: 8,
-            make_zk: true,
-        })
-    }
-
-    #[test]
-    pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
+    pub fn multiple_inputs_initialization_test() -> Result<(), BoxedError> {
         Tests::multiple_inputs_initialization_test(&HcASTestParams {
             degree: 8,
-            make_zk: false,
         })
     }
 
     #[test]
-    pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&HcASTestParams {
-            degree: 8,
-            make_zk: true,
-        })
-    }
-
-    #[test]
-    pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
+    pub fn simple_accumulation_test() -> Result<(), BoxedError> {
         Tests::simple_accumulation_test(&HcASTestParams {
             degree: 8,
-            make_zk: false,
         })
     }
 
     #[test]
-    pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&HcASTestParams {
-            degree: 8,
-            make_zk: true,
-        })
-    }
-
-    #[test]
-    pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
+    pub fn multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
         Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams {
             degree: 8,
-            make_zk: false,
         })
     }
 
     #[test]
-    pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&HcASTestParams {
-            degree: 8,
-            make_zk: true,
-        })
-    }
-
-    #[test]
-    pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
+    pub fn accumulators_only_test() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&HcASTestParams {
             degree: 8,
-            make_zk: false,
-        })
-    }
-
-    #[test]
-    pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&HcASTestParams {
-            degree: 8,
-            make_zk: true,
         })
     }
 }
