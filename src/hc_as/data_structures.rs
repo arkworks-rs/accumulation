@@ -1,7 +1,7 @@
 use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField};
-use ark_poly_commit::{lh_pc, LabeledCommitment};
+use ark_poly_commit::{pedersen_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
@@ -13,7 +13,7 @@ use ark_std::io::{Read, Write};
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     /// Pedersen commitment to a polynomial.
-    pub commitment: LabeledCommitment<lh_pc::Commitment<G>>,
+    pub commitment: LabeledCommitment<pedersen_pc::Commitment<G>>,
 
     /// Point where the proof was opened at.
     pub point: G::ScalarField,
@@ -26,7 +26,7 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
     fn to_sponge_bytes(&self) -> Vec<u8> {
         collect_sponge_bytes!(
             CF,
-            self.commitment.commitment().0 .0,
+            self.commitment.commitment().elem,
             to_bytes!(self.point).unwrap(),
             to_bytes!(self.eval).unwrap()
         )
@@ -34,7 +34,7 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
         collect_sponge_field_elements!(
-            self.commitment.commitment().0 .0,
+            self.commitment.commitment().elem,
             to_bytes!(self.point).unwrap(),
             to_bytes!(self.eval).unwrap()
         )
@@ -49,7 +49,7 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SingleProof<G: AffineCurve> {
     /// Commitment to the witness polynomial.
-    pub(crate) witness_commitment: LabeledCommitment<lh_pc::Commitment<G>>,
+    pub(crate) witness_commitment: LabeledCommitment<pedersen_pc::Commitment<G>>,
 
     /// Evaluation of the witness polynomial at the challenge point.
     pub(crate) witness_eval: G::ScalarField,

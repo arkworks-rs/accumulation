@@ -77,9 +77,7 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|input_instance| {
-            let pedersen_comm: G = (input_instance.borrow().commitment.commitment().0)
-                .0
-                .clone();
+            let pedersen_comm: G = input_instance.borrow().commitment.commitment().elem;
             let commitment = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
             let point = NNFieldVar::<G>::new_variable(
                 ns.clone(),
@@ -147,9 +145,7 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|single_proof| {
-            let witness_commitment: G = (single_proof.borrow().witness_commitment.commitment().0)
-                .0
-                .clone();
+            let witness_commitment: G = single_proof.borrow().witness_commitment.commitment().elem;
             let witness_commitment = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
             let witness_eval = NNFieldVar::<G>::new_variable(
                 ns.clone(),

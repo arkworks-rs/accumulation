@@ -4,7 +4,7 @@ use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
-    CMCommitGadget, InnerProductArgPCGadget, SuccinctCheckPolynomialVar,
+    CMCommitGadget, IpaPCSuccinctCheckGadget, SuccinctCheckPolynomialVar,
 };
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
@@ -93,7 +93,7 @@ where
             .into_iter()
             .map(|input| {
                 let ipa_commitment = &input.ipa_commitment;
-                let (succinct_check_result, check_polynomial) = InnerProductArgPCGadget::<
+                let (succinct_check_result, check_polynomial) = IpaPCSuccinctCheckGadget::<
                     G,
                     C,
                     DomainSeparatedSponge<ConstraintF<G>, S, IpaPCDomain>,

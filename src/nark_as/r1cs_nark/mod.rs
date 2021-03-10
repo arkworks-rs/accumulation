@@ -1,7 +1,7 @@
 use crate::constraints::ConstraintF;
 use ark_ec::AffineCurve;
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
-use ark_poly_commit::pedersen::*;
+use ark_poly_commit::pedersen_pc::PedersenCommitment;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
     SynthesisMode,
@@ -95,8 +95,8 @@ where
         let matrices_hash = hash_matrices(PROTOCOL_NAME, &a, &b, &c);
 
         let num_variables = num_input_variables + num_witness_variables;
-        let pp = PedersenCommitment::setup(num_constraints).unwrap();
-        let ck = PedersenCommitment::trim(&pp, num_constraints).unwrap();
+        let pp = PedersenCommitment::setup(num_constraints);
+        let ck = PedersenCommitment::trim(&pp, num_constraints);
         let index_info = IndexInfo {
             num_variables,
             num_constraints,
@@ -167,15 +167,10 @@ where
 
         let commit_time = start_timer!(|| "Committing to z_A, z_B, and z_C");
         // Compute hiding commitments to z_a, z_b, z_c.
-        let comm_a = PedersenCommitment::commit(&ipk.ck, &z_a, a_blinder)
-            .unwrap()
-            .0;
-        let comm_b = PedersenCommitment::commit(&ipk.ck, &z_b, b_blinder)
-            .unwrap()
-            .0;
-        let comm_c = PedersenCommitment::commit(&ipk.ck, &z_c, c_blinder)
-            .unwrap()
-            .0;
+        let comm_a = PedersenCommitment::commit(&ipk.ck, &z_a, a_blinder);
+        let comm_b = PedersenCommitment::commit(&ipk.ck, &z_b, b_blinder);
+        let comm_c = PedersenCommitment::commit(&ipk.ck, &z_c, c_blinder);
+
         end_timer!(commit_time);
 
         let mut r = None;
@@ -211,21 +206,9 @@ where
 
             // Commit to r_a, r_b, r_c.
             let commit_time = start_timer!(|| "Committing to r_A, r_B, r_C");
-            comm_r_a = Some(
-                PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder)
-                    .unwrap()
-                    .0,
-            );
-            comm_r_b = Some(
-                PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder)
-                    .unwrap()
-                    .0,
-            );
-            comm_r_c = Some(
-                PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder)
-                    .unwrap()
-                    .0,
-            );
+            comm_r_a = Some(PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder));
+            comm_r_b = Some(PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder));
+            comm_r_c = Some(PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder));
             end_timer!(commit_time);
 
             // Commit to z_a ○ r_b + z_b ○ r_a.
@@ -239,11 +222,11 @@ where
             end_timer!(cross_prod_time);
             blinder_1 = Some(G::ScalarField::rand(rng));
             let commit_time = start_timer!(|| "Committing to cross product");
-            comm_1 = Some(
-                PedersenCommitment::commit(&ipk.ck, &cross_product, blinder_1)
-                    .unwrap()
-                    .0,
-            );
+            comm_1 = Some(PedersenCommitment::commit(
+                &ipk.ck,
+                &cross_product,
+                blinder_1,
+            ));
             end_timer!(commit_time);
 
             // Commit to r_a ○ r_b.
@@ -253,11 +236,11 @@ where
                 .map(|(r_a, r_b)| r_b * r_a)
                 .collect();
             blinder_2 = Some(G::ScalarField::rand(rng));
-            comm_2 = Some(
-                PedersenCommitment::commit(&ipk.ck, &r_a_r_b_product, blinder_2)
-                    .unwrap()
-                    .0,
-            );
+            comm_2 = Some(PedersenCommitment::commit(
+                &ipk.ck,
+                &r_a_r_b_product,
+                blinder_2,
+            ));
             end_timer!(commit_time);
         }
         let first_msg = FirstRoundMessage {
@@ -343,17 +326,11 @@ where
 
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
         let reconstructed_comm_a =
-            PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a)
-                .unwrap()
-                .0;
+            PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a);
         let reconstructed_comm_b =
-            PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b)
-                .unwrap()
-                .0;
+            PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b);
         let reconstructed_comm_c =
-            PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c)
-                .unwrap()
-                .0;
+            PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c);
 
         let a_equal = comm_a == reconstructed_comm_a.into_projective();
         let b_equal = comm_b == reconstructed_comm_b.into_projective();
@@ -367,9 +344,7 @@ where
             .map(|(a, b)| a * b)
             .collect();
         let reconstructed_had_prod_comm =
-            PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o)
-                .unwrap()
-                .0;
+            PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o);
         end_timer!(had_prod_time);
 
         let mut had_prod_comm = proof.first_msg.comm_c.into_projective();

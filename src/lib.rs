@@ -46,7 +46,8 @@ pub mod error;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-/// An accumulation scheme for Pedersen polynomial commitment schemes.
+/// An accumulation scheme for Homomorphic commitment schemes. The implementation is specialized
+/// for Pedersen polynomial commitment schemes.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf

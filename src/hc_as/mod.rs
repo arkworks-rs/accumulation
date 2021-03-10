@@ -9,11 +9,10 @@ use crate::{AccumulationScheme, MakeZK};
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::lh_pc::LHPCError;
-use ark_poly_commit::lh_pc::LinearHashPC;
+use ark_poly_commit::pedersen_pc::PedersenPC;
 use ark_poly_commit::{
-    lh_pc, LabeledCommitment, LabeledPolynomial, PCCommitterKey, PolynomialCommitment,
-    PolynomialLabel, UVPolynomial,
+    pedersen_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCCommitterKey,
+    PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use rand_core::RngCore;
@@ -26,7 +25,8 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-/// An accumulation scheme for Pedersen polynomial commitment schemes.
+/// An accumulation scheme for Homomorphic commitment schemes. The implementation is specialized
+/// for Pedersen polynomial commitment schemes.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges where
@@ -50,7 +50,7 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
-        ck: &lh_pc::CommitterKey<G>,
+        ck: &pedersen_pc::CommitterKey<G>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
         input_witnesses: impl IntoIterator<
             Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -60,8 +60,8 @@ where
         witness_polynomials_output: &mut Vec<
             LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         >,
-        witness_commitments_output: &mut Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
-    ) -> Result<(), LHPCError> {
+        witness_commitments_output: &mut Vec<LabeledCommitment<pedersen_pc::Commitment<G>>>,
+    ) -> Result<(), PCError> {
         for (instance, witness) in input_instances.into_iter().zip(input_witnesses) {
             let point = instance.point;
             let eval = instance.eval;
@@ -80,7 +80,7 @@ where
             );
 
             let mut witness_commitments =
-                LinearHashPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
+                PedersenPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
 
             let witness_commitment = witness_commitments.pop().unwrap();
 
@@ -92,15 +92,15 @@ where
     }
 
     fn compute_witness_polynomials_and_commitments<'a>(
-        ck: &lh_pc::CommitterKey<G>,
+        ck: &pedersen_pc::CommitterKey<G>,
         inputs: &[InputRef<'a, ConstraintF<G>, S, Self>],
         accumulators: &[AccumulatorRef<'a, ConstraintF<G>, S, Self>],
     ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
-            Vec<LabeledCommitment<lh_pc::Commitment<G>>>,
+            Vec<LabeledCommitment<pedersen_pc::Commitment<G>>>,
         ),
-        LHPCError,
+        PCError,
     > {
         let mut witness_polynomials = Vec::new();
         let mut witness_commitments = Vec::new();
@@ -161,16 +161,15 @@ where
     }
 
     fn combine_commitments<'a>(
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<lh_pc::Commitment<G>>>,
+        commitments: impl IntoIterator<Item = &'a LabeledCommitment<pedersen_pc::Commitment<G>>>,
         challenges: &[G::ScalarField],
-    ) -> lh_pc::Commitment<G> {
+    ) -> pedersen_pc::Commitment<G> {
         let mut scalar_commitment_pairs = Vec::new();
         for (i, c) in commitments.into_iter().enumerate() {
-            scalar_commitment_pairs.push((challenges[i], &c.commitment().0));
+            scalar_commitment_pairs.push((challenges[i], c.commitment().clone()));
         }
 
-        let combined_commitment = scalar_commitment_pairs.into_iter().sum();
-        lh_pc::Commitment(combined_commitment)
+        scalar_commitment_pairs.into_iter().sum()
     }
 
     fn basic_verify(
@@ -203,12 +202,12 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams = ();
-    type PredicateParams = lh_pc::UniversalParameters<G>;
+    type PredicateParams = pedersen_pc::UniversalParams<G>;
     type PredicateIndex = usize;
 
-    type ProverKey = lh_pc::CommitterKey<G>;
+    type ProverKey = pedersen_pc::CommitterKey<G>;
     type VerifierKey = usize;
-    type DeciderKey = lh_pc::VerifierKey<G>;
+    type DeciderKey = pedersen_pc::CommitterKey<G>;
 
     type InputInstance = InputInstance<G>;
     type InputWitness = LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>;
@@ -229,7 +228,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ck, vk) = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(
+        let (ck, vk) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
             predicate_params,
             *predicate_index,
             0,
@@ -321,7 +320,7 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 instance,
-                witness_commitment.commitment().0 .0
+                witness_commitment.commitment().elem
             ];
         }
 
@@ -428,7 +427,7 @@ where
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,
-                p.witness_commitment.commitment().0 .0
+                p.witness_commitment.commitment().elem
             ];
 
             let eval_check_lhs = p.eval - &input_instance.eval;
@@ -501,12 +500,14 @@ where
         accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
         _sponge: S,
     ) -> Result<bool, Self::Error> {
-        let check = LinearHashPC::check_individual_opening_challenges(
+        let check = PedersenPC::check_individual_opening_challenges(
             decider_key,
             vec![&accumulator.instance.commitment],
             &accumulator.instance.point,
             vec![accumulator.instance.eval],
-            &lh_pc::Proof(accumulator.witness.clone()),
+            &pedersen_pc::Proof {
+                polynomial: accumulator.witness.clone(),
+            },
             &|_| G::ScalarField::one(),
             None,
         );
@@ -526,9 +527,9 @@ pub mod tests {
     use ark_ec::AffineCurve;
     use ark_ff::ToConstraintField;
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::lh_pc::LinearHashPC;
+    use ark_poly_commit::pedersen_pc::PedersenPC;
     use ark_poly_commit::{
-        lh_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
+        pedersen_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
     };
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
@@ -549,7 +550,7 @@ pub mod tests {
         S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = HcASTestParams;
-        type InputParams = (lh_pc::CommitterKey<G>, lh_pc::VerifierKey<G>, bool);
+        type InputParams = (pedersen_pc::CommitterKey<G>, bool);
 
         fn setup(
             test_params: &Self::TestParams,
@@ -568,10 +569,10 @@ pub mod tests {
             };
 
             let predicate_params =
-                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
+                PedersenPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
                     .unwrap();
 
-            let (ck, vk) = LinearHashPC::<G, DensePolynomial<G::ScalarField>>::trim(
+            let (ck, vk) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
                 &predicate_params,
                 supported_degree,
                 supported_hiding_bound,
@@ -580,7 +581,7 @@ pub mod tests {
             .unwrap();
 
             (
-                (ck, vk, test_params.make_zk),
+                (ck, test_params.make_zk),
                 predicate_params,
                 supported_degree,
             )
@@ -594,7 +595,7 @@ pub mod tests {
             let ck = &input_params.0;
             let degree = PCCommitterKey::supported_degree(ck);
 
-            let make_zk = input_params.2;
+            let make_zk = input_params.1;
             let hiding_bound = if make_zk { Some(degree) } else { None };
 
             let labeled_polynomials: Vec<
@@ -614,7 +615,7 @@ pub mod tests {
                 .collect();
 
             let (labeled_commitments, _) =
-                LinearHashPC::<G, DensePolynomial<G::ScalarField>>::commit(
+                PedersenPC::<G, DensePolynomial<G::ScalarField>>::commit(
                     ck,
                     &labeled_polynomials,
                     Some(rng),

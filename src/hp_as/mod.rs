@@ -5,7 +5,7 @@ use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
+use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::UniformRand;
@@ -184,9 +184,7 @@ where
                 continue;
             }
 
-            let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), None)
-                .map_err(BoxedError::new)?
-                .0;
+            let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), None);
 
             (if i < num_inputs - 1 {
                 &mut t_comms.low
@@ -466,9 +464,9 @@ where
         _predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let pedersen_pp = PedersenCommitment::setup(*predicate_index).map_err(BoxedError::new)?;
-        let ck =
-            PedersenCommitment::trim(&pedersen_pp, *predicate_index).map_err(BoxedError::new)?;
+        let pedersen_pp = PedersenCommitment::setup(*predicate_index);
+        let ck = PedersenCommitment::trim(&pedersen_pp, *predicate_index);
+
         Ok((ck.clone(), *predicate_index, ck))
     }
 
@@ -543,13 +541,8 @@ where
             let rand_2 = G::ScalarField::rand(rng);
             let rand_3 = G::ScalarField::rand(rng);
 
-            let comm_1 = PedersenCommitment::commit(prover_key, a.as_slice(), Some(rand_1))
-                .map_err(BoxedError::new)?
-                .0;
-
-            let comm_2 = PedersenCommitment::commit(prover_key, b.as_slice(), Some(rand_2))
-                .map_err(BoxedError::new)?
-                .0;
+            let comm_1 = PedersenCommitment::commit(prover_key, a.as_slice(), Some(rand_1));
+            let comm_2 = PedersenCommitment::commit(prover_key, b.as_slice(), Some(rand_2));
 
             let comm_3 = {
                 let rand_prod_1 =
@@ -567,8 +560,6 @@ where
                 );
 
                 PedersenCommitment::commit(prover_key, rand_prods_sum.as_slice(), Some(rand_3))
-                    .map_err(BoxedError::new)?
-                    .0
             };
 
             let rands = InputWitnessRandomness {
@@ -723,21 +714,18 @@ where
         let product = Self::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
         let test_comm_1 =
-            PedersenCommitment::commit(decider_key, a_vec.as_slice(), randomness.map(|r| r.rand_1))
-                .map_err(BoxedError::new)?;
+            PedersenCommitment::commit(decider_key, a_vec.as_slice(), randomness.map(|r| r.rand_1));
         let test_comm_2 =
-            PedersenCommitment::commit(decider_key, b_vec.as_slice(), randomness.map(|r| r.rand_2))
-                .map_err(BoxedError::new)?;
+            PedersenCommitment::commit(decider_key, b_vec.as_slice(), randomness.map(|r| r.rand_2));
         let test_comm_3 = PedersenCommitment::commit(
             decider_key,
             product.as_slice(),
             randomness.map(|r| r.rand_3),
-        )
-        .map_err(BoxedError::new)?;
+        );
 
-        let result = test_comm_1.0.eq(&instance.comm_1)
-            && test_comm_2.0.eq(&instance.comm_2)
-            && test_comm_3.0.eq(&instance.comm_3);
+        let result = test_comm_1.eq(&instance.comm_1)
+            && test_comm_2.eq(&instance.comm_2)
+            && test_comm_3.eq(&instance.comm_3);
 
         Ok(result)
     }
@@ -753,7 +741,7 @@ pub mod tests {
     use crate::tests::*;
     use crate::AccumulationScheme;
     use ark_ec::AffineCurve;
-    use ark_poly_commit::pedersen::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
+    use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use ark_std::test_rng;
@@ -784,8 +772,8 @@ pub mod tests {
             <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
             <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ) {
-            let pp = PedersenCommitment::setup(test_params.vector_len).unwrap();
-            let ck = PedersenCommitment::trim(&pp, test_params.vector_len).unwrap();
+            let pp = PedersenCommitment::setup(test_params.vector_len);
+            let ck = PedersenCommitment::trim(&pp, test_params.vector_len);
             ((ck, test_params.make_zk), (), test_params.vector_len)
         }
 
@@ -821,23 +809,19 @@ pub mod tests {
                         &input_params.0,
                         a_vec.as_slice(),
                         randomness.as_ref().map(|r| r.rand_1),
-                    )
-                    .unwrap()
-                    .0;
+                    );
+
                     let comm_2 = PedersenCommitment::commit(
                         &input_params.0,
                         b_vec.as_slice(),
                         randomness.as_ref().map(|r| r.rand_2),
-                    )
-                    .unwrap()
-                    .0;
+                    );
+
                     let comm_3 = PedersenCommitment::commit(
                         &input_params.0,
                         product.as_slice(),
                         randomness.as_ref().map(|r| r.rand_3),
-                    )
-                    .unwrap()
-                    .0;
+                    );
 
                     let instance = InputInstance {
                         comm_1,

@@ -12,7 +12,7 @@ use crate::std::UniformRand;
 use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, Zero};
-use ark_poly_commit::pedersen::PedersenCommitment;
+use ark_poly_commit::pedersen_pc::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use r1cs_nark::{
@@ -249,25 +249,19 @@ where
             &prover_key.nark_pk.ck,
             (matrix_vec_mul(a, r1cs_r_input.as_slice(), r1cs_r_witness.as_slice())).as_slice(),
             Some(rand_1),
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let comm_r_b = PedersenCommitment::commit(
             &prover_key.nark_pk.ck,
             (matrix_vec_mul(b, r1cs_r_input.as_slice(), r1cs_r_witness.as_slice())).as_slice(),
             Some(rand_2),
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let comm_r_c = PedersenCommitment::commit(
             &prover_key.nark_pk.ck,
             (matrix_vec_mul(c, r1cs_r_input.as_slice(), r1cs_r_witness.as_slice())).as_slice(),
             Some(rand_3),
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let proof_randomness = ProofRandomness {
             r1cs_r_input,
@@ -843,25 +837,19 @@ where
             &decider_key.ck,
             a_times_blinded_witness.as_slice(),
             sigma_a,
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let comm_b = PedersenCommitment::commit(
             &decider_key.ck,
             b_times_blinded_witness.as_slice(),
             sigma_b,
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let comm_c = PedersenCommitment::commit(
             &decider_key.ck,
             c_times_blinded_witness.as_slice(),
             sigma_c,
-        )
-        .map_err(BoxedError::new)?
-        .0;
+        );
 
         let comm_check = comm_a.eq(&instance.comm_a)
             && comm_b.eq(&instance.comm_b)
