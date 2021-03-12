@@ -1,17 +1,21 @@
-use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
+use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
+
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::marker::PhantomData;
+use ark_std::ops::Mul;
+use ark_std::string::ToString;
+use ark_std::vec;
+use ark_std::vec::Vec;
 use ark_std::UniformRand;
 use rand_core::RngCore;
-use std::marker::PhantomData;
-use std::ops::Mul;
 
 mod data_structures;
 pub use data_structures::*;
@@ -19,8 +23,6 @@ pub use data_structures::*;
 /// The verifier constraints of [`HadamardProductAS`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
-
-pub(crate) const PROTOCOL_NAME: &[u8] = b"Hadamard-Product-Accumulation-Scheme-2020";
 
 /// An accumulation scheme for the Hadamard product relation.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
@@ -733,13 +735,13 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hp_as::data_structures::{InputInstance, InputWitness, InputWitnessRandomness};
     use crate::hp_as::HadamardProductAS;
     use crate::tests::*;
     use crate::AccumulationScheme;
+    use crate::ConstraintF;
     use ark_ec::AffineCurve;
     use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;

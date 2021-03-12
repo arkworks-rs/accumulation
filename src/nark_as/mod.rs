@@ -1,26 +1,29 @@
-use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::hp_as;
 use crate::hp_as::HadamardProductAS;
 use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
 use crate::nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, SimpleNARK};
-use crate::std::UniformRand;
+use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
+
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::UniformRand;
 use ark_ff::{One, Zero};
 use ark_poly_commit::pedersen_pc::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::marker::PhantomData;
+use ark_std::string::ToString;
+use ark_std::vec;
+use ark_std::vec::Vec;
 use r1cs_nark::{
     FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
     SecondRoundMessage,
 };
 use rand_core::RngCore;
-use std::marker::PhantomData;
 
 mod data_structures;
 pub use data_structures::*;
@@ -29,8 +32,10 @@ pub use data_structures::*;
 pub mod r1cs_nark;
 
 /// The verifier constraints of [`NarkAS`].
+#[cfg(feature = "r1cs")]
 pub mod constraints;
 
+pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"Hadamard-Product-Accumulation-Scheme-2020";
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
 
 /// An accumulation scheme for a NARK for R1CS.
@@ -559,7 +564,7 @@ where
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
         let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
-        sponge.fork(hp_as::PROTOCOL_NAME);
+        sponge.fork(HP_AS_PROTOCOL_NAME);
         let hp_sponge = sponge;
 
         // Collect all of the inputs and accumulators into vectors and extract additional information from them.
@@ -732,7 +737,7 @@ where
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
         let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
-        sponge.fork(hp_as::PROTOCOL_NAME);
+        sponge.fork(HP_AS_PROTOCOL_NAME);
         let hp_sponge = sponge;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
@@ -799,7 +804,7 @@ where
         accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
         mut sponge: S,
     ) -> Result<bool, Self::Error> {
-        sponge.fork(hp_as::PROTOCOL_NAME);
+        sponge.fork(HP_AS_PROTOCOL_NAME);
         let hp_sponge = sponge;
 
         let instance = accumulator.instance;
@@ -869,7 +874,6 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::nark_as::data_structures::{InputInstance, InputWitness};
@@ -878,6 +882,7 @@ pub mod tests {
     use crate::nark_as::{r1cs_nark, NarkAS};
     use crate::tests::*;
     use crate::AccumulationScheme;
+    use crate::ConstraintF;
     use ark_ec::AffineCurve;
     use ark_ff::PrimeField;
     use ark_relations::lc;
@@ -887,8 +892,8 @@ pub mod tests {
     };
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_std::UniformRand;
     use rand_core::RngCore;
-    use std::UniformRand;
 
     #[derive(Clone)]
     // num_variables = num_inputs + 2

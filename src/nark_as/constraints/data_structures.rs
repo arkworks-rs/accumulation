@@ -1,9 +1,11 @@
-use crate::constraints::{ConstraintF, NNFieldVar};
+use crate::constraints::NNFieldVar;
 use crate::hp_as::constraints::{InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar};
 use crate::nark_as::data_structures::{
     AccumulatorInstance, InputInstance, Proof, ProofRandomness, VerifierKey,
 };
 use crate::nark_as::r1cs_nark::{FirstRoundMessage, IndexInfo};
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -14,8 +16,9 @@ use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
-use std::borrow::Borrow;
-use std::marker::PhantomData;
+use ark_std::borrow::Borrow;
+use ark_std::marker::PhantomData;
+use ark_std::vec::Vec;
 
 pub(crate) struct IndexInfoVar<CF: PrimeField> {
     /// The total number of variables in the constraint system.

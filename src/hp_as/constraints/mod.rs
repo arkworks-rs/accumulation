@@ -1,6 +1,8 @@
-use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{ASVerifierGadget, NNFieldVar};
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::HadamardProductAS;
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -10,8 +12,10 @@ use ark_relations::r1cs::SynthesisError;
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
-use std::marker::PhantomData;
-use std::ops::Mul;
+use ark_std::marker::PhantomData;
+use ark_std::ops::Mul;
+use ark_std::vec;
+use ark_std::vec::Vec;
 
 mod data_structures;
 pub use data_structures::*;

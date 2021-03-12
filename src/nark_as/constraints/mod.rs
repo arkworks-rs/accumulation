@@ -1,10 +1,11 @@
-use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
-use crate::hp_as;
+use crate::constraints::{ASVerifierGadget, NNFieldVar};
 use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::nark_as::{r1cs_nark, NarkAS, PROTOCOL_NAME};
+use crate::nark_as::{r1cs_nark, NarkAS, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME};
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -17,7 +18,9 @@ use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
-use std::marker::PhantomData;
+use ark_std::marker::PhantomData;
+use ark_std::vec;
+use ark_std::vec::Vec;
 
 mod data_structures;
 pub use data_structures::*;
@@ -382,7 +385,7 @@ where
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME)?;
         let as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
 
-        sponge.fork(hp_as::PROTOCOL_NAME)?;
+        sponge.fork(HP_AS_PROTOCOL_NAME)?;
         let hp_sponge = sponge;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();

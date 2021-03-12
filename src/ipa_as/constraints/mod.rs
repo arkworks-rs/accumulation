@@ -1,5 +1,7 @@
-use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, NNFieldVar};
 use crate::ipa_as::{InnerProductArgAtomicAS, IpaPCDomain};
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_poly_commit::ipa_pc;
@@ -20,7 +22,9 @@ use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
-use std::ops::Mul;
+use ark_std::ops::Mul;
+use ark_std::vec;
+use ark_std::vec::Vec;
 
 mod data_structures;
 pub use data_structures::*;

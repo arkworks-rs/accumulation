@@ -1,10 +1,10 @@
-use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField};
 use ark_poly_commit::{pedersen_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
+use ark_std::vec::Vec;
 
 /// The [`InputInstance`][input_instance] of the [`HomomorphicCommitmentAS`][hc_as].
 ///

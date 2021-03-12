@@ -1,11 +1,8 @@
-use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::std::marker::PhantomData;
-use crate::std::ops::{Add, Div};
-use crate::std::string::ToString;
-use crate::std::vec::Vec;
+use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
+
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -15,8 +12,13 @@ use ark_poly_commit::{
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::format;
+use ark_std::marker::PhantomData;
+use ark_std::ops::{Add, Div, Mul};
+use ark_std::string::ToString;
+use ark_std::vec;
+use ark_std::vec::Vec;
 use rand_core::RngCore;
-use std::ops::Mul;
 
 mod data_structures;
 pub use data_structures::*;
@@ -519,12 +521,12 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::hc_as::{HomomorphicCommitmentAS, InputInstance};
     use crate::tests::*;
     use crate::AccumulationScheme;
+    use crate::ConstraintF;
     use ark_ec::AffineCurve;
     use ark_ff::ToConstraintField;
     use ark_poly::polynomial::univariate::DensePolynomial;

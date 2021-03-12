@@ -1,5 +1,7 @@
-use crate::constraints::{ASVerifierGadget, ConstraintF, NNFieldVar};
+use crate::constraints::{ASVerifierGadget, NNFieldVar};
 use crate::hc_as::HomomorphicCommitmentAS;
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_nonnative_field::NonNativeFieldMulResultVar;
@@ -12,8 +14,10 @@ use ark_relations::r1cs::SynthesisError;
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
-use std::marker::PhantomData;
+use ark_std::vec;
+use ark_std::vec::Vec;
 
 mod data_structures;
 pub use data_structures::*;

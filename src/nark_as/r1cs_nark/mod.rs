@@ -1,4 +1,5 @@
-use crate::constraints::ConstraintF;
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 use ark_poly_commit::pedersen_pc::PedersenCommitment;
@@ -8,6 +9,8 @@ use ark_relations::r1cs::{
 };
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::vec;
+use ark_std::vec::Vec;
 use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
 use blake2::{digest::VariableOutput, VarBlake2b};
 use rand_core::RngCore;

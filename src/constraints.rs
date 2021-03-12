@@ -1,6 +1,8 @@
 use crate::AccumulationScheme;
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
-use ark_ff::{Field, PrimeField};
+use ark_ff::PrimeField;
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -8,7 +10,6 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::CryptographicSponge;
 
-pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 pub(crate) type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
 /// The verifier gadget of an [`AccumulationScheme`].
@@ -101,7 +102,7 @@ pub mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use ark_sponge::constraints::CryptographicSpongeVar;
     use ark_sponge::CryptographicSponge;
-    use std::marker::PhantomData;
+    use ark_std::marker::PhantomData;
 
     pub struct ASVerifierGadgetTests<CF, S, SV, AS, ASV, I>
     where

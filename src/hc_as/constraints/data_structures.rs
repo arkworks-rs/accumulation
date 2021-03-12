@@ -1,5 +1,7 @@
-use crate::constraints::{ConstraintF, NNFieldVar};
+use crate::constraints::NNFieldVar;
 use crate::hc_as::{InputInstance, SingleProof};
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -9,8 +11,9 @@ use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
-use std::borrow::Borrow;
-use std::marker::PhantomData;
+use ark_std::borrow::Borrow;
+use ark_std::marker::PhantomData;
+use ark_std::vec::Vec;
 
 /// The [`VerifierKey`][vk] of the [`HcASVerifierGadget`][hc_as_verifier].
 ///

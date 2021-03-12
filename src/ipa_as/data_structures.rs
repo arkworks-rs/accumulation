@@ -1,10 +1,10 @@
-use crate::std::vec::Vec;
 use ark_ec::AffineCurve;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::{ipa_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::domain_separated::DomainSeparator;
 use ark_std::io::{Read, Write};
+use ark_std::vec::Vec;
 
 /// The [`PredicateIndex`][predicate_index] of the [`InnerProductArgAtomicAS`][ipa_as].
 ///

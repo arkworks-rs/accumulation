@@ -1,6 +1,11 @@
 use crate::AccumulationScheme;
+
+use ark_ec::AffineCurve;
+use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
+
+pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 
 /// A pair consisting of references to an instance and witness.
 pub struct InstanceWitnessPairRef<

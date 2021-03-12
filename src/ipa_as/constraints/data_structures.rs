@@ -1,5 +1,7 @@
-use crate::constraints::{ConstraintF, NNFieldVar};
+use crate::constraints::NNFieldVar;
 use crate::ipa_as::data_structures::{InputInstance, Randomness, VerifierKey};
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
@@ -9,7 +11,8 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use std::borrow::Borrow;
+use ark_std::borrow::Borrow;
+use ark_std::vec::Vec;
 
 pub(crate) type FinalCommKeyVar<C> = C;
 

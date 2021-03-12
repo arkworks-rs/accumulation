@@ -1,6 +1,7 @@
-use crate::constraints::ConstraintF;
 use crate::hp_as::data_structures::{Proof, ProofHidingCommitments, ProofTCommitments};
 use crate::hp_as::InputInstance;
+use crate::ConstraintF;
+
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -9,8 +10,9 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::collect_sponge_field_elements_gadget;
 use ark_sponge::constraints::AbsorbableGadget;
-use std::borrow::Borrow;
-use std::marker::PhantomData;
+use ark_std::borrow::Borrow;
+use ark_std::marker::PhantomData;
+use ark_std::vec::Vec;
 
 /// The [`VerifierKey`][vk] of the [`HpASVerifierGadget`][hp_as_verifier].
 ///

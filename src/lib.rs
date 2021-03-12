@@ -33,8 +33,6 @@ extern crate derivative;
 #[macro_use]
 extern crate bench_utils;
 
-extern crate ark_std as std;
-
 /// Common data structures used by [`AccumulationScheme`].
 pub use data_structures::*;
 mod data_structures;
@@ -69,6 +67,7 @@ pub mod ipa_as;
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+#[cfg(feature = "r1cs")]
 pub mod nark_as;
 
 /// Specifies the zero-knowledge configuration for an accumulation.
@@ -257,12 +256,12 @@ pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>:
 #[cfg(test)]
 pub mod tests {
     use crate::data_structures::{Accumulator, Input};
-    use crate::std::vec::Vec;
     use crate::{AccumulationScheme, MakeZK};
     use ark_ff::PrimeField;
     use ark_sponge::CryptographicSponge;
+    use ark_std::marker::PhantomData;
+    use ark_std::vec::Vec;
     use rand_core::RngCore;
-    use std::marker::PhantomData;
 
     pub const NUM_ITERATIONS: usize = 1;
 

@@ -3,6 +3,8 @@ use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
+use ark_std::vec;
+use ark_std::vec::Vec;
 
 /// The [`InputInstance`][input_instance] of the [`HadamardProductAS`][hp_as].
 ///

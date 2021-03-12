@@ -1,10 +1,8 @@
-use crate::constraints::ConstraintF;
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::std::ops::Mul;
-use crate::std::string::ToString;
-use crate::std::vec::Vec;
+use crate::ConstraintF;
 use crate::{AccumulationScheme, AtomicAccumulationScheme, MakeZK};
+
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{to_bytes, One, UniformRand, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -17,6 +15,10 @@ use ark_poly_commit::{
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
+use ark_std::ops::Mul;
+use ark_std::string::ToString;
+use ark_std::vec;
+use ark_std::vec::Vec;
 use blake2::Blake2s;
 use rand_core::RngCore;
 
@@ -647,13 +649,13 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::constraints::ConstraintF;
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::ipa_as::data_structures::{InputInstance, PredicateIndex};
     use crate::ipa_as::{InnerProductArgAtomicAS, IpaPC};
     use crate::tests::{ASTestInput, ASTests};
     use crate::AccumulationScheme;
+    use crate::ConstraintF;
     use ark_ec::AffineCurve;
     use ark_ff::{One, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
