@@ -9,7 +9,7 @@
 
 `ark-accumulation` is a Rust library that provides infrastructure for implementing 
 *accumulation schemes*. This library was developed as part of the
-[Proof-Carrying Data without Succinct Arguments][bclms] paper, and is released under the MIT License
+[Proof-Carrying Data without Succinct Arguments][bclms20] paper, and is released under the MIT License
 and the Apache v2 License (see [License](#license)).
 
 **WARNING:** This is an academic prototype, and in particular has not received careful code review.
@@ -60,15 +60,13 @@ conditions.
 
 ## Reference papers
 
-[Proof-Carrying Data from Accumulation Schemes][bcms]     
+[Proof-Carrying Data from Accumulation Schemes][bcms20]     
 Benedikt Bünz, Alessandro Chiesa, [Pratyush Mishra](https://www.github.com/pratyush),
 Nicholas Spooner     
-TCC 2020
 
-[Proof-Carrying Data without Succinct Arguments][bclms]     
+[Proof-Carrying Data without Succinct Arguments][bclms20]     
 Benedikt Bünz, Alessandro Chiesa, [William Lin](https://github.com/Will-Lin4),
 [Pratyush Mishra](https://www.github.com/pratyush), Nicholas Spooner     
-TCC 2020
 
-[bcms]: https://eprint.iacr.org/2020/499.pdf 
-[bclms]: https://eprint.iacr.org/2020/1618.pdf 
+[bcms20]: https://eprint.iacr.org/2020/499 
+[bclms20]: https://eprint.iacr.org/2020/1618 
