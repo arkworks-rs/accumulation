@@ -16,17 +16,27 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
+use crate::ipa_as::IpaPCDomain;
 use ark_accumulation::ipa_as;
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::lh_pc::LinearHashPC;
+use ark_poly_commit::ipa_pc::InnerProductArgPC;
+use ark_poly_commit::pedersen_pc::PedersenPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_serialize::CanonicalSerialize;
+use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
 use ark_std::vec::Vec;
+use blake2::Blake2s;
 
-type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
+type PedPC = PedersenPC<G1Affine, DensePolynomial<Fr>>;
 
-type PCDL = ipa_as::IpaPC<G1Affine, PoseidonSponge<Fq>>;
+type IpaPC = InnerProductArgPC<
+    G1Affine,
+    Blake2s,
+    DensePolynomial<Fr>,
+    Fq,
+    DomainSeparatedSponge<Fq, PoseidonSponge<Fq>, IpaPCDomain>,
+>;
 
 fn profile_pc<F, PC, R>(min_degree: usize, max_degree: usize, rng: &mut R)
 where
@@ -114,7 +124,7 @@ fn main() {
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking PC_LH ================");
-    profile_pc::<_, PCLH, _>(min_degree, max_degree, rng);
-    println!("\n\n\n================ Benchmarking PC_DL ================");
-    profile_pc::<_, PCDL, _>(min_degree, max_degree, rng);
+    profile_pc::<_, PedPC, _>(min_degree, max_degree, rng);
+    println!("\n\n\n================ Benchmarking IpaPC ================");
+    profile_pc::<_, IpaPC, _>(min_degree, max_degree, rng);
 }

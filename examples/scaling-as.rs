@@ -18,23 +18,34 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
+use ark_accumulation::ipa_as::IpaPCDomain;
 use ark_accumulation::{hc_as, hc_as::HomomorphicCommitmentAS};
 use ark_accumulation::{ipa_as, ipa_as::InnerProductArgAtomicAS};
 use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::lh_pc::LinearHashPC;
+use ark_poly_commit::ipa_pc::InnerProductArgPC;
+use ark_poly_commit::pedersen_pc::PedersenPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
+use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
+use ark_sponge::CryptographicSponge;
 use ark_std::vec::Vec;
+use blake2::Blake2s;
 use rand_core::RngCore;
 
-type PCLH = LinearHashPC<G1Affine, DensePolynomial<Fr>>;
-type AS_LH = HomomorphicCommitmentAS<G1Affine, PoseidonSponge<Fq>>;
+type PedPC = PedersenPC<G1Affine, DensePolynomial<Fr>>;
+type HcAS = HomomorphicCommitmentAS<G1Affine, PoseidonSponge<Fq>>;
 
-type PCDL = ipa_as::IpaPC<G1Affine, PoseidonSponge<Fq>>;
-type AS_DL = InnerProductArgAtomicAS<G1Affine, PoseidonSponge<Fq>>;
+type IpaPC = InnerProductArgPC<
+    G1Affine,
+    Blake2s,
+    DensePolynomial<Fr>,
+    Fq,
+    DomainSeparatedSponge<Fq, PoseidonSponge<Fq>, IpaPCDomain>,
+>;
+type IpaAS = InnerProductArgAtomicAS<G1Affine, PoseidonSponge<Fq>>;
 
-fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
+fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
     min_degree: usize,
     max_degree: usize,
     sample_parameters_and_index: ParamGen,
@@ -44,7 +55,9 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     F: PrimeField,
     P: UVPolynomial<F>,
     PC: PolynomialCommitment<F, P>,
-    AS: AccumulationScheme,
+    CF: PrimeField,
+    S: CryptographicSponge<CF>,
+    AS: AccumulationScheme<CF, S>,
     ParamGen: Fn(
         usize,
         &mut R,
@@ -53,7 +66,7 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
         AS::PredicateParams,
         AS::PredicateIndex,
     ),
-    InputGen: Fn(&PC::CommitterKey, &mut R) -> Vec<Input<AS>>,
+    InputGen: Fn(&PC::CommitterKey, &mut R) -> Vec<Input<CF, S, AS>>,
     R: Rng,
 {
     for degree in min_degree..=max_degree {
@@ -77,8 +90,8 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
 
         let (accumulator, _) = AS::prove(
             &pk,
-            Input::<AS>::map_to_refs(&inputs),
-            Accumulator::<AS>::map_to_refs(&old_accumulators),
+            Input::<CF, S, AS>::map_to_refs(&inputs),
+            Accumulator::<CF, S, AS>::map_to_refs(&old_accumulators),
             MakeZK::Inherited(Some(rng)),
         )
         .unwrap();
@@ -90,8 +103,8 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
         let start = Instant::now();
         let (accumulator, proof) = AS::prove(
             &pk,
-            Input::<AS>::map_to_refs(&inputs),
-            Accumulator::<AS>::map_to_refs(&old_accumulators),
+            Input::<CF, S, AS>::map_to_refs(&inputs),
+            Accumulator::<CF, S, AS>::map_to_refs(&old_accumulators),
             MakeZK::Inherited(Some(rng)),
         )
         .unwrap();
@@ -101,8 +114,8 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
         let start = Instant::now();
         let verification_result = AS::verify(
             &vk,
-            Input::<AS>::instances(&inputs),
-            Accumulator::<AS>::instances(&old_accumulators),
+            Input::<CF, S, AS>::instances(&inputs),
+            Accumulator::<CF, S, AS>::instances(&old_accumulators),
             &accumulator.instance,
             &proof,
         )
@@ -131,28 +144,28 @@ fn profile_as<F, P, PC, AS, R, ParamGen, InputGen>(
     }
 }
 
-type PCLH_Keys = (
-    <PCLH as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
-    <PCLH as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
+type PedPCKeys = (
+    <PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    <PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
 );
 
 fn lh_param_gen<R: RngCore>(
     degree: usize,
     rng: &mut R,
 ) -> (
-    PCLH_Keys,
-    <AS_LH as AccumulationScheme>::PredicateParams,
-    <AS_LH as AccumulationScheme>::PredicateIndex,
+    PedPCKeys,
+    <HcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
+    <HcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
 ) {
-    let predicate_params = PCLH::setup(degree, None, rng).unwrap();
-    let (ck, vk) = PCLH::trim(&predicate_params, degree, 0, None).unwrap();
+    let predicate_params = PedPC::setup(degree, None, rng).unwrap();
+    let (ck, vk) = PedPC::trim(&predicate_params, degree, 0, None).unwrap();
     ((ck, vk), predicate_params, degree)
 }
 
 fn lh_input_gen<R: RngCore>(
-    ck: &<PCLH as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    ck: &<PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
     rng: &mut R,
-) -> Vec<Input<AS_LH>> {
+) -> Vec<Input<Fq, PoseidonSponge<Fq>, HcAS>> {
     let labeled_polynomials = vec![{
         let degree = ck.supported_degree();
         let label = format!("Input{}", 1);
@@ -163,7 +176,7 @@ fn lh_input_gen<R: RngCore>(
         labeled_polynomial
     }];
 
-    let (labeled_commitments, _) = PCLH::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+    let (labeled_commitments, _) = PedPC::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
@@ -178,7 +191,7 @@ fn lh_input_gen<R: RngCore>(
                 eval,
             };
 
-            Input::<AS_LH> {
+            Input::<_, _, HcAS> {
                 instance,
                 witness: labeled_polynomial,
             }
@@ -188,21 +201,21 @@ fn lh_input_gen<R: RngCore>(
     inputs
 }
 
-type PCDL_Keys = (
-    <PCDL as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
-    <PCDL as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
+type IpaPC_Keys = (
+    <IpaPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    <IpaPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
 );
 
 fn dl_param_gen<R: RngCore>(
     degree: usize,
     rng: &mut R,
 ) -> (
-    PCDL_Keys,
-    <AS_DL as AccumulationScheme>::PredicateParams,
-    <AS_DL as AccumulationScheme>::PredicateIndex,
+    IpaPC_Keys,
+    <IpaAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
+    <IpaAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
 ) {
-    let predicate_params = PCDL::setup(degree, None, rng).unwrap();
-    let (ck, vk) = PCDL::trim(&predicate_params, degree, 0, None).unwrap();
+    let predicate_params = IpaPC::setup(degree, None, rng).unwrap();
+    let (ck, vk) = IpaPC::trim(&predicate_params, degree, 0, None).unwrap();
     let predicate_index = ipa_as::PredicateIndex {
         supported_degree_bound: degree,
         supported_hiding_bound: 0,
@@ -211,9 +224,9 @@ fn dl_param_gen<R: RngCore>(
 }
 
 fn dl_input_gen<R: RngCore>(
-    ck: &<PCDL as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    ck: &<IpaPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
     rng: &mut R,
-) -> Vec<Input<AS_DL>> {
+) -> Vec<Input<Fq, PoseidonSponge<Fq>, IpaAS>> {
     let labeled_polynomials = vec![{
         let degree = ck.supported_degree();
         let label = format!("Input{}", 1);
@@ -224,7 +237,8 @@ fn dl_input_gen<R: RngCore>(
         labeled_polynomial
     }];
 
-    let (labeled_commitments, randoms) = PCDL::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+    let (labeled_commitments, randoms) =
+        IpaPC::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
@@ -233,7 +247,7 @@ fn dl_input_gen<R: RngCore>(
         .map(|((labeled_polynomial, labeled_commitment), randomness)| {
             let point = Fr::rand(rng);
             let eval = labeled_polynomial.evaluate(&point);
-            let ipa_proof = PCDL::open_individual_opening_challenges(
+            let ipa_proof = IpaPC::open_individual_opening_challenges(
                 ck,
                 vec![&labeled_polynomial],
                 vec![&labeled_commitment],
@@ -243,7 +257,7 @@ fn dl_input_gen<R: RngCore>(
                 Some(rng),
             )
             .unwrap();
-            let result = PCDL::check_individual_opening_challenges(
+            let result = IpaPC::check_individual_opening_challenges(
                 ck,
                 vec![&labeled_commitment],
                 &point,
@@ -262,7 +276,7 @@ fn dl_input_gen<R: RngCore>(
                 ipa_proof,
             };
 
-            Input::<AS_DL> {
+            Input::<_, _, IpaAS> {
                 instance: input,
                 witness: (),
             }
@@ -285,16 +299,16 @@ fn main() {
         .expect("<log_max_degree> should be integer");
 
     let rng = &mut ark_std::test_rng();
-    println!("\n\n\n================ Benchmarking AS_LH ================");
-    profile_as::<_, _, PCLH, AS_LH, _, _, _>(
+    println!("\n\n\n================ Benchmarking HcAS ================");
+    profile_as::<_, _, PedPC, _, _, HcAS, _, _, _>(
         min_degree,
         max_degree,
         lh_param_gen,
         lh_input_gen,
         rng,
     );
-    println!("\n\n\n================ Benchmarking AS_DL ================");
-    profile_as::<_, _, PCDL, AS_DL, _, _, _>(
+    println!("\n\n\n================ Benchmarking IpaAS ================");
+    profile_as::<_, _, IpaPC, _, _, IpaAS, _, _, _>(
         min_degree,
         max_degree,
         dl_param_gen,

@@ -81,14 +81,16 @@ pub struct Randomness<G: AffineCurve> {
     pub(crate) commitment_randomness: G::ScalarField,
 }
 
-pub(crate) struct IpaPCDomain {}
+/// The domain for the IpaPC sponge. Used as a substitution for forking for backwards compatibility.
+pub struct IpaPCDomain {}
 impl DomainSeparator for IpaPCDomain {
     fn domain() -> Vec<u8> {
         b"PC-IPA-in-AS-IPA-2020".to_vec()
     }
 }
 
-pub(crate) struct IpaASDomain {}
+/// The domain for the IpaAS sponge. Used as a substitution for forking for backwards compatibility.
+pub struct IpaASDomain {}
 impl DomainSeparator for IpaASDomain {
     fn domain() -> Vec<u8> {
         b"AS-IPA-2020".to_vec()
