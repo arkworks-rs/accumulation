@@ -110,6 +110,7 @@ pub struct SecondRoundMessage<F: Field> {
 }
 
 /// The proof for our NARK.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     pub first_msg: FirstRoundMessage<G>,
     pub second_msg: SecondRoundMessage<G::ScalarField>,
