@@ -1,4 +1,5 @@
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
+use crate::error::ASError::MalformedInput;
 use crate::error::{ASError, BoxedError};
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
@@ -412,7 +413,7 @@ where
         }
     }
 
-    fn basic_verify(inputs: &Vec<&InputInstance<G>>, proof: &Proof<G>) -> bool {
+    fn check_verify_inputs(inputs: &Vec<&InputInstance<G>>, proof: &Proof<G>) -> bool {
         let num_inputs = inputs.len();
         if num_inputs == 0 {
             return false;
@@ -495,15 +496,28 @@ where
 
         if input_instances.len() == 0 {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
-                "No inputs or accumulators to accumulate".to_string(),
+                "No inputs or accumulators to accumulate.".to_string(),
             )));
         }
 
         let mut input_witnesses = inputs
             .iter()
             .chain(&accumulators)
-            .map(|input| input.witness)
-            .collect::<Vec<_>>();
+            .map(|input| {
+                let witness = input.witness;
+                if witness.a_vec.len() > prover_key.supported_num_elems()
+                    || witness.b_vec.len() > prover_key.supported_num_elems()
+                {
+                    return Err(BoxedError::new(MalformedInput(
+                        "An input witness vector has a length that exceeds the prover key's \
+                        supported vector length."
+                            .to_string(),
+                    )));
+                }
+
+                Ok(witness)
+            })
+            .collect::<Result<Vec<&InputWitness<G::ScalarField>>, BoxedError>>()?;
 
         let (make_zk, rng) = make_zk.into_components(|| {
             input_witnesses.iter().fold(false, |make_zk, witness| {
@@ -656,7 +670,7 @@ where
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if !Self::basic_verify(&input_instances, proof) {
+        if !Self::check_verify_inputs(&input_instances, proof) {
             return Ok(false);
         }
 
@@ -928,6 +942,22 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&HpASTestParams {
+            vector_len: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&HpASTestParams {
+            vector_len: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&HpASTestParams {
             vector_len: 8,
             make_zk: true,
         })

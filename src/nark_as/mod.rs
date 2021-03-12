@@ -594,6 +594,12 @@ where
             all_inputs.push(input);
         }
 
+        if input_instances.len() + accumulator_instances.len() == 0 {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate.".to_string(),
+            )));
+        }
+
         let (make_zk, mut rng) = make_zk.into_components(|| make_zk_default);
         if make_zk && rng.is_none() {
             return Err(BoxedError::new(ASError::MissingRng(
@@ -742,6 +748,10 @@ where
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
+
+        if input_instances.len() + accumulator_instances.len() == 0 {
+            return Ok(false);
+        }
 
         let num_addends = input_instances.len()
             + accumulator_instances.len()
@@ -1124,6 +1134,24 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&NarkASTestParams {
+            num_inputs: 5,
+            num_constraints: 10,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&NarkASTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,

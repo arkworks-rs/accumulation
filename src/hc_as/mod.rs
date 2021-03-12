@@ -175,26 +175,70 @@ where
         scalar_commitment_pairs.into_iter().sum()
     }
 
-    fn basic_verify(
-        input_instances: &Vec<&InputInstance<G>>,
-        new_accumulator_instance: &InputInstance<G>,
-        proof: &Proof<G>,
-    ) -> bool {
-        if input_instances.len() != proof.len() {
-            return false;
-        }
-
-        for input_instance in input_instances {
-            if input_instance.commitment.degree_bound().is_some() {
-                return false;
+    fn check_input_instance(
+        instance: &InputInstance<G>,
+        is_accumulator: bool,
+    ) -> Result<&InputInstance<G>, BoxedError> {
+        if instance.commitment.degree_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Degree bounds on accumulator instances are unsupported.".to_string(),
+                )));
             }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Degree bounds on input instances are unsupported.".to_string(),
+            )));
         }
 
-        if new_accumulator_instance.commitment.degree_bound().is_some() {
-            return false;
+        Ok(instance)
+    }
+
+    fn check_input_witness<'a>(
+        prover_key: &pedersen_pc::CommitterKey<G>,
+        witness: &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+        is_accumulator: bool,
+    ) -> Result<&'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>, BoxedError>
+    {
+        if witness.degree_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Degree bounds on accumulator witnesses are unsupported.".to_string(),
+                )));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Degree bounds on input witnesses are unsupported.".to_string(),
+            )));
         }
 
-        true
+        if witness.hiding_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Hiding bounds on accumulator witnesses are unsupported.".to_string(),
+                )));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Hiding bounds on input witnesses are unsupported.".to_string(),
+            )));
+        }
+
+        if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
+                    "An accumulator witness of degree {} is unsupported for this prover key",
+                    witness.degree()
+                ))));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(format!(
+                "An input witness of degree {} is unsupported for this prover key",
+                witness.degree()
+            ))));
+        }
+
+        Ok(witness)
     }
 }
 
@@ -257,53 +301,29 @@ where
         let accumulators: Vec<AccumulatorRef<'a, _, _, Self>> =
             old_accumulators.into_iter().collect();
 
-        for (instance, witness, is_accumulator) in inputs
+        let input_instances = inputs
             .iter()
-            .map(|input| (&input.instance, &input.witness, false))
+            .map(|input| Self::check_input_instance(input.instance, false))
             .chain(
                 accumulators
                     .iter()
-                    .map(|accumulator| (&accumulator.instance, &accumulator.witness, true)),
+                    .map(|accumulator| Self::check_input_instance(accumulator.instance, true)),
             )
-        {
-            if instance.commitment.degree_bound().is_some() || witness.degree_bound().is_some() {
-                if is_accumulator {
-                    return Err(BoxedError::new(ASError::MalformedAccumulator(
-                        "Degree bounds on accumulators unsupported".to_string(),
-                    )));
-                }
+            .collect::<Result<Vec<_>, BoxedError>>()?;
 
-                return Err(BoxedError::new(ASError::MalformedInput(
-                    "Degree bounds on inputs unsupported".to_string(),
-                )));
-            }
+        let input_witnesses = inputs
+            .iter()
+            .map(|input| Self::check_input_witness(prover_key, input.witness, false))
+            .chain(accumulators.iter().map(|accumulator| {
+                Self::check_input_witness(prover_key, accumulator.witness, true)
+            }))
+            .collect::<Result<Vec<_>, BoxedError>>()?;
 
-            if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
-                if is_accumulator {
-                    return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
-                        "An accumulator witness of degree {} is unsupported for this prover key",
-                        witness.degree()
-                    ))));
-                }
-
-                return Err(BoxedError::new(ASError::MalformedInput(format!(
-                    "An input witness of degree {} is unsupported for this prover key",
-                    witness.degree()
-                ))));
-            }
+        if input_instances.len() == 0 {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate.".to_string(),
+            )));
         }
-
-        let input_instances: Vec<&InputInstance<G>> = inputs
-            .iter()
-            .map(|input| input.instance)
-            .chain(accumulators.iter().map(|accumulator| accumulator.instance))
-            .collect();
-
-        let input_witnesses: Vec<&Self::InputWitness> = inputs
-            .iter()
-            .map(|input| input.witness)
-            .chain(accumulators.iter().map(|accumulator| accumulator.witness))
-            .collect();
 
         let (witness_polynomials, witness_commitments) =
             Self::compute_witness_polynomials_and_commitments(
@@ -413,15 +433,39 @@ where
         Self: 'a,
         S: 'a,
     {
+        // Collect the input and run basic checks on them.
         let input_instances = input_instances
             .into_iter()
-            .chain(old_accumulator_instances)
-            .collect::<Vec<_>>();
+            .map(|instance| Self::check_input_instance(instance, false))
+            .chain(
+                old_accumulator_instances
+                    .into_iter()
+                    .map(|instance| Self::check_input_instance(instance, true)),
+            )
+            .collect::<Result<Vec<_>, BoxedError>>();
 
-        if !Self::basic_verify(&input_instances, new_accumulator_instance, proof) {
+        if input_instances.is_err() {
             return Ok(false);
         }
 
+        let input_instances = input_instances.unwrap();
+        if input_instances.len() == 0 {
+            return Ok(false);
+        }
+
+        let new_accumulator_instance = Self::check_input_instance(new_accumulator_instance, true);
+        if new_accumulator_instance.is_err() {
+            return Ok(false);
+        }
+
+        let new_accumulator_instance = new_accumulator_instance.unwrap();
+
+        // Run a basic check on the proof
+        if proof.len() != input_instances.len() || input_instances.len() == 0 {
+            return Ok(false);
+        }
+
+        // Begin computation
         let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(verifier_key);
 
@@ -667,5 +711,10 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&HcASTestParams { degree: 8 })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&HcASTestParams { degree: 8 })
     }
 }

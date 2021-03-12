@@ -356,12 +356,15 @@ where
             )?;
         }
 
-        // let cost = cs.num_constraints();
         let succinct_check_result = Self::succinct_check_inputs(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_svk,
             inputs.into_iter().chain(old_accumulators),
         )?;
+
+        if succinct_check_result.is_empty() {
+            return Ok(Boolean::FALSE);
+        }
 
         let (
             combined_succinct_check_result,

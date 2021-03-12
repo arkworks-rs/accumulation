@@ -391,6 +391,10 @@ where
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
 
+        if input_instances.len() + accumulator_instances.len() == 0 {
+            return Ok(Boolean::FALSE);
+        }
+
         let num_addends = input_instances.len()
             + accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };

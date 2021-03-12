@@ -218,7 +218,7 @@ where
         })
     }
 
-    fn basic_verify(inputs: &Vec<&InputInstanceVar<G, C>>, proof: &ProofVar<G, C>) -> bool {
+    fn check_verify_inputs(inputs: &Vec<&InputInstanceVar<G, C>>, proof: &ProofVar<G, C>) -> bool {
         let num_inputs = inputs.len();
         if num_inputs == 0 {
             return false;
@@ -284,7 +284,7 @@ where
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if !Self::basic_verify(&input_instances, proof) {
+        if !Self::check_verify_inputs(&input_instances, proof) {
             return Ok(Boolean::FALSE);
         }
 

@@ -86,18 +86,6 @@ where
     ) -> Result<(), ASError> {
         for input in inputs {
             let ipa_commitment = &input.ipa_commitment;
-            if ipa_commitment.degree_bound().is_some() {
-                return Err(if inputs_are_accumulators {
-                    ASError::MalformedAccumulator(
-                        "Explicit degree bounds not supported in accumulators".to_string(),
-                    )
-                } else {
-                    ASError::MalformedInput(
-                        "Explicit degree bounds not supported in inputs".to_string(),
-                    )
-                });
-            }
-
             let check_polynomial = IpaPC::<G, S>::succinct_check(
                 ipa_svk,
                 vec![ipa_commitment],
@@ -110,10 +98,10 @@ where
             if check_polynomial.is_none() {
                 return Err(if inputs_are_accumulators {
                     ASError::MalformedAccumulator(
-                        "Succinct check failed on accumulator".to_string(),
+                        "Succinct check failed on accumulator.".to_string(),
                     )
                 } else {
-                    ASError::MalformedInput("Succinct check failed on input".to_string())
+                    ASError::MalformedInput("Succinct check failed on input.".to_string())
                 });
             }
 
@@ -130,13 +118,10 @@ where
     ) -> Result<Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>, ASError> {
         let mut output: Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)> =
             Vec::new();
+
         Self::succinct_check_inputs(ipa_svk, inputs, false, &mut output)?;
         Self::succinct_check_inputs(ipa_svk, accumulators, true, &mut output)?;
-        if output.len() == 0 {
-            return Err(ASError::MissingAccumulatorsAndInputs(
-                "Nothing to accumulate".to_string(),
-            ));
-        }
+
         Ok(output)
     }
 
@@ -338,6 +323,26 @@ where
 
         Ok(accumulator)
     }
+
+    fn check_input_instance(
+        instance: &InputInstance<G>,
+        is_accumulator: bool,
+    ) -> Result<&InputInstance<G>, BoxedError> {
+        let ipa_commitment = &instance.ipa_commitment;
+        if ipa_commitment.degree_bound().is_some() {
+            return Err(BoxedError::new(if is_accumulator {
+                ASError::MalformedAccumulator(
+                    "Explicit degree bounds not supported in accumulators.".to_string(),
+                )
+            } else {
+                ASError::MalformedInput(
+                    "Explicit degree bounds not supported in inputs.".to_string(),
+                )
+            }));
+        }
+
+        Ok(instance)
+    }
 }
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for InnerProductArgAtomicAS<G, S>
@@ -424,15 +429,25 @@ where
     {
         let sponge = S::new();
 
-        let inputs: Vec<&InputInstance<G>> =
-            InputRef::<'a, _, _, Self>::instances(inputs).collect::<Vec<_>>();
-        let accumulators: Vec<&InputInstance<G>> =
-            AccumulatorRef::<'a, _, _, Self>::instances(old_accumulators).collect::<Vec<_>>();
+        let inputs: Vec<&InputInstance<G>> = InputRef::<'a, _, _, Self>::instances(inputs)
+            .map(|instance| Self::check_input_instance(instance, false))
+            .collect::<Result<Vec<_>, BoxedError>>()?;
+
+        let old_accumulators: Vec<&InputInstance<G>> =
+            AccumulatorRef::<'a, _, _, Self>::instances(old_accumulators)
+                .map(|instance| Self::check_input_instance(instance, true))
+                .collect::<Result<Vec<_>, BoxedError>>()?;
+
+        if inputs.is_empty() && old_accumulators.is_empty() {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate.".to_string(),
+            )));
+        }
 
         let (make_zk, mut rng) = make_zk.into_components(|| {
             inputs
                 .iter()
-                .chain(&accumulators)
+                .chain(&old_accumulators)
                 .fold(false, |make_zk, input| {
                     return make_zk
                         || input.ipa_proof.hiding_comm.is_some()
@@ -476,7 +491,7 @@ where
         let succinct_checks = Self::succinct_check_inputs_and_accumulators(
             &prover_key.verifier_key.ipa_svk,
             inputs,
-            accumulators,
+            old_accumulators,
         )
         .map_err(|e| BoxedError::new(e))?;
 
@@ -541,6 +556,35 @@ where
         Self: 'a,
     {
         let sponge = S::new();
+
+        let inputs = inputs
+            .into_iter()
+            .map(|instance| Self::check_input_instance(instance, false))
+            .collect::<Result<Vec<_>, BoxedError>>();
+
+        if inputs.is_err() {
+            return Ok(false);
+        }
+
+        let inputs = inputs.unwrap();
+
+        let old_accumulators = old_accumulators
+            .into_iter()
+            .map(|instance| Self::check_input_instance(instance, true))
+            .collect::<Result<Vec<_>, BoxedError>>();
+
+        if old_accumulators.is_err() {
+            return Ok(false);
+        }
+
+        let old_accumulators = old_accumulators.unwrap();
+
+        if inputs.is_empty() && old_accumulators.is_empty() {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate.".to_string(),
+            )));
+        }
+
         if let Some(randomness) = proof.as_ref() {
             if randomness.random_linear_polynomial.degree() > 1 {
                 return Ok(false);
@@ -568,6 +612,10 @@ where
         };
 
         let succinct_checks = succinct_check_result.ok().unwrap();
+
+        if succinct_checks.is_empty() {
+            return Ok(false);
+        }
 
         let combine_result = Self::combine_succinct_checks_and_proof(
             &verifier_key.ipa_svk,
@@ -868,6 +916,22 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&IpaAtomicASTestParams {
+            degree: 8,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_fail_test(&IpaAtomicASTestParams {
             degree: 8,
             make_zk: true,
         })

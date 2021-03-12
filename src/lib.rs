@@ -427,19 +427,20 @@ pub mod tests {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration,
             };
+
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
-        // Only add this test if scheme is intended to support cases with no accumulators or inputs
-        pub fn no_accumulators_or_inputs_test(
+        pub fn no_accumulators_or_inputs_fail_test(
             test_params: &I::TestParams,
         ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
-                num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration: vec![0; 3],
+                num_iterations: 1,
+                num_inputs_per_iteration: vec![0],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+
+            assert!(Self::test_template(&template_params, test_params).is_err());
             Ok(())
         }
     }

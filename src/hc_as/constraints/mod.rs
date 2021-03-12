@@ -75,17 +75,6 @@ where
 
         Ok(combined_commitment)
     }
-
-    fn basic_verify(
-        input_instances: &Vec<&InputInstanceVar<G, C>>,
-        proof: &ProofVar<G, C>,
-    ) -> bool {
-        if input_instances.len() != proof.single_proofs.len() {
-            return false;
-        }
-
-        true
-    }
 }
 
 impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HomomorphicCommitmentAS<G, S>>
@@ -131,7 +120,7 @@ where
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if !Self::basic_verify(&input_instances, proof) {
+        if input_instances.len() != proof.single_proofs.len() || input_instances.len() == 0 {
             return Ok(Boolean::FALSE);
         }
 
