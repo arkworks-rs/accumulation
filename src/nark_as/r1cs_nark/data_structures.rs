@@ -133,6 +133,7 @@ pub struct SecondRoundMessage<F: Field> {
 }
 
 /// The proof for our NARK.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     /// The sigma protocol's prove commitment.
     pub(crate) first_msg: FirstRoundMessage<G>,
