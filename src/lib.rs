@@ -1,12 +1,10 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-
 //! A crate that provides infrastructure to implement accumulation schemes.
-//! The interface for accumulation schemes were introduced in [BCMS20][pcdas] and [BCLMS20][pcdwsa].
+//! The interface for accumulation schemes were formalized in [BCMS20][pcdas] and [BCLMS20][pcdwsa].
 //!
 //! [pcdas]: https://eprint.iacr.org/2020/499.pdf
 //! [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 
-#![warn(
+#![deny(
     const_err,
     future_incompatible,
     missing_docs,
