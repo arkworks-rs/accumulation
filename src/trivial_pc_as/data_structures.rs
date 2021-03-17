@@ -6,10 +6,10 @@ use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
-/// The [`InputInstance`][input_instance] of the [`HomomorphicCommitmentAS`][hc_as].
+/// The [`InputInstance`][input_instance] of the [`TrivialPcAS`][trivial_pc_as].
 ///
 /// [input_instance]: crate::AccumulationScheme::InputInstance
-/// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
+/// [trivial_pc_as]: crate::trivial_pc_as::TrivialPcAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     /// Pedersen commitment to a polynomial.
@@ -41,11 +41,11 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
     }
 }
 
-/// A proof attesting that a single [`Input`][input] of [`HomomorphicCommitmentAS`][hc_as] was
+/// A proof attesting that a single [`Input`][input] of [`TrivialPcAS`][trivial_pc_as] was
 /// properly accumulated.
 ///
 /// [input]: crate::Input
-/// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
+/// [trivial_pc_as]: crate::trivial_pc_as::TrivialPcAS
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SingleProof<G: AffineCurve> {
     /// Pedersen commitment to the witness polynomial.
@@ -59,8 +59,8 @@ pub struct SingleProof<G: AffineCurve> {
 }
 
 /// The list of [`SingleProof`]s for each accumulated input.
-/// The [`Proof`][proof] of the [`HomomorphicCommitmentAS`][hc_as].
+/// The [`Proof`][proof] of the [`TrivialPcAS`][trivial_pc_as].
 ///
 /// [proof]: crate::AccumulationScheme::Proof
-/// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
+/// [trivial_pc_as]: crate::trivial_pc_as::TrivialPcAS
 pub type Proof<G> = Vec<SingleProof<G>>;

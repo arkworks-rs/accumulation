@@ -3,7 +3,7 @@ use crate::hp_as::constraints::HpASVerifierGadget;
 use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
-use crate::nark_as::{r1cs_nark, NarkAS, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME};
+use crate::r1cs_nark_as::{r1cs_nark, R1CSNarkAS, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -25,10 +25,10 @@ use ark_std::vec::Vec;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier gadget of [`NarkAS`][nark_as].
+/// The verifier gadget of [`R1CSNarkAS`][r1cs_nark_as].
 ///
-/// [nark_as]: crate::nark_as::NarkAS
-pub struct NarkASVerifierGadget<G, C, S, SV>
+/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+pub struct R1CSNarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -42,7 +42,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> NarkASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> R1CSNarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -343,8 +343,8 @@ where
     }
 }
 
-impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, NarkAS<G, CS, S>>
-    for NarkASVerifierGadget<G, C, S, SV>
+impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, R1CSNarkAS<G, CS, S>>
+    for R1CSNarkASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -471,9 +471,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::tests::ASVerifierGadgetTests;
-    use crate::nark_as::constraints::NarkASVerifierGadget;
-    use crate::nark_as::tests::{DummyCircuit, NarkASTestInput, NarkASTestParams};
-    use crate::nark_as::NarkAS;
+    use crate::r1cs_nark_as::constraints::R1CSNarkASVerifierGadget;
+    use crate::r1cs_nark_as::tests::{DummyCircuit, R1CSNarkASTestInput, R1CSNarkASTestParams};
+    use crate::r1cs_nark_as::R1CSNarkAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -485,16 +485,16 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = NarkAS<G, DummyCircuit<F>, Sponge>;
-    type I = NarkASTestInput;
-    type ASV = NarkASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = R1CSNarkAS<G, DummyCircuit<F>, Sponge>;
+    type I = R1CSNarkASTestInput;
+    type ASV = R1CSNarkASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
     #[test]
     pub fn test_initialization_no_zk() {
         Tests::test_initialization(
-            &NarkASTestParams {
+            &R1CSNarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: false,
@@ -506,7 +506,7 @@ pub mod tests {
     #[test]
     pub fn test_initialization_zk() {
         Tests::test_initialization(
-            &NarkASTestParams {
+            &R1CSNarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: true,
@@ -518,7 +518,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_no_zk() {
         Tests::test_simple_accumulation(
-            &NarkASTestParams {
+            &R1CSNarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: false,
@@ -530,7 +530,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_zk() {
         Tests::test_simple_accumulation(
-            &NarkASTestParams {
+            &R1CSNarkASTestParams {
                 num_inputs: 1,
                 num_constraints: 10,
                 make_zk: true,

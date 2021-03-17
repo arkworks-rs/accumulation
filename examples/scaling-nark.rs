@@ -3,7 +3,7 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
-use ark_accumulation::nark_as::r1cs_nark::SimpleNARK;
+use ark_accumulation::r1cs_nark_as::r1cs_nark::R1CSNark;
 use ark_ff::PrimeField;
 use ark_pallas::{Affine, Fq, Fr};
 use ark_relations::{
@@ -61,7 +61,7 @@ fn profile_nark<R: Rng>(
     make_zk: bool,
     rng: &mut R,
 ) {
-    let pp = SimpleNARK::<Affine, PoseidonSponge<Fq>>::setup();
+    let pp = R1CSNark::<Affine, PoseidonSponge<Fq>>::setup();
     let mut times = Vec::new();
 
     for num_constraints in min_constraints..=max_constraints {
@@ -77,11 +77,11 @@ fn profile_nark<R: Rng>(
         let v = a * &c.b.unwrap();
 
         let start = Instant::now();
-        let (ipk, ivk) = SimpleNARK::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
+        let (ipk, ivk) = R1CSNark::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
         let index_time = start.elapsed().as_millis();
 
         let start = Instant::now();
-        let proof = SimpleNARK::<Affine, PoseidonSponge<Fq>>::prove(
+        let proof = R1CSNark::<Affine, PoseidonSponge<Fq>>::prove(
             &ipk,
             c.clone(),
             make_zk,
@@ -92,7 +92,7 @@ fn profile_nark<R: Rng>(
         let prover_time = start.elapsed().as_millis();
 
         let start = Instant::now();
-        assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(
+        assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
             &ivk,
             &[v, a, a, a, a],
             &proof,

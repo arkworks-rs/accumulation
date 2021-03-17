@@ -1,5 +1,5 @@
 use crate::constraints::NNFieldVar;
-use crate::ipa_as::data_structures::{InputInstance, Randomness, VerifierKey};
+use crate::ipa_pc_as::data_structures::{InputInstance, Randomness, VerifierKey};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -16,10 +16,10 @@ use ark_std::vec::Vec;
 
 pub(crate) type FinalCommKeyVar<C> = C;
 
-/// The [`VerifierKey`][vk] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+/// The [`VerifierKey`][vk] of the [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
+/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
 pub struct VerifierKeyVar<G, C>
 where
     G: AffineCurve,
@@ -61,10 +61,11 @@ where
     }
 }
 
-/// The [`InputInstance`][input_instance] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+/// The [`InputInstance`][input_instance] of the
+/// [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
 ///
 /// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
-/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
+/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -206,10 +207,10 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`IPAAtomicASVerifierGadget`][ipa_as_verifier].
+/// The [`Proof`][proof] of the [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
 ///
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
-/// [ipa_as_verifier]: crate::ipa_as::constraints::IPAAtomicASVerifierGadget
+/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

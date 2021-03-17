@@ -1,5 +1,5 @@
 use crate::constraints::{ASVerifierGadget, NNFieldVar};
-use crate::hc_as::HomomorphicCommitmentAS;
+use crate::trivial_pc_as::TrivialPcAS;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -22,10 +22,10 @@ use ark_std::vec::Vec;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier gadget of [`HomomorphicCommitmentAS`][hc_as].
+/// The verifier gadget of [`TrivialPcAS`][trivial_pc_as].
 ///
-/// [hc_as]: crate::hc_as::HomomorphicCommitmentAS
-pub struct HcASVerifierGadget<G, C, S, SV>
+/// [trivial_pc_as]: crate::trivial_pc_as::TrivialPcAS
+pub struct TrivialPcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -40,7 +40,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> HcASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> TrivialPcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -77,8 +77,8 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HomomorphicCommitmentAS<G, S>>
-    for HcASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, TrivialPcAS<G, S>>
+    for TrivialPcASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -214,9 +214,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::tests::ASVerifierGadgetTests;
-    use crate::hc_as::constraints::HcASVerifierGadget;
-    use crate::hc_as::tests::{HcASTestInput, HcASTestParams};
-    use crate::hc_as::HomomorphicCommitmentAS;
+    use crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget;
+    use crate::trivial_pc_as::tests::{TrivialPcASTestInput, TrivialPcASTestParams};
+    use crate::trivial_pc_as::TrivialPcAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -227,34 +227,34 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = HomomorphicCommitmentAS<G, Sponge>;
-    type ASV = HcASVerifierGadget<G, C, Sponge, SpongeVar>;
-    type I = HcASTestInput;
+    type AS = TrivialPcAS<G, Sponge>;
+    type ASV = TrivialPcASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type I = TrivialPcASTestInput;
 
     type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
     #[test]
     pub fn test_initialization_no_zk() {
-        Tests::test_initialization(&HcASTestParams { degree: 8 }, 1);
+        Tests::test_initialization(&TrivialPcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_initialization_zk() {
-        Tests::test_initialization(&HcASTestParams { degree: 8 }, 1);
+        Tests::test_initialization(&TrivialPcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        Tests::test_simple_accumulation(&HcASTestParams { degree: 8 }, 1);
+        Tests::test_simple_accumulation(&TrivialPcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        Tests::test_simple_accumulation(&HcASTestParams { degree: 8 }, 1);
+        Tests::test_simple_accumulation(&TrivialPcASTestParams { degree: 8 }, 1);
     }
 
     #[test]
     pub fn print_breakdown() {
-        Tests::print_costs_breakdown(&HcASTestParams { degree: 8 });
+        Tests::print_costs_breakdown(&TrivialPcASTestParams { degree: 8 });
     }
 }

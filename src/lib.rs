@@ -42,12 +42,11 @@ pub mod error;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-/// An accumulation scheme for Homomorphic commitment schemes. The implementation is specialized
-/// for Pedersen polynomial commitment schemes.
+/// An accumulation scheme for trivial homomorphic commitment schemes.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub mod hc_as;
+pub mod trivial_pc_as;
 
 /// An accumulation scheme for the Hadamard product relation.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
@@ -59,14 +58,14 @@ pub mod hp_as;
 /// The construction is described in detail in [BCMS20][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub mod ipa_as;
+pub mod ipa_pc_as;
 
 /// An accumulation scheme for a NARK for R1CS.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 #[cfg(feature = "r1cs")]
-pub mod nark_as;
+pub mod r1cs_nark_as;
 
 /// Specifies the zero-knowledge configuration for an accumulation.
 pub enum MakeZK<'a> {

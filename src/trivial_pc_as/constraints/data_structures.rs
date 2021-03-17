@@ -1,5 +1,5 @@
 use crate::constraints::NNFieldVar;
-use crate::hc_as::{InputInstance, SingleProof};
+use crate::trivial_pc_as::{InputInstance, SingleProof};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -15,10 +15,10 @@ use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
 
-/// The [`VerifierKey`][vk] of the [`HcASVerifierGadget`][hc_as_verifier].
+/// The [`VerifierKey`][vk] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
+/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 
 impl<CF> AllocVar<usize, CF> for VerifierKeyVar<CF>
@@ -46,10 +46,10 @@ where
     }
 }
 
-/// The [`InputInstance`][input] of the [`HcASVerifierGadget`][hc_as_verifier].
+/// The [`InputInstance`][input] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
 ///
 /// [input]: crate::constraints::ASVerifierGadget::InputInstance
-/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
+/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -171,10 +171,10 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`HcASVerifierGadget`][hc_as_verifier].
+/// The [`Proof`][proof] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
 ///
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
-/// [hc_as_verifier]: crate::hc_as::constraints::HcASVerifierGadget
+/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

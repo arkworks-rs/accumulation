@@ -16,8 +16,8 @@ use std::time::Instant;
 //     decider_times: Vec<f64>,
 // }
 
-use crate::ipa_as::IpaPCDomain;
-use ark_accumulation::ipa_as;
+use crate::ipa_pc_as::IpaPCDomain;
+use ark_accumulation::ipa_pc_as;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
 use ark_poly_commit::pedersen_pc::PedersenPC;

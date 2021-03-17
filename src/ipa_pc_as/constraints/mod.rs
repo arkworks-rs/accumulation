@@ -1,5 +1,5 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, NNFieldVar};
-use crate::ipa_as::{InnerProductArgAtomicAS, IpaPCDomain};
+use crate::ipa_pc_as::{InnerProductArgPCAtomicAS, IpaPCDomain};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -29,10 +29,10 @@ use ark_std::vec::Vec;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier gadget of [`InnerProductArgAtomicAS`][ipa_as].
+/// The verifier gadget of [`InnerProductArgPCAtomicAS`][ipa_pc_as].
 ///
-/// [ipa_as]: crate::ipa_as::InnerProductArgAtomicAS
-pub struct IPAAtomicASVerifierGadget<G, C, S, SV>
+/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+pub struct IpaPCAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -47,7 +47,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> IPAAtomicASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> IpaPCAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -281,8 +281,8 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgAtomicAS<G, S>>
-    for IPAAtomicASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgPCAtomicAS<G, S>>
+    for IpaPCAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -316,7 +316,7 @@ where
         _sponge: SV,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError> {
         unimplemented!(
-            "IpaAS is unable to accept sponge objects until IpaPC gets updated to accept them too."
+            "IpaPcAS is unable to accept sponge objects until IpaPC gets updated to accept them."
         );
     }
 
@@ -401,8 +401,8 @@ where
     }
 }
 
-impl<G, C, S, SV> AtomicASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgAtomicAS<G, S>>
-    for IPAAtomicASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> AtomicASVerifierGadget<ConstraintF<G>, S, SV, InnerProductArgPCAtomicAS<G, S>>
+    for IpaPCAtomicASVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
@@ -416,9 +416,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::tests::ASVerifierGadgetTests;
-    use crate::ipa_as::constraints::IPAAtomicASVerifierGadget;
-    use crate::ipa_as::tests::{IpaAtomicASTestInput, IpaAtomicASTestParams};
-    use crate::ipa_as::InnerProductArgAtomicAS;
+    use crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget;
+    use crate::ipa_pc_as::tests::{IpaPCAtomicASTestInput, IpaPCAtomicASTestParams};
+    use crate::ipa_pc_as::InnerProductArgPCAtomicAS;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -429,16 +429,16 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = InnerProductArgAtomicAS<G, Sponge>;
-    type I = IpaAtomicASTestInput;
-    type ASV = IPAAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = InnerProductArgPCAtomicAS<G, Sponge>;
+    type I = IpaPCAtomicASTestInput;
+    type ASV = IpaPCAtomicASVerifierGadget<G, C, Sponge, SpongeVar>;
 
     type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
     #[test]
     pub fn test_initialization_no_zk() {
         Tests::test_initialization(
-            &IpaAtomicASTestParams {
+            &IpaPCAtomicASTestParams {
                 degree: 8,
                 make_zk: false,
             },
@@ -449,7 +449,7 @@ pub mod tests {
     #[test]
     pub fn test_initialization_zk() {
         Tests::test_initialization(
-            &IpaAtomicASTestParams {
+            &IpaPCAtomicASTestParams {
                 degree: 8,
                 make_zk: true,
             },
@@ -460,7 +460,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_no_zk() {
         Tests::test_simple_accumulation(
-            &IpaAtomicASTestParams {
+            &IpaPCAtomicASTestParams {
                 degree: 8,
                 make_zk: false,
             },
@@ -471,7 +471,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_zk() {
         Tests::test_simple_accumulation(
-            &IpaAtomicASTestParams {
+            &IpaPCAtomicASTestParams {
                 degree: 8,
                 make_zk: true,
             },

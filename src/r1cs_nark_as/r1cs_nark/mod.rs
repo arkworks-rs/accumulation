@@ -26,7 +26,7 @@ type R1CSResult<T> = Result<T, SynthesisError>;
 pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
 
 /// A simple non-interactive argument of knowledge for R1CS.
-pub struct SimpleNARK<G, S>
+pub struct R1CSNark<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -36,7 +36,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, S> SimpleNARK<G, S>
+impl<G, S> R1CSNark<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -459,13 +459,13 @@ pub(crate) mod test {
         };
         let v = c.a.unwrap() * &c.b.unwrap();
 
-        let pp = SimpleNARK::<Affine, PoseidonSponge<Fq>>::setup();
-        let (ipk, ivk) = SimpleNARK::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
+        let pp = R1CSNark::<Affine, PoseidonSponge<Fq>>::setup();
+        let (ipk, ivk) = R1CSNark::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
 
         let start = ark_std::time::Instant::now();
 
         for i in 0..NUM_ITERS {
-            let proof = SimpleNARK::<Affine, PoseidonSponge<Fq>>::prove(
+            let proof = R1CSNark::<Affine, PoseidonSponge<Fq>>::prove(
                 &ipk,
                 c.clone(),
                 i % 2 == 1,
@@ -473,7 +473,7 @@ pub(crate) mod test {
                 Some(rng),
             )
             .unwrap();
-            assert!(SimpleNARK::<Affine, PoseidonSponge<Fq>>::verify(
+            assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
                 &ivk,
                 &[v],
                 &proof,
