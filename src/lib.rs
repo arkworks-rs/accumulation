@@ -100,8 +100,8 @@ impl<'a> MakeZK<'a> {
 /// [pf]: AccumulationScheme::Proof
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized {
-    /// The universal parameters for the accumulation scheme.
-    type UniversalParams: Clone;
+    /// The public parameters for the accumulation scheme.
+    type PublicParameters: Clone;
 
     /// The public parameters of the accumulation scheme's predicate.
     type PredicateParams: Clone;
@@ -138,13 +138,13 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
     /// The error type used in the scheme.
     type Error: ark_std::error::Error;
 
-    /// Outputs the universal parameters of the accumulation scheme.
-    fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error>;
+    /// Outputs the public parameters of the accumulation scheme.
+    fn setup(rng: &mut impl RngCore) -> Result<Self::PublicParameters, Self::Error>;
 
     /// Outputs the prover, verifier, and decider keys, specialized for a specific index of the
     /// predicate.
     fn index(
-        universal_params: &Self::UniversalParams,
+        public_params: &Self::PublicParameters,
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error>;
@@ -327,10 +327,10 @@ pub mod tests {
             let total_num_inputs = num_iterations * num_inputs_per_iteration.iter().sum::<usize>();
 
             let mut rng = ark_std::test_rng();
-            let universal_params = AS::generate(&mut rng)?;
+            let public_params = AS::setup(&mut rng)?;
 
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
-            let (pk, vk, dk) = AS::index(&universal_params, &predicate_params, &predicate_index)?;
+            let (pk, vk, dk) = AS::index(&public_params, &predicate_params, &predicate_index)?;
 
             let inputs = I::generate_inputs(&input_params, total_num_inputs, &mut rng);
             assert_eq!(total_num_inputs, inputs.len());

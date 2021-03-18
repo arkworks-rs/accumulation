@@ -76,7 +76,7 @@ fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
 
         let ((ck, _), predicate_params, predicate_index) =
             sample_parameters_and_index(supported_degree, rng);
-        let as_pp = AS::generate(rng).unwrap();
+        let as_pp = AS::setup(rng).unwrap();
 
         let start = Instant::now();
         let (pk, vk, dk) = AS::index(&as_pp, &predicate_params, &predicate_index).unwrap();

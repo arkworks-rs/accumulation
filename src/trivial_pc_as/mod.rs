@@ -248,7 +248,7 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     S: CryptographicSponge<ConstraintF<G>>,
 {
-    type UniversalParams = ();
+    type PublicParameters = ();
     type PredicateParams = pedersen_pc::UniversalParams<G>;
     type PredicateIndex = usize;
 
@@ -266,12 +266,12 @@ where
 
     type Error = BoxedError;
 
-    fn generate(_rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
+    fn setup(_rng: &mut impl RngCore) -> Result<Self::PublicParameters, Self::Error> {
         Ok(())
     }
 
     fn index(
-        _universal_params: &Self::UniversalParams,
+        _public_params: &Self::PublicParameters,
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {

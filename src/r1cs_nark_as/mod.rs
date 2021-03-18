@@ -514,8 +514,8 @@ where
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
-    type UniversalParams =
-        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::UniversalParams;
+    type PublicParameters =
+        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PublicParameters;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -530,12 +530,12 @@ where
     type Proof = Proof<G>;
     type Error = BoxedError;
 
-    fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
-        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::generate(rng)
+    fn setup(rng: &mut impl RngCore) -> Result<Self::PublicParameters, Self::Error> {
+        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::setup(rng)
     }
 
     fn index(
-        _universal_params: &Self::UniversalParams,
+        _public_params: &Self::PublicParameters,
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {

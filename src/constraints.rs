@@ -135,7 +135,7 @@ pub mod tests {
             for _ in 0..num_iterations {
                 let (input_params, predicate_params, predicate_index) =
                     I::setup(test_params, &mut rng);
-                let pp = AS::generate(&mut rng).unwrap();
+                let pp = AS::setup(&mut rng).unwrap();
                 let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
 
                 let mut input = I::generate_inputs(&input_params, 1, &mut rng);
@@ -183,7 +183,7 @@ pub mod tests {
             for _ in 0..num_iterations {
                 let (input_params, predicate_params, predicate_index) =
                     I::setup(test_params, &mut rng);
-                let pp = AS::generate(&mut rng).unwrap();
+                let pp = AS::setup(&mut rng).unwrap();
                 let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
 
                 let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
@@ -248,7 +248,7 @@ pub mod tests {
             let mut rng = ark_std::test_rng();
 
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
-            let pp = AS::generate(&mut rng).unwrap();
+            let pp = AS::setup(&mut rng).unwrap();
             let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
 
             let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
