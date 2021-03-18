@@ -14,10 +14,10 @@ use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
 
-/// The [`VerifierKey`][vk] of the [`HpASVerifierGadget`][hp_as_verifier].
+/// The [`VerifierKey`][vk] of the [`ASForHPVerifierGadget`][as_for_hp_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
+/// [as_for_hp_verifier]: crate::hp_as::constraints::ASForHPVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
     /// The maximum supported vector length of the Hadamard product relation.
     pub(crate) num_supported_elems: FpVar<CF>,
@@ -42,10 +42,10 @@ impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
     }
 }
 
-/// The [`InputInstance`][input] of the [`HpASVerifierGadget`][hp_as_verifier].
+/// The [`InputInstance`][input] of the [`ASForHPVerifierGadget`][as_for_hp_verifier].
 ///
 /// [input]: crate::constraints::ASVerifierGadget::InputInstance
-/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
+/// [as_for_hp_verifier]: crate::hp_as::constraints::ASForHPVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -99,10 +99,10 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`HpASVerifierGadget`][hp_as_verifier].
+/// The [`Proof`][proof] of the [`ASForHPVerifierGadget`][as_for_hp_verifier].
 ///
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
-/// [hp_as_verifier]: crate::hp_as::constraints::HpASVerifierGadget
+/// [as_for_hp_verifier]: crate::hp_as::constraints::ASForHPVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

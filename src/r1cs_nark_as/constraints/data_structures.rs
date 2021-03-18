@@ -61,10 +61,10 @@ impl<CF: PrimeField> AllocVar<IndexInfo, CF> for IndexInfoVar<CF> {
     }
 }
 
-/// The [`VerifierKey`][vk] of the [`R1CSNarkASVerifierGadget`][r1cs_nark_as_verifier].
+/// The [`VerifierKey`][vk] of the [`ASForR1CSNarkVerifierGadget`][as_for_r1cs_nark_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [r1cs_nark_as_verifier]: crate::r1cs_nark_as::constraints::R1CSNarkASVerifierGadget
+/// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
     /// Information about the index.
     pub(crate) nark_index: IndexInfoVar<CF>,
@@ -214,10 +214,10 @@ where
 }
 
 /// The [`InputInstance`][input_instance] of the
-/// [`R1CSNarkASVerifierGadget`][r1cs_nark_as_verifier].
+/// [`ASForR1CSNarkVerifierGadget`][as_for_r1cs_nark_verifier].
 ///
 /// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
-/// [r1cs_nark_as_verifier]: crate::r1cs_nark_as::constraints::R1CSNarkASVerifierGadget
+/// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// An R1CS input.
     pub r1cs_input: Vec<NNFieldVar<G>>,
@@ -284,10 +284,10 @@ where
 }
 
 /// The [`AccumulatorInstance`][acc_instance] of the
-/// [`R1CSNarkASVerifierGadget`][r1cs_nark_as_verifier].
+/// [`ASForR1CSNarkVerifierGadget`][as_for_r1cs_nark_verifier].
 ///
 /// [acc_instance]: crate::constraints::ASVerifierGadget::AccumulatorInstance
-/// [r1cs_nark_as_verifier]: crate::r1cs_nark_as::constraints::R1CSNarkASVerifierGadget
+/// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// An input for the indexed relation.
     pub(crate) r1cs_input: Vec<NNFieldVar<G>>,
@@ -366,10 +366,10 @@ where
     }
 }
 
-/// The [`Proof`][proof_var] of the [`R1CSNarkASVerifierGadget`][r1cs_nark_as_verifier].
+/// The [`Proof`][proof_var] of the [`ASForR1CSNarkVerifierGadget`][as_for_r1cs_nark_verifier].
 ///
 /// [proof_var]: crate::constraints::ASVerifierGadget::Proof
-/// [r1cs_nark_as_verifier]: crate::r1cs_nark_as::constraints::R1CSNarkASVerifierGadget
+/// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct ProofVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// The Hadamard product accumulation scheme proof.
     pub(crate) hp_proof: HPProofVar<G, C>,

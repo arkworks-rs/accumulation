@@ -13,10 +13,10 @@ use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
-/// The [`PredicateIndex`][predicate_index] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`PredicateIndex`][predicate_index] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [predicate_index]: crate::AccumulationScheme::PredicateIndex
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone)]
 pub struct PredicateIndex<F: Field> {
     /// The `A` matrix for the R1CS instance.
@@ -32,10 +32,10 @@ pub struct PredicateIndex<F: Field> {
     pub index: usize,
 }
 
-/// The [`ProverKey`][pk] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`ProverKey`][pk] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [pk]: crate::AccumulationScheme::ProverKey
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
     /// The NARK prover key.
@@ -45,10 +45,10 @@ pub struct ProverKey<G: AffineCurve> {
     pub(crate) as_matrices_hash: [u8; 32],
 }
 
-/// The [`VerifierKey`][vk] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`VerifierKey`][vk] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [vk]: crate::AccumulationScheme::VerifierKey
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone)]
 pub struct VerifierKey {
     /// Information about the index.
@@ -58,10 +58,10 @@ pub struct VerifierKey {
     pub(crate) as_matrices_hash: [u8; 32],
 }
 
-/// The [`InputInstance`][input_instance] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`InputInstance`][input_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [input_instance]: crate::AccumulationScheme::InputInstance
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     /// An R1CS input for the indexed relation.
@@ -97,10 +97,10 @@ where
     }
 }
 
-/// The [`InputWitness`][input_witness] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`InputWitness`][input_witness] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [input_witness]: crate::AccumulationScheme::InputWitness
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWitness<F: Field> {
     /// The sigma protocol's prover commitment of the NARK.
@@ -110,10 +110,10 @@ pub struct InputWitness<F: Field> {
     pub make_zk: bool,
 }
 
-/// The [`AccumulatorInstance`][acc_instance] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`AccumulatorInstance`][acc_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [acc_instance]: crate::AccumulationScheme::AccumulatorInstance
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccumulatorInstance<G: AffineCurve> {
     /// An input for the indexed relation.
@@ -175,10 +175,10 @@ pub(crate) struct AccumulatorWitnessRandomness<F: Field> {
     pub(crate) sigma_c: F,
 }
 
-/// The [`AccumulatorWitness`][acc_witness] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`AccumulatorWitness`][acc_witness] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [acc_witness]: crate::AccumulationScheme::AccumulatorWitness
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccumulatorWitness<F: Field> {
     /// The R1CS witness with randomness applied if zero-knowledge is needed.
@@ -191,10 +191,10 @@ pub struct AccumulatorWitness<F: Field> {
     pub(crate) randomness: Option<AccumulatorWitnessRandomness<F>>,
 }
 
-/// The [`Proof`][proof] of the [`R1CSNarkAS`][r1cs_nark_as].
+/// The [`Proof`][proof] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [proof]: crate::AccumulationScheme::Proof
-/// [r1cs_nark_as]: crate::r1cs_nark_as::R1CSNarkAS
+/// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     /// The Hadamard product accumulation scheme proof.

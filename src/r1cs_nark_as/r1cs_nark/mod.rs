@@ -23,7 +23,7 @@ pub use data_structures::*;
 
 type R1CSResult<T> = Result<T, SynthesisError>;
 
-pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-2020";
+pub(crate) const PROTOCOL_NAME: &[u8] = b"R1CS-NARK-2020";
 
 /// A simple non-interactive argument of knowledge for R1CS.
 pub struct R1CSNark<G, S>

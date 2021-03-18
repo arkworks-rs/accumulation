@@ -25,7 +25,7 @@ use rand_core::RngCore;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier constraints of [`InnerProductArgPCAtomicAS`].
+/// The verifier constraints of [`AtomicASForInnerProductArgPC`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
@@ -45,7 +45,7 @@ type IpaPC<G, S> = InnerProductArgPC<
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct InnerProductArgPCAtomicAS<G, S>
+pub struct AtomicASForInnerProductArgPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -55,7 +55,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, S> InnerProductArgPCAtomicAS<G, S>
+impl<G, S> AtomicASForInnerProductArgPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -345,7 +345,7 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme<ConstraintF<G>, S> for InnerProductArgPCAtomicAS<G, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -414,7 +414,7 @@ where
         Self: 'a,
     {
         unimplemented!(
-            "IpaPcAS is unable to accept sponge objects until IpaPC gets updated to accept them."
+            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
         );
     }
 
@@ -541,7 +541,7 @@ where
         Self: 'a,
     {
         unimplemented!(
-            "IpaPcAS is unable to accept sponge objects until IpaPC gets updated to accept them."
+            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
         );
     }
 
@@ -662,7 +662,7 @@ where
         _sponge: S,
     ) -> Result<bool, Self::Error> {
         unimplemented!(
-            "IpaPcAS is unable to accept sponge objects until IpaPC gets updated to accept them."
+            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
         );
     }
 
@@ -687,7 +687,7 @@ where
     }
 }
 
-impl<G, S> AtomicAccumulationScheme<ConstraintF<G>, S> for InnerProductArgPCAtomicAS<G, S>
+impl<G, S> AtomicAccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -700,7 +700,7 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::ipa_pc_as::data_structures::{InputInstance, PredicateIndex};
-    use crate::ipa_pc_as::{InnerProductArgPCAtomicAS, IpaPC};
+    use crate::ipa_pc_as::{AtomicASForInnerProductArgPC, IpaPC};
     use crate::tests::{ASTestInput, ASTests};
     use crate::AccumulationScheme;
     use crate::ConstraintF;
@@ -713,21 +713,21 @@ pub mod tests {
     use ark_sponge::{Absorbable, CryptographicSponge};
     use rand_core::RngCore;
 
-    pub struct IpaPCAtomicASTestParams {
+    pub struct AtomicASForIpaPCTestParams {
         pub(crate) degree: usize,
         pub(crate) make_zk: bool,
     }
 
-    pub struct IpaPCAtomicASTestInput {}
+    pub struct AtomicASForIpaPCTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, InnerProductArgPCAtomicAS<G, S>>
-        for IpaPCAtomicASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>
+        for AtomicASForIpaPCTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = IpaPCAtomicASTestParams;
+        type TestParams = AtomicASForIpaPCTestParams;
         type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>, bool);
 
         fn setup(
@@ -735,8 +735,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <InnerProductArgPCAtomicAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
-            <InnerProductArgPCAtomicAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+            <AtomicASForInnerProductArgPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <AtomicASForInnerProductArgPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ){
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
@@ -771,7 +771,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, InnerProductArgPCAtomicAS<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>> {
             let ck = &input_params.0;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -821,7 +821,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<_, _, InnerProductArgPCAtomicAS<G, S>> {
+                    Input::<_, _, AtomicASForInnerProductArgPC<G, S>> {
                         instance: input,
                         witness: (),
                     }
@@ -837,14 +837,14 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = InnerProductArgPCAtomicAS<G, Sponge>;
-    type I = IpaPCAtomicASTestInput;
+    type AS = AtomicASForInnerProductArgPC<G, Sponge>;
+    type I = AtomicASForIpaPCTestInput;
 
     type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&IpaPCAtomicASTestParams {
+        Tests::single_input_initialization_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -852,7 +852,7 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&IpaPCAtomicASTestParams {
+        Tests::single_input_initialization_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -860,7 +860,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&IpaPCAtomicASTestParams {
+        Tests::multiple_inputs_initialization_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -868,7 +868,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&IpaPCAtomicASTestParams {
+        Tests::multiple_inputs_initialization_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -876,7 +876,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&IpaPCAtomicASTestParams {
+        Tests::simple_accumulation_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -884,7 +884,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&IpaPCAtomicASTestParams {
+        Tests::simple_accumulation_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -892,7 +892,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&IpaPCAtomicASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -900,7 +900,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&IpaPCAtomicASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -908,7 +908,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&IpaPCAtomicASTestParams {
+        Tests::accumulators_only_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -916,7 +916,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&IpaPCAtomicASTestParams {
+        Tests::accumulators_only_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })
@@ -924,7 +924,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&IpaPCAtomicASTestParams {
+        Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: false,
         })
@@ -932,7 +932,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&IpaPCAtomicASTestParams {
+        Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
             degree: 8,
             make_zk: true,
         })

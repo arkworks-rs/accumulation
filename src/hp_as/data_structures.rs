@@ -6,10 +6,10 @@ use ark_std::io::{Read, Write};
 use ark_std::vec;
 use ark_std::vec::Vec;
 
-/// The [`InputInstance`][input_instance] of the [`HadamardProductAS`][hp_as].
+/// The [`InputInstance`][input_instance] of the [`ASForHadamardProducts`][as_for_hp].
 ///
 /// [input_instance]: crate::AccumulationScheme::InputInstance
-/// [hp_as]: crate::hp_as::HadamardProductAS
+/// [as_for_hp]: crate::hp_as::ASForHadamardProducts
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
 pub struct InputInstance<G: AffineCurve> {
     /// Pedersen commitment to the `a` vector of the Hadamard product relation.
@@ -46,10 +46,10 @@ where
     }
 }
 
-/// The [`InputWitness`][input_witness] of the [`HadamardProductAS`][hp_as].
+/// The [`InputWitness`][input_witness] of the [`ASForHadamardProducts`][as_for_hp].
 ///
 /// [input_witness]: crate::AccumulationScheme::InputWitness
-/// [hp_as]: crate::hp_as::HadamardProductAS
+/// [as_for_hp]: crate::hp_as::ASForHadamardProducts
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWitness<F: Field> {
     /// The `a` vector of the Hadamard product relation.
@@ -87,10 +87,10 @@ pub struct InputWitnessRandomness<F: Field> {
     pub rand_3: F,
 }
 
-/// The [`Proof`][proof] of the [`HadamardProductAS`][hp_as].
+/// The [`Proof`][proof] of the [`ASForHadamardProducts`][as_for_hp].
 ///
 /// [proof]: crate::AccumulationScheme::Proof
-/// [hp_as]: crate::hp_as::HadamardProductAS
+/// [as_for_hp]: crate::hp_as::ASForHadamardProducts
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     /// Pedersen commitments to each coefficient vector of the product polynomial

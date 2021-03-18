@@ -19,8 +19,8 @@ use std::time::Instant;
 // }
 
 use ark_accumulation::ipa_pc_as::IpaPCDomain;
-use ark_accumulation::{ipa_pc_as, ipa_pc_as::InnerProductArgPCAtomicAS};
-use ark_accumulation::{trivial_pc_as, trivial_pc_as::TrivialPcAS};
+use ark_accumulation::{ipa_pc_as, ipa_pc_as::AtomicASForInnerProductArgPC};
+use ark_accumulation::{trivial_pc_as, trivial_pc_as::ASForTrivialPC};
 use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
@@ -34,7 +34,7 @@ use blake2::Blake2s;
 use rand_core::RngCore;
 
 type PedPC = PedersenPC<G1Affine, DensePolynomial<Fr>>;
-type TrivPcAS = TrivialPcAS<G1Affine, PoseidonSponge<Fq>>;
+type ASForTrivPC = ASForTrivialPC<G1Affine, PoseidonSponge<Fq>>;
 
 type IpaPC = InnerProductArgPC<
     G1Affine,
@@ -43,7 +43,7 @@ type IpaPC = InnerProductArgPC<
     Fq,
     DomainSeparatedSponge<Fq, PoseidonSponge<Fq>, IpaPCDomain>,
 >;
-type IpaPcAS = InnerProductArgPCAtomicAS<G1Affine, PoseidonSponge<Fq>>;
+type ASForIpaPC = AtomicASForInnerProductArgPC<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
     min_degree: usize,
@@ -154,8 +154,8 @@ fn lh_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     PedPCKeys,
-    <TrivPcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
-    <TrivPcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
+    <ASForTrivPC as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
+    <ASForTrivPC as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
 ) {
     let predicate_params = PedPC::setup(degree, None, rng).unwrap();
     let (ck, vk) = PedPC::trim(&predicate_params, degree, 0, None).unwrap();
@@ -165,7 +165,7 @@ fn lh_param_gen<R: RngCore>(
 fn lh_input_gen<R: RngCore>(
     ck: &<PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
     rng: &mut R,
-) -> Vec<Input<Fq, PoseidonSponge<Fq>, TrivPcAS>> {
+) -> Vec<Input<Fq, PoseidonSponge<Fq>, ASForTrivPC>> {
     let labeled_polynomials = vec![{
         let degree = ck.supported_degree();
         let label = format!("Input{}", 1);
@@ -191,7 +191,7 @@ fn lh_input_gen<R: RngCore>(
                 eval,
             };
 
-            Input::<_, _, TrivPcAS> {
+            Input::<_, _, ASForTrivPC> {
                 instance,
                 witness: labeled_polynomial,
             }
@@ -211,8 +211,8 @@ fn dl_param_gen<R: RngCore>(
     rng: &mut R,
 ) -> (
     IpaPC_Keys,
-    <IpaPcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
-    <IpaPcAS as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
+    <ASForIpaPC as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateParams,
+    <ASForIpaPC as AccumulationScheme<Fq, PoseidonSponge<Fq>>>::PredicateIndex,
 ) {
     let predicate_params = IpaPC::setup(degree, None, rng).unwrap();
     let (ck, vk) = IpaPC::trim(&predicate_params, degree, 0, None).unwrap();
@@ -226,7 +226,7 @@ fn dl_param_gen<R: RngCore>(
 fn dl_input_gen<R: RngCore>(
     ck: &<IpaPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
     rng: &mut R,
-) -> Vec<Input<Fq, PoseidonSponge<Fq>, IpaPcAS>> {
+) -> Vec<Input<Fq, PoseidonSponge<Fq>, ASForIpaPC>> {
     let labeled_polynomials = vec![{
         let degree = ck.supported_degree();
         let label = format!("Input{}", 1);
@@ -276,7 +276,7 @@ fn dl_input_gen<R: RngCore>(
                 ipa_proof,
             };
 
-            Input::<_, _, IpaPcAS> {
+            Input::<_, _, ASForIpaPC> {
                 instance: input,
                 witness: (),
             }
@@ -299,16 +299,16 @@ fn main() {
         .expect("<log_max_degree> should be integer");
 
     let rng = &mut ark_std::test_rng();
-    println!("\n\n\n================ Benchmarking TrivialPcAS ================");
-    profile_as::<_, _, PedPC, _, _, TrivPcAS, _, _, _>(
+    println!("\n\n\n================ Benchmarking ASForTrivPC ================");
+    profile_as::<_, _, PedPC, _, _, ASForTrivPC, _, _, _>(
         min_degree,
         max_degree,
         lh_param_gen,
         lh_input_gen,
         rng,
     );
-    println!("\n\n\n================ Benchmarking IpaPcAS ================");
-    profile_as::<_, _, IpaPC, _, _, IpaPcAS, _, _, _>(
+    println!("\n\n\n================ Benchmarking ASForIpaPC ================");
+    profile_as::<_, _, IpaPC, _, _, ASForIpaPC, _, _, _>(
         min_degree,
         max_degree,
         dl_param_gen,

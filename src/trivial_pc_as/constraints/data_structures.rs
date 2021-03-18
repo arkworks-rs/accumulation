@@ -15,10 +15,10 @@ use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
 
-/// The [`VerifierKey`][vk] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
+/// The [`VerifierKey`][vk] of the [`ASForTrivialPC`][as_for_trivial_pc_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
+/// [as_for_trivial_pc_verifier]: crate::trivial_pc_as::constraints::ASForTrivialPCVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField>(pub(crate) FpVar<CF>);
 
 impl<CF> AllocVar<usize, CF> for VerifierKeyVar<CF>
@@ -46,10 +46,10 @@ where
     }
 }
 
-/// The [`InputInstance`][input] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
+/// The [`InputInstance`][input] of the [`ASForTrivialPC`][as_for_trivial_pc_verifier].
 ///
 /// [input]: crate::constraints::ASVerifierGadget::InputInstance
-/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
+/// [as_for_trivial_pc_verifier]: crate::trivial_pc_as::constraints::ASForTrivialPCVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -171,10 +171,10 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`TrivialPcASVerifierGadget`][trivial_pc_as_verifier].
+/// The [`Proof`][proof] of the [`ASForTrivialPC`][as_for_trivial_pc_verifier].
 ///
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
-/// [trivial_pc_as_verifier]: crate::trivial_pc_as::constraints::TrivialPcASVerifierGadget
+/// [as_for_trivial_pc_verifier]: crate::trivial_pc_as::constraints::ASForTrivialPCVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

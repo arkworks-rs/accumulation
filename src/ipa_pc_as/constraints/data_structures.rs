@@ -16,10 +16,10 @@ use ark_std::vec::Vec;
 
 pub(crate) type FinalCommKeyVar<C> = C;
 
-/// The [`VerifierKey`][vk] of the [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
+/// The [`VerifierKey`][vk] of the [`AtomicASForIpaPCVerifierGadget`][as_for_ipa_pc_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
-/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
+/// [as_for_ipa_pc_verifier]: crate::ipa_pc_as::constraints::AtomicASForIpaPCVerifierGadget
 pub struct VerifierKeyVar<G, C>
 where
     G: AffineCurve,
@@ -62,10 +62,10 @@ where
 }
 
 /// The [`InputInstance`][input_instance] of the
-/// [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
+/// [`AtomicASForIpaPCVerifierGadget`][as_for_ipa_pc_verifier].
 ///
 /// [input_instance]: crate::constraints::ASVerifierGadget::InputInstance
-/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
+/// [as_for_ipa_pc_verifier]: crate::ipa_pc_as::constraints::AtomicASForIpaPCVerifierGadget
 pub struct InputInstanceVar<G, C>
 where
     G: AffineCurve,
@@ -207,10 +207,10 @@ where
     }
 }
 
-/// The [`Proof`][proof] of the [`IpaPCAtomicASVerifierGadget`][ipa_pc_as_verifier].
+/// The [`Proof`][proof] of the [`AtomicASForIpaPCVerifierGadget`][as_for_ipa_pc_verifier].
 ///
 /// [proof]: crate::constraints::ASVerifierGadget::Proof
-/// [ipa_pc_as_verifier]: crate::ipa_pc_as::constraints::IpaPCAtomicASVerifierGadget
+/// [as_for_ipa_pc_verifier]: crate::ipa_pc_as::constraints::AtomicASForIpaPCVerifierGadget
 pub struct ProofVar<G, C>
 where
     G: AffineCurve,

@@ -1,6 +1,6 @@
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
 use crate::error::{ASError, BoxedError};
-use crate::hp_as::HadamardProductAS;
+use crate::hp_as::ASForHadamardProducts;
 use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
     InputWitnessRandomness as HPInputWitnessRandomness,
@@ -31,12 +31,12 @@ pub use data_structures::*;
 /// A simple non-interactive argument of knowledge for R1CS.
 pub mod r1cs_nark;
 
-/// The verifier constraints of [`R1CSNarkAS`].
+/// The verifier constraints of [`ASForR1CSNark`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"Hadamard-Product-Accumulation-Scheme-2020";
-pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2020";
+pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"AS-FOR-HP-2020";
+pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 
 /// An accumulation scheme for a NARK for R1CS.
 /// The construction is described in detail in [BCLMS20][pcdwsa].
@@ -45,7 +45,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"Simple-R1CS-NARK-Accumulation-Scheme-2
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub struct R1CSNarkAS<G, CS, S>
+pub struct ASForR1CSNark<G, CS, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -57,7 +57,7 @@ where
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, CS, S> R1CSNarkAS<G, CS, S>
+impl<G, CS, S> ASForR1CSNark<G, CS, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -363,16 +363,16 @@ where
         };
 
         let combined_r1cs_input =
-            HadamardProductAS::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
+            ASForHadamardProducts::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
 
         let combined_comm_a_proj =
-            HadamardProductAS::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
+            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
 
         let combined_comm_b_proj =
-            HadamardProductAS::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
+            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
 
         let combined_comm_c_proj =
-            HadamardProductAS::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
+            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_c_proj,
@@ -469,21 +469,30 @@ where
                 )
             };
 
-        let combined_r1cs_blinded_witness = HadamardProductAS::<G, S>::combine_vectors(
+        let combined_r1cs_blinded_witness = ASForHadamardProducts::<G, S>::combine_vectors(
             r1cs_blinded_witnesses,
             beta_challenges,
             None,
         );
 
         let witness_randomness = if prover_witness_randomness.is_some() {
-            let combined_sigma_a =
-                HadamardProductAS::<G, S>::combine_randomness(all_sigma_a, beta_challenges, None);
+            let combined_sigma_a = ASForHadamardProducts::<G, S>::combine_randomness(
+                all_sigma_a,
+                beta_challenges,
+                None,
+            );
 
-            let combined_sigma_b =
-                HadamardProductAS::<G, S>::combine_randomness(all_sigma_b, beta_challenges, None);
+            let combined_sigma_b = ASForHadamardProducts::<G, S>::combine_randomness(
+                all_sigma_b,
+                beta_challenges,
+                None,
+            );
 
-            let combined_sigma_c =
-                HadamardProductAS::<G, S>::combine_randomness(all_sigma_c, beta_challenges, None);
+            let combined_sigma_c = ASForHadamardProducts::<G, S>::combine_randomness(
+                all_sigma_c,
+                beta_challenges,
+                None,
+            );
 
             Some(AccumulatorWitnessRandomness {
                 sigma_a: combined_sigma_a,
@@ -498,7 +507,7 @@ where
     }
 }
 
-impl<G, CS, S> AccumulationScheme<ConstraintF<G>, S> for R1CSNarkAS<G, CS, S>
+impl<G, CS, S> AccumulationScheme<ConstraintF<G>, S> for ASForR1CSNark<G, CS, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -506,7 +515,7 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type UniversalParams =
-        <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::UniversalParams;
+        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::UniversalParams;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -522,7 +531,7 @@ where
     type Error = BoxedError;
 
     fn generate(rng: &mut impl RngCore) -> Result<Self::UniversalParams, Self::Error> {
-        <HadamardProductAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::generate(rng)
+        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::generate(rng)
     }
 
     fn index(
@@ -648,7 +657,7 @@ where
             .iter()
             .zip(&combined_hp_input_witnesses)
             .map(
-                |(instance, witness)| InputRef::<_, _, HadamardProductAS<_, S>> {
+                |(instance, witness)| InputRef::<_, _, ASForHadamardProducts<_, S>> {
                     instance,
                     witness,
                 },
@@ -658,13 +667,13 @@ where
             .iter()
             .zip(&accumulator_witnesses)
             .map(
-                |(instance, witness)| AccumulatorRef::<_, _, HadamardProductAS<_, S>> {
+                |(instance, witness)| AccumulatorRef::<_, _, ASForHadamardProducts<_, S>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
             );
 
-        let (hp_accumulator, hp_proof) = HadamardProductAS::<_, S>::prove_with_sponge(
+        let (hp_accumulator, hp_proof) = ASForHadamardProducts::<_, S>::prove_with_sponge(
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
@@ -783,7 +792,7 @@ where
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        let hp_verify = HadamardProductAS::<_, S>::verify_with_sponge(
+        let hp_verify = ASForHadamardProducts::<_, S>::verify_with_sponge(
             &verifier_key.nark_index.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
@@ -871,9 +880,9 @@ where
             && comm_c.eq(&instance.comm_c);
 
         Ok(comm_check
-            && HadamardProductAS::<_, S>::decide_with_sponge(
+            && ASForHadamardProducts::<_, S>::decide_with_sponge(
                 &decider_key.ck,
-                AccumulatorRef::<_, _, HadamardProductAS<_, S>> {
+                AccumulatorRef::<_, _, ASForHadamardProducts<_, S>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
@@ -889,7 +898,7 @@ pub mod tests {
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
     use crate::r1cs_nark_as::r1cs_nark::IndexProverKey;
     use crate::r1cs_nark_as::r1cs_nark::R1CSNark;
-    use crate::r1cs_nark_as::{r1cs_nark, R1CSNarkAS};
+    use crate::r1cs_nark_as::{r1cs_nark, ASForR1CSNark};
     use crate::tests::*;
     use crate::AccumulationScheme;
     use crate::ConstraintF;
@@ -907,7 +916,7 @@ pub mod tests {
 
     #[derive(Clone)]
     // num_variables = num_inputs + 2
-    pub struct R1CSNarkASTestParams {
+    pub struct ASForR1CSNarkTestParams {
         // At least one input required.
         pub num_inputs: usize,
 
@@ -921,7 +930,7 @@ pub mod tests {
     pub(crate) struct DummyCircuit<F: PrimeField> {
         pub a: Option<F>,
         pub b: Option<F>,
-        pub params: R1CSNarkASTestParams,
+        pub params: ASForR1CSNarkTestParams,
     }
 
     impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
@@ -949,16 +958,16 @@ pub mod tests {
         }
     }
 
-    pub struct R1CSNarkASTestInput {}
+    pub struct ASForR1CSNarkTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, R1CSNarkAS<G, DummyCircuit<G::ScalarField>, S>>
-        for R1CSNarkASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>
+        for ASForR1CSNarkTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = R1CSNarkASTestParams;
+        type TestParams = ASForR1CSNarkTestParams;
         type InputParams = (Self::TestParams, IndexProverKey<G>);
 
         fn setup(
@@ -966,11 +975,11 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <R1CSNarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
+            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
                 ConstraintF<G>,
                 S,
             >>::PredicateParams,
-            <R1CSNarkAS<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
+            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
                 ConstraintF<G>,
                 S,
             >>::PredicateIndex,
@@ -992,7 +1001,8 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, R1CSNarkAS<G, DummyCircuit<G::ScalarField>, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>>
+        {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -1036,7 +1046,7 @@ pub mod tests {
                 };
 
                 inputs.push(
-                    Input::<_, _, R1CSNarkAS<G, DummyCircuit<G::ScalarField>, S>> {
+                    Input::<_, _, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>> {
                         instance,
                         witness,
                     },
@@ -1053,14 +1063,14 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = R1CSNarkAS<G, DummyCircuit<F>, PoseidonSponge<CF>>;
-    type I = R1CSNarkASTestInput;
+    type AS = ASForR1CSNark<G, DummyCircuit<F>, PoseidonSponge<CF>>;
+    type I = ASForR1CSNarkTestInput;
 
     type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&R1CSNarkASTestParams {
+        Tests::single_input_initialization_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1069,7 +1079,7 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&R1CSNarkASTestParams {
+        Tests::single_input_initialization_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
@@ -1078,7 +1088,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&R1CSNarkASTestParams {
+        Tests::multiple_inputs_initialization_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1087,7 +1097,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&R1CSNarkASTestParams {
+        Tests::multiple_inputs_initialization_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
@@ -1096,7 +1106,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&R1CSNarkASTestParams {
+        Tests::simple_accumulation_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1105,7 +1115,7 @@ pub mod tests {
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&R1CSNarkASTestParams {
+        Tests::simple_accumulation_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
@@ -1114,7 +1124,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&R1CSNarkASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1123,7 +1133,7 @@ pub mod tests {
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&R1CSNarkASTestParams {
+        Tests::multiple_accumulations_multiple_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
@@ -1132,7 +1142,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&R1CSNarkASTestParams {
+        Tests::accumulators_only_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1141,7 +1151,7 @@ pub mod tests {
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&R1CSNarkASTestParams {
+        Tests::accumulators_only_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
@@ -1150,7 +1160,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&R1CSNarkASTestParams {
+        Tests::no_accumulators_or_inputs_fail_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1159,7 +1169,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&R1CSNarkASTestParams {
+        Tests::no_accumulators_or_inputs_fail_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,

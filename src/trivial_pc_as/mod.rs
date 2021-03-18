@@ -23,7 +23,7 @@ use rand_core::RngCore;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier constraints of [`TrivialPcAS`].
+/// The verifier constraints of [`ASForTrivialPC`].
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
@@ -36,7 +36,7 @@ pub mod constraints;
 ///
 /// [pc_ped]: ark_poly_commit::pedersen_pc::PedersenPC
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub struct TrivialPcAS<G, S>
+pub struct ASForTrivialPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -46,7 +46,7 @@ where
     _sponge: PhantomData<S>,
 }
 
-impl<G, S> TrivialPcAS<G, S>
+impl<G, S> ASForTrivialPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -242,7 +242,7 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme<ConstraintF<G>, S> for TrivialPcAS<G, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForTrivialPC<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -568,7 +568,7 @@ pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
     use crate::tests::*;
-    use crate::trivial_pc_as::{InputInstance, TrivialPcAS};
+    use crate::trivial_pc_as::{ASForTrivialPC, InputInstance};
     use crate::AccumulationScheme;
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
@@ -583,19 +583,19 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
-    pub struct TrivialPcASTestParams {
+    pub struct ASForTrivialPCTestParams {
         pub(crate) degree: usize,
     }
 
-    pub struct TrivialPcASTestInput {}
+    pub struct ASForTrivialPCTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, TrivialPcAS<G, S>> for TrivialPcASTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForTrivialPC<G, S>> for ASForTrivialPCTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
         S: CryptographicSponge<ConstraintF<G>>,
     {
-        type TestParams = TrivialPcASTestParams;
+        type TestParams = ASForTrivialPCTestParams;
         type InputParams = pedersen_pc::CommitterKey<G>;
 
         fn setup(
@@ -603,8 +603,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <TrivialPcAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
-            <TrivialPcAS<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+            <ASForTrivialPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <ASForTrivialPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ) {
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
@@ -629,7 +629,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, TrivialPcAS<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, S, ASForTrivialPC<G, S>>> {
             let ck = input_params;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -667,7 +667,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<_, _, TrivialPcAS<G, S>> {
+                    Input::<_, _, ASForTrivialPC<G, S>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -683,38 +683,38 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = TrivialPcAS<G, Sponge>;
-    type I = TrivialPcASTestInput;
+    type AS = ASForTrivialPC<G, Sponge>;
+    type I = ASForTrivialPCTestInput;
 
     type Tests = ASTests<CF, Sponge, AS, I>;
 
     #[test]
     pub fn single_input_initialization_test() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::single_input_initialization_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 
     #[test]
     pub fn multiple_inputs_initialization_test() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::multiple_inputs_initialization_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 
     #[test]
     pub fn simple_accumulation_test() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::simple_accumulation_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::multiple_accumulations_multiple_inputs_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 
     #[test]
     pub fn accumulators_only_test() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::accumulators_only_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&TrivialPcASTestParams { degree: 8 })
+        Tests::no_accumulators_or_inputs_fail_test(&ASForTrivialPCTestParams { degree: 8 })
     }
 }

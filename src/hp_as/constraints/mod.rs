@@ -1,6 +1,6 @@
 use crate::constraints::{ASVerifierGadget, NNFieldVar};
 use crate::hp_as::data_structures::InputInstance;
-use crate::hp_as::HadamardProductAS;
+use crate::hp_as::ASForHadamardProducts;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -20,10 +20,10 @@ use ark_std::vec::Vec;
 mod data_structures;
 pub use data_structures::*;
 
-/// The verifier gadget of [`HadamardProductAS`][hp_as].
+/// The verifier gadget of [`ASForHadamardProducts`][as_for_hp].
 ///
-/// [hp_as]: crate::hp_as::HadamardProductAS
-pub struct HpASVerifierGadget<G, C, S, SV>
+/// [as_for_hp]: crate::hp_as::ASForHadamardProducts
+pub struct ASForHPVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -37,7 +37,7 @@ where
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> HpASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASForHPVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -242,8 +242,8 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, HadamardProductAS<G, S>>
-    for HpASVerifierGadget<G, C, S, SV>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForHadamardProducts<G, S>>
+    for ASForHPVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -341,9 +341,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::tests::ASVerifierGadgetTests;
-    use crate::hp_as::constraints::HpASVerifierGadget;
-    use crate::hp_as::tests::{HpASTestInput, HpASTestParams};
-    use crate::hp_as::HadamardProductAS;
+    use crate::hp_as::constraints::ASForHPVerifierGadget;
+    use crate::hp_as::tests::{ASForHPTestInput, ASForHPTestParams};
+    use crate::hp_as::ASForHadamardProducts;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -354,16 +354,16 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = HadamardProductAS<G, Sponge>;
-    type I = HpASTestInput;
-    type ASV = HpASVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = ASForHadamardProducts<G, Sponge>;
+    type I = ASForHPTestInput;
+    type ASV = ASForHPVerifierGadget<G, C, Sponge, SpongeVar>;
 
     type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
     #[test]
     pub fn test_initialization_no_zk() {
         Tests::test_initialization(
-            &HpASTestParams {
+            &ASForHPTestParams {
                 vector_len: 8,
                 make_zk: false,
             },
@@ -374,7 +374,7 @@ pub mod tests {
     #[test]
     pub fn test_initialization_zk() {
         Tests::test_initialization(
-            &HpASTestParams {
+            &ASForHPTestParams {
                 vector_len: 8,
                 make_zk: true,
             },
@@ -385,7 +385,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_no_zk() {
         Tests::test_simple_accumulation(
-            &HpASTestParams {
+            &ASForHPTestParams {
                 vector_len: 8,
                 make_zk: false,
             },
@@ -396,7 +396,7 @@ pub mod tests {
     #[test]
     pub fn test_simple_accumulation_zk() {
         Tests::test_simple_accumulation(
-            &HpASTestParams {
+            &ASForHPTestParams {
                 vector_len: 8,
                 make_zk: true,
             },

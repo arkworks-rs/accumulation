@@ -6,10 +6,10 @@ use ark_sponge::domain_separated::DomainSeparator;
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
-/// The [`PredicateIndex`][predicate_index] of the [`InnerProductArgPCAtomicAS`][ipa_pc_as].
+/// The [`PredicateIndex`][predicate_index] of the [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [predicate_index]: crate::AccumulationScheme::PredicateIndex
-/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+/// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 #[derive(Clone)]
 pub struct PredicateIndex {
     /// The degree bound supported by IpaPC.
@@ -19,10 +19,10 @@ pub struct PredicateIndex {
     pub supported_hiding_bound: usize,
 }
 
-/// The [`ProverKey`][pk] of the [`InnerProductArgPCAtomicAS`][ipa_pc_as].
+/// The [`ProverKey`][pk] of the [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [pk]: crate::AccumulationScheme::ProverKey
-/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+/// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
     /// The IpaPC committer key for committing input polynomials.
@@ -32,10 +32,10 @@ pub struct ProverKey<G: AffineCurve> {
     pub(crate) verifier_key: VerifierKey<G>,
 }
 
-/// The [`VerifierKey`][vk] of the [`InnerProductArgPCAtomicAS`][ipa_pc_as].
+/// The [`VerifierKey`][vk] of the [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [vk]: crate::AccumulationScheme::VerifierKey
-/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+/// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 #[derive(Clone)]
 pub struct VerifierKey<G: AffineCurve> {
     /// The IpaPC succinct check key for inputs.
@@ -45,10 +45,10 @@ pub struct VerifierKey<G: AffineCurve> {
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
 }
 
-/// The [`InputInstance`][input_instance] of the [`InnerProductArgPCAtomicAS`][ipa_pc_as].
+/// The [`InputInstance`][input_instance] of the [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [input_instance]: crate::AccumulationScheme::InputInstance
-/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+/// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     /// The IpaPC commitment to a polynomial.
@@ -66,10 +66,10 @@ pub struct InputInstance<G: AffineCurve> {
 
 /// The randomness used to apply zero-knowledge to commitment and accumulation.
 /// If used, the randomness is the  [`Proof`][proof] of the
-/// [`InnerProductArgPCAtomicAS`][ipa_pc_as].
+/// [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [Proof]: crate::AccumulationScheme::Proof
-/// [ipa_pc_as]: crate::ipa_pc_as::InnerProductArgPCAtomicAS
+/// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Randomness<G: AffineCurve> {
     /// A random linear polynomial to be accumulated
@@ -86,15 +86,15 @@ pub struct Randomness<G: AffineCurve> {
 pub struct IpaPCDomain {}
 impl DomainSeparator for IpaPCDomain {
     fn domain() -> Vec<u8> {
-        b"PC-IPA-in-AS-IPA-2020".to_vec()
+        b"IPA-PC-2020".to_vec()
     }
 }
 
-/// The domain for the IpaPcAS sponge. Used as a substitution for forking for backwards
+/// The domain for the ASForIpaPC sponge. Used as a substitution for forking for backwards
 /// compatibility.
-pub struct IpaPcASDomain {}
-impl DomainSeparator for IpaPcASDomain {
+pub struct ASForIpaPCDomain {}
+impl DomainSeparator for ASForIpaPCDomain {
     fn domain() -> Vec<u8> {
-        b"AS-IPA-2020".to_vec()
+        b"AS-FOR-IPA-PC-2020".to_vec()
     }
 }
