@@ -26,27 +26,24 @@ type R1CSResult<T> = Result<T, SynthesisError>;
 pub(crate) const PROTOCOL_NAME: &[u8] = b"R1CS-NARK-2020";
 
 /// A simple non-interactive argument of knowledge for R1CS.
-pub struct R1CSNark<G, S>
+pub struct R1CSNark<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
-    _sponge: PhantomData<S>,
 }
 
-impl<G, S> R1CSNark<G, S>
+impl<G> R1CSNark<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     pub(crate) fn compute_challenge(
         index_info: &IndexInfo,
         input: &[G::ScalarField],
         msg: &FirstRoundMessage<G>,
-        mut sponge: S,
+        mut sponge: impl CryptographicSponge<ConstraintF<G>>,
     ) -> G::ScalarField {
         sponge.absorb(&index_info.matrices_hash.as_ref());
 
@@ -118,11 +115,14 @@ where
     }
 
     /// Proves that some R1CS relation holds.
-    pub fn prove<C: ConstraintSynthesizer<G::ScalarField>>(
+    pub fn prove<
+        C: ConstraintSynthesizer<G::ScalarField>,
+        S: CryptographicSponge<ConstraintF<G>>,
+    >(
         ipk: &IndexProverKey<G>,
         r1cs: C,
         make_zk: bool,
-        sponge: S,
+        sponge: Option<S>,
         mut rng: Option<&mut dyn RngCore>,
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover");
@@ -257,7 +257,12 @@ where
             comm_2,
         };
 
-        let gamma = Self::compute_challenge(&ipk.index_info, &input, &first_msg, sponge);
+        let gamma = Self::compute_challenge(
+            &ipk.index_info,
+            &input,
+            &first_msg,
+            sponge.unwrap_or_else(|| S::new()),
+        );
 
         let mut blinded_witness = witness;
         let (mut sigma_a, mut sigma_b, mut sigma_c) = (None, None, None);
@@ -292,11 +297,11 @@ where
     }
 
     /// Verifies that some R1CS relation holds.
-    pub fn verify(
+    pub fn verify<S: CryptographicSponge<ConstraintF<G>>>(
         ivk: &IndexVerifierKey<G>,
         input: &[G::ScalarField],
         proof: &Proof<G>,
-        sponge: S,
+        sponge: Option<S>,
     ) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
@@ -308,7 +313,12 @@ where
             tmp
         };
 
-        let gamma = Self::compute_challenge(&ivk.index_info, &input, &proof.first_msg, sponge);
+        let gamma = Self::compute_challenge(
+            &ivk.index_info,
+            &input,
+            &proof.first_msg,
+            sponge.unwrap_or_else(|| S::new()),
+        );
 
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
         let a_times_blinded_witness =
@@ -459,25 +469,25 @@ pub(crate) mod test {
         };
         let v = c.a.unwrap() * &c.b.unwrap();
 
-        let pp = R1CSNark::<Affine, PoseidonSponge<Fq>>::setup();
-        let (ipk, ivk) = R1CSNark::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
+        let pp = R1CSNark::<Affine>::setup();
+        let (ipk, ivk) = R1CSNark::<Affine>::index(&pp, c).unwrap();
 
         let start = ark_std::time::Instant::now();
 
         for i in 0..NUM_ITERS {
-            let proof = R1CSNark::<Affine, PoseidonSponge<Fq>>::prove(
+            let proof = R1CSNark::<Affine>::prove(
                 &ipk,
                 c.clone(),
                 i % 2 == 1,
-                PoseidonSponge::<Fq>::new(),
+                Some(PoseidonSponge::<Fq>::new()),
                 Some(rng),
             )
             .unwrap();
-            assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
+            assert!(R1CSNark::<Affine>::verify(
                 &ivk,
                 &[v],
                 &proof,
-                PoseidonSponge::<Fq>::new(),
+                Some(PoseidonSponge::<Fq>::new()),
             ))
         }
 

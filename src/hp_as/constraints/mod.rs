@@ -8,7 +8,7 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBitsGadget;
-use ark_relations::r1cs::SynthesisError;
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
@@ -23,31 +23,25 @@ pub use data_structures::*;
 /// The verifier gadget of [`ASForHadamardProducts`][as_for_hp].
 ///
 /// [as_for_hp]: crate::hp_as::ASForHadamardProducts
-pub struct ASForHPVerifierGadget<G, C, S, SV>
+pub struct ASForHPVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
-    _sponge: PhantomData<S>,
-    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> ASForHPVerifierGadget<G, C, S, SV>
+impl<G, C> ASForHPVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs, make_zk))]
-    fn squeeze_mu_challenges(
-        sponge: &mut SV,
+    fn squeeze_mu_challenges<S: CryptographicSponge<ConstraintF<G>>>(
+        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
         num_inputs: usize,
         make_zk: bool,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
@@ -80,8 +74,8 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs))]
-    fn squeeze_nu_challenges(
-        sponge: &mut SV,
+    fn squeeze_nu_challenges<S: CryptographicSponge<ConstraintF<G>>>(
+        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
         num_inputs: usize,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
         let nu_size = FieldElementSize::Truncated(128);
@@ -242,14 +236,12 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForHadamardProducts<G, S>>
-    for ASForHPVerifierGadget<G, C, S, SV>
+impl<G, C> ASVerifierGadget<ConstraintF<G>, ASForHadamardProducts<G>>
+    for ASForHPVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -267,18 +259,25 @@ where
             sponge
         )
     )]
-    fn verify_with_sponge<'a>(
+    fn verify<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: SV,
+        sponge: Option<SV>,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
+        let sponge = sponge.unwrap_or_else(|| SV::new(cs));
+
         let mut input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
@@ -354,11 +353,11 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = ASForHadamardProducts<G, Sponge>;
+    type AS = ASForHadamardProducts<G>;
     type I = ASForHPTestInput;
-    type ASV = ASForHPVerifierGadget<G, C, Sponge, SpongeVar>;
+    type ASV = ASForHPVerifierGadget<G, C>;
 
-    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+    type Tests = ASVerifierGadgetTests<CF, AS, ASV, I, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_initialization_no_zk() {

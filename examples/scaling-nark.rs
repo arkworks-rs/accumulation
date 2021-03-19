@@ -61,7 +61,7 @@ fn profile_nark<R: Rng>(
     make_zk: bool,
     rng: &mut R,
 ) {
-    let pp = R1CSNark::<Affine, PoseidonSponge<Fq>>::setup();
+    let pp = R1CSNark::<Affine>::setup();
     let mut times = Vec::new();
 
     for num_constraints in min_constraints..=max_constraints {
@@ -77,26 +77,26 @@ fn profile_nark<R: Rng>(
         let v = a * &c.b.unwrap();
 
         let start = Instant::now();
-        let (ipk, ivk) = R1CSNark::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
+        let (ipk, ivk) = R1CSNark::<Affine>::index(&pp, c).unwrap();
         let index_time = start.elapsed().as_millis();
 
         let start = Instant::now();
-        let proof = R1CSNark::<Affine, PoseidonSponge<Fq>>::prove(
+        let proof = R1CSNark::<Affine>::prove(
             &ipk,
             c.clone(),
             make_zk,
-            PoseidonSponge::new(),
+            Some(PoseidonSponge::new()),
             Some(rng),
         )
         .unwrap();
         let prover_time = start.elapsed().as_millis();
 
         let start = Instant::now();
-        assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
+        assert!(R1CSNark::<Affine>::verify(
             &ivk,
             &[v, a, a, a, a],
             &proof,
-            PoseidonSponge::new()
+            Some(PoseidonSponge::new())
         ));
         let verifier_time = start.elapsed().as_millis();
         let record = (num_constraints, index_time, prover_time, verifier_time);

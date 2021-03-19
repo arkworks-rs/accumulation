@@ -14,7 +14,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
-use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
@@ -28,27 +28,21 @@ pub use data_structures::*;
 /// The verifier gadget of [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
-pub struct ASForR1CSNarkVerifierGadget<G, C, S, SV>
+pub struct ASForR1CSNarkVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
-    _sponge: PhantomData<S>,
-    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> ASForR1CSNarkVerifierGadget<G, C, S, SV>
+impl<G, C> ASForR1CSNarkVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(commitments, challenges))]
     fn combine_commitments<'a>(
@@ -68,10 +62,10 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(input, msg, nark_sponge))]
-    fn compute_gamma_challenge(
+    fn compute_gamma_challenge<S: CryptographicSponge<ConstraintF<G>>>(
         input: &[NNFieldVar<G>],
         msg: &FirstRoundMessageVar<G, C>,
-        mut nark_sponge: SV,
+        mut nark_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
     ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
         let mut input_bytes = Vec::new();
         for elem in input {
@@ -97,13 +91,13 @@ where
             as_sponge,
         )
     )]
-    fn compute_beta_challenges(
+    fn compute_beta_challenges<S: CryptographicSponge<ConstraintF<G>>>(
         num_challenges: usize,
         as_matrices_hash: &Vec<FpVar<ConstraintF<G>>>,
         accumulator_instances: &Vec<&AccumulatorInstanceVar<G, C>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
-        mut as_sponge: SV,
+        mut as_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
     ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
         absorb_gadget!(
             &mut as_sponge,
@@ -130,10 +124,10 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(index_info, input_instances, nark_sponge))]
-    fn compute_blinded_commitments(
+    fn compute_blinded_commitments<S: CryptographicSponge<ConstraintF<G>>>(
         index_info: &IndexInfoVar<ConstraintF<G>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
-        mut nark_sponge: SV,
+        mut nark_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
     ) -> Result<(Vec<C>, Vec<C>, Vec<C>, Vec<C>), SynthesisError> {
         let mut all_blinded_comm_a = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_b = Vec::with_capacity(input_instances.len());
@@ -343,15 +337,13 @@ where
     }
 }
 
-impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForR1CSNark<G, CS, S>>
-    for ASForR1CSNarkVerifierGadget<G, C, S, SV>
+impl<G, C, CS> ASVerifierGadget<ConstraintF<G>, ASForR1CSNark<G, CS>>
+    for ASForR1CSNarkVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -369,19 +361,25 @@ where
             sponge,
         )
     )]
-    fn verify_with_sponge<'a>(
+    fn verify<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        mut sponge: SV,
+        sponge: Option<SV>,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let cs = sponge.cs();
+        let mut sponge = sponge.unwrap_or_else(|| SV::new(cs.clone()));
+
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME)?;
         let as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
 
@@ -430,13 +428,14 @@ where
             verifier_key.nark_index.num_constraints,
         )?;
 
-        let hp_verify = ASForHPVerifierGadget::<G, C, S, SV>::verify_with_sponge(
+        let hp_verify = ASForHPVerifierGadget::<G, C>::verify(
+            cs,
             &hp_vk,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
             &proof.hp_proof,
-            hp_sponge,
+            Some(hp_sponge),
         )?;
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
@@ -487,11 +486,11 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = ASForR1CSNark<G, DummyCircuit<F>, Sponge>;
-    type I = ASForR1CSNarkTestInput;
-    type ASV = ASForR1CSNarkVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = ASForR1CSNark<G, DummyCircuit<F>>;
+    type I = ASForR1CSNarkTestInput<CF, Sponge>;
+    type ASV = ASForR1CSNarkVerifierGadget<G, C>;
 
-    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+    type Tests = ASVerifierGadgetTests<CF, AS, ASV, I, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_initialization_no_zk() {

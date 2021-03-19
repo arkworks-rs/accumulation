@@ -105,9 +105,9 @@ where
 ///
 /// [instance]: AccumulationScheme::AccumulatorInstance
 /// [witness]: AccumulationScheme::AccumulatorWitness
-pub type Accumulator<CF, S, A> = InstanceWitnessPair<
-    <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
-    <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
+pub type Accumulator<CF, A> = InstanceWitnessPair<
+    <A as AccumulationScheme<CF>>::AccumulatorInstance,
+    <A as AccumulationScheme<CF>>::AccumulatorWitness,
 >;
 
 /// A pair of references to an [`AccumulatorInstance`][instance] and
@@ -115,27 +115,27 @@ pub type Accumulator<CF, S, A> = InstanceWitnessPair<
 ///
 /// [instance]: AccumulationScheme::AccumulatorInstance
 /// [witness]: AccumulationScheme::AccumulatorWitness
-pub type AccumulatorRef<'a, CF, S, A> = InstanceWitnessPairRef<
+pub type AccumulatorRef<'a, CF, A> = InstanceWitnessPairRef<
     'a,
-    <A as AccumulationScheme<CF, S>>::AccumulatorInstance,
-    <A as AccumulationScheme<CF, S>>::AccumulatorWitness,
+    <A as AccumulationScheme<CF>>::AccumulatorInstance,
+    <A as AccumulationScheme<CF>>::AccumulatorWitness,
 >;
 
 /// A pair of [`InputInstance`][instance] and [`InputWitness`][witness].
 ///
 /// [instance]: AccumulationScheme::InputInstance
 /// [witness]: AccumulationScheme::InputWitness
-pub type Input<CF, S, A> = InstanceWitnessPair<
-    <A as AccumulationScheme<CF, S>>::InputInstance,
-    <A as AccumulationScheme<CF, S>>::InputWitness,
+pub type Input<CF, A> = InstanceWitnessPair<
+    <A as AccumulationScheme<CF>>::InputInstance,
+    <A as AccumulationScheme<CF>>::InputWitness,
 >;
 
 /// A pair of references to an [`InputInstance`][instance] and [`InputWitness`][witness].
 ///
 /// [instance]: AccumulationScheme::InputInstance
 /// [witness]: AccumulationScheme::InputWitness
-pub type InputRef<'a, CF, S, A> = InstanceWitnessPairRef<
+pub type InputRef<'a, CF, A> = InstanceWitnessPairRef<
     'a,
-    <A as AccumulationScheme<CF, S>>::InputInstance,
-    <A as AccumulationScheme<CF, S>>::InputWitness,
+    <A as AccumulationScheme<CF>>::InputInstance,
+    <A as AccumulationScheme<CF>>::InputWitness,
 >;

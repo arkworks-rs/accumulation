@@ -4,7 +4,7 @@
 //! [pcdas]: https://eprint.iacr.org/2020/499.pdf
 //! [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
 
-#![deny(
+#![warn(
     const_err,
     future_incompatible,
     missing_docs,
@@ -99,7 +99,7 @@ impl<'a> MakeZK<'a> {
 /// [acc]: Accumulator
 /// [pf]: AccumulationScheme::Proof
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized {
+pub trait AccumulationScheme<CF: PrimeField>: Sized {
     /// The public parameters for the accumulation scheme.
     type PublicParameters: Clone;
 
@@ -151,91 +151,38 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
 
     /// Accumulates inputs and past accumulators. Additionally outputs a proof attesting that the
     /// new accumulator was computed properly from the inputs and old accumulators.
-    /// Performs the accumulation using a provided sponge.
-    fn prove_with_sponge<'a>(
+    fn prove<'a, S: CryptographicSponge<CF>>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, CF, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, Self>>,
         make_zk: MakeZK<'_>,
-        sponge: S,
-    ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
+        sponge: Option<S>,
+    ) -> Result<(Accumulator<CF, Self>, Self::Proof), Self::Error>
     where
-        Self: 'a,
-        S: 'a;
-
-    /// Accumulates inputs and past accumulators. Additionally outputs a proof attesting that the
-    /// new accumulator was computed properly from the inputs and old accumulators.
-    /// Performs the accumulation using a new sponge.
-    fn prove<'a>(
-        prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, CF, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, CF, S, Self>>,
-        make_zk: MakeZK<'_>,
-    ) -> Result<(Accumulator<CF, S, Self>, Self::Proof), Self::Error>
-    where
-        Self: 'a,
-        S: 'a,
-    {
-        Self::prove_with_sponge(prover_key, inputs, old_accumulators, make_zk, S::new())
-    }
+        Self: 'a;
 
     /// Verifies that the new accumulator instance was computed properly from the input instances
     /// and old accumulator instances.
-    /// Performs the verification using a provided sponge.
-    fn verify_with_sponge<'a>(
+    fn verify<'a, S: CryptographicSponge<CF>>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: S,
+        sponge: Option<S>,
     ) -> Result<bool, Self::Error>
     where
-        Self: 'a,
-        S: 'a;
-
-    /// Verifies that the new accumulator instance was computed properly from the input instances
-    /// and old accumulator instances.
-    /// Performs the verification using a new sponge.
-    fn verify<'a>(
-        verifier_key: &Self::VerifierKey,
-        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator_instance: &Self::AccumulatorInstance,
-        proof: &Self::Proof,
-    ) -> Result<bool, Self::Error>
-    where
-        Self: 'a,
-        S: 'a,
-    {
-        Self::verify_with_sponge(
-            verifier_key,
-            input_instances,
-            old_accumulator_instances,
-            new_accumulator_instance,
-            proof,
-            S::new(),
-        )
-    }
+        Self: 'a;
 
     /// Determines whether an accumulator is valid, which means every accumulated input satisfies
     /// the predicate.
-    /// Performs the decide using a provided sponge.
-    fn decide_with_sponge<'a>(
+    fn decide<'a, S: CryptographicSponge<CF>>(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, CF, S, Self>,
-        sponge: S,
-    ) -> Result<bool, Self::Error>;
-
-    /// Determines whether an accumulator is valid, which means every accumulated input satisfies
-    /// the predicate.
-    /// Performs the decide using a new sponge.
-    fn decide<'a>(
-        decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, CF, S, Self>,
-    ) -> Result<bool, Self::Error> {
-        Self::decide_with_sponge(decider_key, accumulator, S::new())
-    }
+        accumulator: AccumulatorRef<'_, CF, Self>,
+        sponge: Option<S>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a;
 }
 
 /// A special case of an [`AccumulationScheme`] that has empty witnesses, so entire
@@ -245,8 +192,8 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499.pdf
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>:
-    AccumulationScheme<CF, S, InputWitness = (), AccumulatorWitness = ()>
+pub trait AtomicAccumulationScheme<CF: PrimeField>:
+    AccumulationScheme<CF, InputWitness = (), AccumulatorWitness = ()>
 {
 }
 
@@ -263,8 +210,7 @@ pub mod tests {
     pub const NUM_ITERATIONS: usize = 1;
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
-    pub trait ASTestInput<CF: PrimeField, S: CryptographicSponge<CF>, A: AccumulationScheme<CF, S>>
-    {
+    pub trait ASTestInput<CF: PrimeField, A: AccumulationScheme<CF>> {
         /// Parameters for setting up the test
         type TestParams;
 
@@ -284,7 +230,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<CF, S, A>>;
+        ) -> Vec<Input<CF, A>>;
     }
 
     pub struct TemplateParams {
@@ -292,12 +238,12 @@ pub mod tests {
         num_inputs_per_iteration: Vec<usize>,
     }
 
-    pub struct ASTests<CF, S, AS, I>
+    pub struct ASTests<CF, AS, I, S>
     where
         CF: PrimeField,
+        AS: AccumulationScheme<CF>,
+        I: ASTestInput<CF, AS>,
         S: CryptographicSponge<CF>,
-        AS: AccumulationScheme<CF, S>,
-        I: ASTestInput<CF, S, AS>,
     {
         _constraint_field: PhantomData<CF>,
         _sponge: PhantomData<S>,
@@ -305,12 +251,12 @@ pub mod tests {
         _test_input: PhantomData<I>,
     }
 
-    impl<CF, S, AS, I> ASTests<CF, S, AS, I>
+    impl<CF, AS, I, S> ASTests<CF, AS, I, S>
     where
         CF: PrimeField,
+        AS: AccumulationScheme<CF>,
+        I: ASTestInput<CF, AS>,
         S: CryptographicSponge<CF>,
-        AS: AccumulationScheme<CF, S>,
-        I: ASTestInput<CF, S, AS>,
     {
         /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of proving
         /// and verifying.
@@ -344,17 +290,19 @@ pub mod tests {
 
                     let (accumulator, proof) = AS::prove(
                         &pk,
-                        Input::<CF, S, AS>::map_to_refs(inputs),
-                        Accumulator::<CF, S, AS>::map_to_refs(&old_accumulators),
+                        Input::<CF, AS>::map_to_refs(inputs),
+                        Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
                         MakeZK::Inherited(Some(&mut rng)),
+                        None::<S>,
                     )?;
 
                     if !AS::verify(
                         &vk,
-                        Input::<CF, S, AS>::instances(inputs),
-                        Accumulator::<CF, S, AS>::instances(&old_accumulators),
+                        Input::<CF, AS>::instances(inputs),
+                        Accumulator::<CF, AS>::instances(&old_accumulators),
                         &accumulator.instance,
                         &proof,
+                        None::<S>,
                     )? {
                         println!("{}", format!("Verify failed"));
                         return Ok(false);
@@ -364,7 +312,7 @@ pub mod tests {
                 }
 
                 assert!(old_accumulators.len() > 0);
-                if !AS::decide(&dk, old_accumulators.last().unwrap().as_ref())? {
+                if !AS::decide(&dk, old_accumulators.last().unwrap().as_ref(), None::<S>)? {
                     println!("Decide failed");
                     return Ok(false);
                 }

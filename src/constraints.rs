@@ -13,13 +13,7 @@ use ark_sponge::CryptographicSponge;
 pub(crate) type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
 /// The verifier gadget of an [`AccumulationScheme`].
-pub trait ASVerifierGadget<
-    CF: PrimeField,
-    S: CryptographicSponge<CF>,
-    SV: CryptographicSpongeVar<CF, S>,
-    AS: AccumulationScheme<CF, S>,
->
-{
+pub trait ASVerifierGadget<CF: PrimeField, AS: AccumulationScheme<CF>> {
     /// The key used to check that an accumulator was computed correctly from the inputs
     /// and old accumulators.
     /// The constraints equivalent of [`AccumulationScheme::VerifierKey`].
@@ -39,54 +33,24 @@ pub trait ASVerifierGadget<
 
     /// Verifies that the new accumulator instance was computed properly from the input instances
     /// and old accumulator instances.
-    /// Performs the verification using a provided sponge.
-    /// The constraints equivalent of [`AccumulationScheme::verify_with_sponge`].
-    fn verify_with_sponge<'a>(
+    /// The constraints equivalent of [`AccumulationScheme::verify`].
+    fn verify<'a, S: CryptographicSponge<CF>, SV: CryptographicSpongeVar<CF, S>>(
+        cs: ConstraintSystemRef<CF>,
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: SV,
+        sponge: Option<SV>,
     ) -> Result<Boolean<CF>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a;
-
-    /// Verifies that the new accumulator instance was computed properly from the input instances
-    /// and old accumulator instances.
-    /// Performs the verification using a new sponge.
-    /// The constraints equivalent of [`AccumulationScheme::verify`].
-    fn verify<'a>(
-        cs: ConstraintSystemRef<CF>,
-        verifier_key: &Self::VerifierKey,
-        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
-        accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator_instance: &Self::AccumulatorInstance,
-        proof: &Self::Proof,
-    ) -> Result<Boolean<CF>, SynthesisError>
-    where
-        Self::InputInstance: 'a,
-        Self::AccumulatorInstance: 'a,
-    {
-        Self::verify_with_sponge(
-            verifier_key,
-            input_instances,
-            accumulator_instances,
-            new_accumulator_instance,
-            proof,
-            SV::new(cs),
-        )
-    }
 }
 
 /// The verifier gadget of an [`AtomicAccumulationScheme`][crate::AtomicAccumulationScheme].
-pub trait AtomicASVerifierGadget<
-    CF: PrimeField,
-    S: CryptographicSponge<CF>,
-    SV: CryptographicSpongeVar<CF, S>,
-    AS: AccumulationScheme<CF, S>,
->: ASVerifierGadget<CF, S, SV, AS>
+pub trait AtomicASVerifierGadget<CF: PrimeField, AS: AccumulationScheme<CF>>:
+    ASVerifierGadget<CF, AS>
 {
 }
 
@@ -104,31 +68,31 @@ pub mod tests {
     use ark_sponge::CryptographicSponge;
     use ark_std::marker::PhantomData;
 
-    pub struct ASVerifierGadgetTests<CF, S, SV, AS, ASV, I>
+    pub struct ASVerifierGadgetTests<CF, AS, ASV, I, S, SV>
     where
         CF: PrimeField,
+        AS: AccumulationScheme<CF>,
+        ASV: ASVerifierGadget<CF, AS>,
+        I: ASTestInput<CF, AS>,
         S: CryptographicSponge<CF>,
         SV: CryptographicSpongeVar<CF, S>,
-        AS: AccumulationScheme<CF, S>,
-        ASV: ASVerifierGadget<CF, S, SV, AS>,
-        I: ASTestInput<CF, S, AS>,
     {
         _constraint_field: PhantomData<CF>,
-        _sponge: PhantomData<S>,
-        _sponge_var: PhantomData<SV>,
+        _test_input: PhantomData<I>,
         _acc_scheme: PhantomData<AS>,
         _acc_scheme_verifier: PhantomData<ASV>,
-        _test_input: PhantomData<I>,
+        _sponge: PhantomData<S>,
+        _sponge_var: PhantomData<SV>,
     }
 
-    impl<CF, S, SV, AS, ASV, I> ASVerifierGadgetTests<CF, S, SV, AS, ASV, I>
+    impl<CF, AS, ASV, I, S, SV> ASVerifierGadgetTests<CF, AS, ASV, I, S, SV>
     where
         CF: PrimeField,
+        AS: AccumulationScheme<CF>,
+        ASV: ASVerifierGadget<CF, AS>,
+        I: ASTestInput<CF, AS>,
         S: CryptographicSponge<CF>,
         SV: CryptographicSpongeVar<CF, S>,
-        AS: AccumulationScheme<CF, S>,
-        ASV: ASVerifierGadget<CF, S, SV, AS>,
-        I: ASTestInput<CF, S, AS>,
     {
         pub fn test_initialization(test_params: &I::TestParams, num_iterations: usize) {
             let mut rng = ark_std::test_rng();
@@ -146,6 +110,7 @@ pub mod tests {
                     vec![input.as_ref()],
                     vec![],
                     MakeZK::Inherited(Some(&mut rng)),
+                    None::<S>,
                 )
                 .unwrap();
 
@@ -169,6 +134,7 @@ pub mod tests {
                     vec![],
                     &accumulator_instance_var,
                     &proof_var,
+                    None::<SV>,
                 )
                 .unwrap()
                 .enforce_equal(&Boolean::TRUE)
@@ -196,6 +162,7 @@ pub mod tests {
                     vec![old_input.as_ref()],
                     vec![],
                     MakeZK::Inherited(Some(&mut rng)),
+                    None::<S>,
                 )
                 .unwrap();
 
@@ -204,6 +171,7 @@ pub mod tests {
                     vec![new_input.as_ref()],
                     vec![old_accumulator.as_ref()],
                     MakeZK::Inherited(Some(&mut rng)),
+                    None::<S>,
                 )
                 .unwrap();
 
@@ -235,6 +203,7 @@ pub mod tests {
                     vec![&old_accumulator_instance_var],
                     &new_accumulator_instance_var,
                     &proof_var,
+                    None::<SV>,
                 )
                 .unwrap()
                 .enforce_equal(&Boolean::TRUE)
@@ -261,6 +230,7 @@ pub mod tests {
                 vec![old_input.as_ref()],
                 vec![],
                 MakeZK::Inherited(Some(&mut rng)),
+                None::<S>,
             )
             .unwrap();
 
@@ -269,6 +239,7 @@ pub mod tests {
                 vec![new_input.as_ref()],
                 vec![old_accumulator.as_ref()],
                 MakeZK::Inherited(Some(&mut rng)),
+                None::<S>,
             )
             .unwrap();
 
@@ -322,6 +293,7 @@ pub mod tests {
                 vec![&old_accumulator_instance_var],
                 &new_accumulator_instance_var,
                 &proof_var,
+                None::<SV>,
             )
             .unwrap()
             .enforce_equal(&Boolean::TRUE)

@@ -45,23 +45,20 @@ type IpaPC<G, S> = InnerProductArgPC<
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
-pub struct AtomicASForInnerProductArgPC<G, S>
+pub struct AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
-    _sponge: PhantomData<S>,
 }
 
-impl<G, S> AtomicASForInnerProductArgPC<G, S>
+impl<G> AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
-    fn deterministic_commit_to_linear_polynomial(
+    fn deterministic_commit_to_linear_polynomial<S: CryptographicSponge<ConstraintF<G>>>(
         ck: &ipa_pc::CommitterKey<G>,
         linear_polynomial: DensePolynomial<G::ScalarField>,
     ) -> Result<FinalCommKey<G>, PCError> {
@@ -78,9 +75,9 @@ where
             .comm)
     }
 
-    fn succinct_check_inputs<'a>(
+    fn succinct_check_inputs<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
-        inputs: impl IntoIterator<Item = &'a InputInstance<G>>,
+        inputs: &Vec<&InputInstance<G>>,
         inputs_are_accumulators: bool, // For error handling
         output: &mut Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
     ) -> Result<(), ASError> {
@@ -111,22 +108,22 @@ where
         Ok(())
     }
 
-    fn succinct_check_inputs_and_accumulators<'a>(
+    fn succinct_check_inputs_and_accumulators<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
-        inputs: impl IntoIterator<Item = &'a InputInstance<G>>,
-        accumulators: impl IntoIterator<Item = &'a InputInstance<G>>,
+        inputs: &Vec<&InputInstance<G>>,
+        accumulators: &Vec<&InputInstance<G>>,
     ) -> Result<Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>, ASError> {
         let mut output: Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)> =
             Vec::new();
 
-        Self::succinct_check_inputs(ipa_svk, inputs, false, &mut output)?;
-        Self::succinct_check_inputs(ipa_svk, accumulators, true, &mut output)?;
+        Self::succinct_check_inputs::<S>(ipa_svk, inputs, false, &mut output)?;
+        Self::succinct_check_inputs::<S>(ipa_svk, accumulators, true, &mut output)?;
 
         Ok(output)
     }
 
     fn absorb_check_polynomial_into_sponge(
-        sponge: &mut S,
+        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
     ) {
         let mut bytes_input = Vec::new();
@@ -137,11 +134,11 @@ where
         sponge.absorb(&bytes_input);
     }
 
-    fn combine_succinct_checks_and_proof<'a>(
+    fn combine_succinct_checks_and_proof<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
         proof: Option<&Randomness<G>>,
-        as_sponge: S,
+        as_sponge: DomainSeparatedSponge<ConstraintF<G>, S, ASForIpaPCDomain>,
     ) -> Result<
         (
             LabeledCommitment<ipa_pc::Commitment<G>>, // Combined commitment
@@ -274,7 +271,7 @@ where
         eval
     }
 
-    fn compute_new_accumulator(
+    fn compute_new_accumulator<S: CryptographicSponge<ConstraintF<G>>>(
         ipa_ck: &ipa_pc::CommitterKey<G>,
         combined_check_polynomial: DensePolynomial<G::ScalarField>,
         combined_commitment: LabeledCommitment<ipa_pc::Commitment<G>>,
@@ -345,11 +342,10 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
+impl<G> AccumulationScheme<ConstraintF<G>> for AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     type PublicParameters = ();
     type PredicateParams = ipa_pc::UniversalParams<G>;
@@ -377,7 +373,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipa_ck, ipa_vk) = IpaPC::<G, S>::trim(
+        let (ipa_ck, ipa_vk) = IpaPC::<G, UnimplementedSponge>::trim(
             predicate_params,
             predicate_index.supported_degree_bound,
             predicate_index.supported_hiding_bound,
@@ -385,8 +381,9 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let (ipa_ck_linear, _) = IpaPC::<G, S>::trim(predicate_params, 1, 0, Some(&[1]))
-            .map_err(|e| BoxedError::new(e))?;
+        let (ipa_ck_linear, _) =
+            IpaPC::<G, UnimplementedSponge>::trim(predicate_params, 1, 0, Some(&[1]))
+                .map_err(|e| BoxedError::new(e))?;
 
         let verifier_key = VerifierKey {
             ipa_svk: ipa_vk.svk.clone(),
@@ -403,51 +400,43 @@ where
         Ok((prover_key, verifier_key, decider_key))
     }
 
-    fn prove_with_sponge<'a>(
-        _prover_key: &Self::ProverKey,
-        _inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        _old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
-        _make_zk: MakeZK<'_>,
-        _sponge: S,
-    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
-    where
-        Self: 'a,
-    {
-        unimplemented!(
-            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
-        );
-    }
-
-    fn prove<'a>(
+    fn prove<'a, S: CryptographicSponge<ConstraintF<G>>>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, Self>>,
         make_zk: MakeZK<'_>,
-    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
+        sponge: Option<S>,
+    ) -> Result<(Accumulator<ConstraintF<G>, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
     {
-        let sponge = S::new();
+        if sponge.is_some() {
+            unimplemented!(
+                "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
+            );
+        }
 
-        let inputs: Vec<&InputInstance<G>> = InputRef::<'a, _, _, Self>::instances(inputs)
+        let as_sponge = DomainSeparatedSponge::<ConstraintF<G>, S, ASForIpaPCDomain>::new();
+
+        let input_instances: Vec<&InputInstance<G>> = InputRef::<'a, _, Self>::instances(inputs)
             .map(|instance| Self::check_input_instance(instance, false))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
-        let old_accumulators: Vec<&InputInstance<G>> =
-            AccumulatorRef::<'a, _, _, Self>::instances(old_accumulators)
+        let old_accumulator_instances: Vec<&InputInstance<G>> =
+            AccumulatorRef::<'a, _, Self>::instances(old_accumulators)
                 .map(|instance| Self::check_input_instance(instance, true))
                 .collect::<Result<Vec<_>, BoxedError>>()?;
 
-        if inputs.is_empty() && old_accumulators.is_empty() {
+        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
         }
 
         let (make_zk, mut rng) = make_zk.into_components(|| {
-            inputs
+            input_instances
                 .iter()
-                .chain(&old_accumulators)
+                .chain(&old_accumulator_instances)
                 .fold(false, |make_zk, input| {
                     return make_zk
                         || input.ipa_proof.hiding_comm.is_some()
@@ -470,11 +459,12 @@ where
                 G::ScalarField::rand(rng_moved),
             ]);
 
-            let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-                &prover_key.verifier_key.ipa_ck_linear,
-                random_linear_polynomial.clone(),
-            )
-            .map_err(|e| BoxedError::new(e))?;
+            let linear_polynomial_commitment =
+                Self::deterministic_commit_to_linear_polynomial::<S>(
+                    &prover_key.verifier_key.ipa_ck_linear,
+                    random_linear_polynomial.clone(),
+                )
+                .map_err(|e| BoxedError::new(e))?;
 
             let commitment_randomness = G::ScalarField::rand(rng_moved);
 
@@ -488,10 +478,10 @@ where
             None
         };
 
-        let succinct_checks = Self::succinct_check_inputs_and_accumulators(
+        let succinct_checks = Self::succinct_check_inputs_and_accumulators::<S>(
             &prover_key.verifier_key.ipa_svk,
-            inputs,
-            old_accumulators,
+            &input_instances,
+            &old_accumulator_instances,
         )
         .map_err(|e| BoxedError::new(e))?;
 
@@ -500,7 +490,7 @@ where
                 &prover_key.verifier_key.ipa_svk,
                 &succinct_checks,
                 proof.as_ref(),
-                sponge,
+                as_sponge,
             )
             .map_err(|e| BoxedError::new(e))?;
 
@@ -511,7 +501,7 @@ where
             combined_check_polynomial += &randomness.random_linear_polynomial;
         }
 
-        let accumulator = Self::compute_new_accumulator(
+        let accumulator = Self::compute_new_accumulator::<S>(
             &prover_key.ipa_ck,
             combined_check_polynomial,
             combined_commitment,
@@ -521,7 +511,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let accumulator = Accumulator::<_, _, Self> {
+        let accumulator = Accumulator::<_, Self> {
             instance: accumulator,
             witness: (),
         };
@@ -529,57 +519,48 @@ where
         Ok((accumulator, proof))
     }
 
-    fn verify_with_sponge<'a>(
-        _verifier_key: &Self::VerifierKey,
-        _inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        _new_accumulator: &Self::AccumulatorInstance,
-        _proof: &Self::Proof,
-        _sponge: S,
-    ) -> Result<bool, Self::Error>
-    where
-        Self: 'a,
-    {
-        unimplemented!(
-            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
-        );
-    }
-
-    fn verify<'a>(
+    fn verify<'a, S: CryptographicSponge<ConstraintF<G>>>(
         verifier_key: &Self::VerifierKey,
-        inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator: &Self::AccumulatorInstance,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: Option<S>,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
     {
-        let sponge = S::new();
+        if sponge.is_some() {
+            unimplemented!(
+                "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
+            );
+        }
 
-        let inputs = inputs
+        let as_sponge = DomainSeparatedSponge::<ConstraintF<G>, S, ASForIpaPCDomain>::new();
+
+        let input_instances = input_instances
             .into_iter()
             .map(|instance| Self::check_input_instance(instance, false))
             .collect::<Result<Vec<_>, BoxedError>>();
 
-        if inputs.is_err() {
+        if input_instances.is_err() {
             return Ok(false);
         }
 
-        let inputs = inputs.unwrap();
+        let input_instances = input_instances.unwrap();
 
-        let old_accumulators = old_accumulators
+        let old_accumulator_instances = old_accumulator_instances
             .into_iter()
             .map(|instance| Self::check_input_instance(instance, true))
             .collect::<Result<Vec<_>, BoxedError>>();
 
-        if old_accumulators.is_err() {
+        if old_accumulator_instances.is_err() {
             return Ok(false);
         }
 
-        let old_accumulators = old_accumulators.unwrap();
+        let old_accumulator_instances = old_accumulator_instances.unwrap();
 
-        if inputs.is_empty() && old_accumulators.is_empty() {
+        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
@@ -590,21 +571,22 @@ where
                 return Ok(false);
             }
 
-            let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
-                &verifier_key.ipa_ck_linear,
-                randomness.random_linear_polynomial.clone(),
-            )
-            .map_err(|e| BoxedError::new(e))?;
+            let linear_polynomial_commitment =
+                Self::deterministic_commit_to_linear_polynomial::<S>(
+                    &verifier_key.ipa_ck_linear,
+                    randomness.random_linear_polynomial.clone(),
+                )
+                .map_err(|e| BoxedError::new(e))?;
 
             if !linear_polynomial_commitment.eq(&randomness.random_linear_polynomial_commitment) {
                 return Ok(false);
             }
         }
 
-        let succinct_check_result = Self::succinct_check_inputs_and_accumulators(
+        let succinct_check_result = Self::succinct_check_inputs_and_accumulators::<S>(
             &verifier_key.ipa_svk,
-            inputs,
-            old_accumulators,
+            &input_instances,
+            &old_accumulator_instances,
         );
 
         if succinct_check_result.is_err() {
@@ -621,7 +603,7 @@ where
             &verifier_key.ipa_svk,
             &succinct_checks,
             proof.as_ref(),
-            sponge,
+            as_sponge,
         );
 
         if combine_result.is_err() {
@@ -633,12 +615,12 @@ where
 
         if !combined_commitment
             .commitment()
-            .eq(&new_accumulator.ipa_commitment.commitment())
+            .eq(&new_accumulator_instance.ipa_commitment.commitment())
         {
             return Ok(false);
         }
 
-        if !challenge.eq(&new_accumulator.point) {
+        if !challenge.eq(&new_accumulator_instance.point) {
             return Ok(false);
         }
 
@@ -649,27 +631,27 @@ where
             eval += &randomness.random_linear_polynomial.evaluate(&challenge);
         }
 
-        if !eval.eq(&new_accumulator.evaluation) {
+        if !eval.eq(&new_accumulator_instance.evaluation) {
             return Ok(false);
         }
 
         Ok(true)
     }
 
-    fn decide_with_sponge(
-        _decider_key: &Self::DeciderKey,
-        _accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
-        _sponge: S,
-    ) -> Result<bool, Self::Error> {
-        unimplemented!(
-            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
-        );
-    }
-
-    fn decide(
+    fn decide<'a, S: CryptographicSponge<ConstraintF<G>>>(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
-    ) -> Result<bool, Self::Error> {
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, Self>,
+        sponge: Option<S>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a,
+    {
+        if sponge.is_some() {
+            unimplemented!(
+                "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
+            );
+        }
+
         let accumulator = accumulator.instance;
 
         let ipa_check = IpaPC::<G, S>::check_individual_opening_challenges(
@@ -687,11 +669,10 @@ where
     }
 }
 
-impl<G, S> AtomicAccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
+impl<G> AtomicAccumulationScheme<ConstraintF<G>> for AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
 }
 
@@ -705,12 +686,13 @@ pub mod tests {
     use crate::AccumulationScheme;
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
-    use ark_ff::{One, UniformRand};
+    use ark_ff::{One, PrimeField, UniformRand};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_std::marker::PhantomData;
     use rand_core::RngCore;
 
     pub struct AtomicASForIpaPCTestParams {
@@ -718,10 +700,13 @@ pub mod tests {
         pub(crate) make_zk: bool,
     }
 
-    pub struct AtomicASForIpaPCTestInput {}
+    pub struct AtomicASForIpaPCTestInput<CF: PrimeField, S: CryptographicSponge<CF>> {
+        _cf: PhantomData<CF>,
+        _sponge: PhantomData<S>,
+    }
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>
-        for AtomicASForIpaPCTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, AtomicASForInnerProductArgPC<G>>
+        for AtomicASForIpaPCTestInput<ConstraintF<G>, S>
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -735,8 +720,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <AtomicASForInnerProductArgPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
-            <AtomicASForInnerProductArgPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+            <AtomicASForInnerProductArgPC<G> as AccumulationScheme<ConstraintF<G>>>::PredicateParams,
+            <AtomicASForInnerProductArgPC<G> as AccumulationScheme<ConstraintF<G>>>::PredicateIndex,
         ){
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
@@ -771,7 +756,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, AtomicASForInnerProductArgPC<G>>> {
             let ck = &input_params.0;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -821,7 +806,7 @@ pub mod tests {
                         ipa_proof,
                     };
 
-                    Input::<_, _, AtomicASForInnerProductArgPC<G, S>> {
+                    Input::<_, AtomicASForInnerProductArgPC<G>> {
                         instance: input,
                         witness: (),
                     }
@@ -837,10 +822,10 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = AtomicASForInnerProductArgPC<G, Sponge>;
-    type I = AtomicASForIpaPCTestInput;
+    type AS = AtomicASForInnerProductArgPC<G>;
+    type I = AtomicASForIpaPCTestInput<CF, Sponge>;
 
-    type Tests = ASTests<CF, Sponge, AS, I>;
+    type Tests = ASTests<CF, AS, I, Sponge>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {

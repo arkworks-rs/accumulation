@@ -45,29 +45,26 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub struct ASForR1CSNark<G, CS, S>
+pub struct ASForR1CSNark<G, CS>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
-    _sponge: PhantomData<S>,
     _constraint_synthesizer: PhantomData<CS>,
 }
 
-impl<G, CS, S> ASForR1CSNark<G, CS, S>
+impl<G, CS> ASForR1CSNark<G, CS>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_blinded_commitments(
         index_info: &IndexInfo,
         input_instances: &Vec<&InputInstance<G>>,
-        nark_sponge: S,
+        nark_sponge: impl CryptographicSponge<ConstraintF<G>>,
     ) -> (Vec<G>, Vec<G>, Vec<G>, Vec<G>) {
         let mut all_blinded_comm_a = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_b = Vec::with_capacity(input_instances.len());
@@ -83,7 +80,7 @@ where
             let mut comm_prod = first_round_message.comm_c;
 
             if instance.make_zk {
-                let gamma_challenge = R1CSNark::<G, S>::compute_challenge(
+                let gamma_challenge = R1CSNark::<G>::compute_challenge(
                     index_info,
                     instance.r1cs_input.as_slice(),
                     first_round_message,
@@ -170,7 +167,7 @@ where
 
     fn compute_hp_input_witnesses<'a>(
         prover_key: &ProverKey<G>,
-        inputs: &Vec<InputRef<'_, ConstraintF<G>, S, Self>>,
+        inputs: &Vec<InputRef<'_, ConstraintF<G>, Self>>,
     ) -> Vec<HPInputWitness<G::ScalarField>> {
         inputs
             .into_iter()
@@ -284,7 +281,7 @@ where
         accumulator_instances: &Vec<&AccumulatorInstance<G>>,
         input_instances: &Vec<&InputInstance<G>>,
         proof_randomness: &Option<ProofRandomness<G>>,
-        mut as_sponge: S,
+        mut as_sponge: impl CryptographicSponge<ConstraintF<G>>,
     ) -> Vec<G::ScalarField> {
         absorb!(
             &mut as_sponge,
@@ -363,16 +360,16 @@ where
         };
 
         let combined_r1cs_input =
-            ASForHadamardProducts::<G, S>::combine_vectors(r1cs_inputs, beta_challenges, None);
+            ASForHadamardProducts::<G>::combine_vectors(r1cs_inputs, beta_challenges, None);
 
         let combined_comm_a_proj =
-            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_a, beta_challenges, None);
+            ASForHadamardProducts::<G>::combine_commitments(all_comm_a, beta_challenges, None);
 
         let combined_comm_b_proj =
-            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_b, beta_challenges, None);
+            ASForHadamardProducts::<G>::combine_commitments(all_comm_b, beta_challenges, None);
 
         let combined_comm_c_proj =
-            ASForHadamardProducts::<G, S>::combine_commitments(all_comm_c, beta_challenges, None);
+            ASForHadamardProducts::<G>::combine_commitments(all_comm_c, beta_challenges, None);
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_c_proj,
@@ -469,30 +466,21 @@ where
                 )
             };
 
-        let combined_r1cs_blinded_witness = ASForHadamardProducts::<G, S>::combine_vectors(
+        let combined_r1cs_blinded_witness = ASForHadamardProducts::<G>::combine_vectors(
             r1cs_blinded_witnesses,
             beta_challenges,
             None,
         );
 
         let witness_randomness = if prover_witness_randomness.is_some() {
-            let combined_sigma_a = ASForHadamardProducts::<G, S>::combine_randomness(
-                all_sigma_a,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_a =
+                ASForHadamardProducts::<G>::combine_randomness(all_sigma_a, beta_challenges, None);
 
-            let combined_sigma_b = ASForHadamardProducts::<G, S>::combine_randomness(
-                all_sigma_b,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_b =
+                ASForHadamardProducts::<G>::combine_randomness(all_sigma_b, beta_challenges, None);
 
-            let combined_sigma_c = ASForHadamardProducts::<G, S>::combine_randomness(
-                all_sigma_c,
-                beta_challenges,
-                None,
-            );
+            let combined_sigma_c =
+                ASForHadamardProducts::<G>::combine_randomness(all_sigma_c, beta_challenges, None);
 
             Some(AccumulatorWitnessRandomness {
                 sigma_a: combined_sigma_a,
@@ -507,15 +495,14 @@ where
     }
 }
 
-impl<G, CS, S> AccumulationScheme<ConstraintF<G>, S> for ASForR1CSNark<G, CS, S>
+impl<G, CS> AccumulationScheme<ConstraintF<G>> for ASForR1CSNark<G, CS>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     type PublicParameters =
-        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PublicParameters;
+        <ASForHadamardProducts<G> as AccumulationScheme<ConstraintF<G>>>::PublicParameters;
 
     type PredicateParams = NARKPublicParameters;
     type PredicateIndex = CS;
@@ -531,7 +518,7 @@ where
     type Error = BoxedError;
 
     fn setup(rng: &mut impl RngCore) -> Result<Self::PublicParameters, Self::Error> {
-        <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::setup(rng)
+        <ASForHadamardProducts<G> as AccumulationScheme<ConstraintF<G>>>::setup(rng)
     }
 
     fn index(
@@ -539,7 +526,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipk, ivk) = R1CSNark::<G, S>::index(&predicate_params, predicate_index.clone())
+        let (ipk, ivk) = R1CSNark::<G>::index(&predicate_params, predicate_index.clone())
             .map_err(BoxedError::new)?;
 
         let as_matrices_hash = hash_matrices(PROTOCOL_NAME, &ipk.a, &ipk.b, &ipk.c);
@@ -559,17 +546,18 @@ where
         Ok((pk, vk, dk))
     }
 
-    fn prove_with_sponge<'a>(
+    fn prove<'a, S: CryptographicSponge<ConstraintF<G>>>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, Self>>,
         make_zk: MakeZK<'_>,
-        mut sponge: S,
-    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
+        sponge: Option<S>,
+    ) -> Result<(Accumulator<ConstraintF<G>, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
-        S: 'a,
     {
+        let mut sponge = sponge.unwrap_or_else(|| S::new());
+
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
         let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
@@ -657,23 +645,20 @@ where
             .iter()
             .zip(&combined_hp_input_witnesses)
             .map(
-                |(instance, witness)| InputRef::<_, _, ASForHadamardProducts<_, S>> {
-                    instance,
-                    witness,
-                },
+                |(instance, witness)| InputRef::<_, ASForHadamardProducts<G>> { instance, witness },
             );
 
         let hp_accumulators_iter = accumulator_instances
             .iter()
             .zip(&accumulator_witnesses)
             .map(
-                |(instance, witness)| AccumulatorRef::<_, _, ASForHadamardProducts<_, S>> {
+                |(instance, witness)| AccumulatorRef::<_, ASForHadamardProducts<G>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
             );
 
-        let (hp_accumulator, hp_proof) = ASForHadamardProducts::<_, S>::prove_with_sponge(
+        let (hp_accumulator, hp_proof) = ASForHadamardProducts::<G>::prove(
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
@@ -683,7 +668,7 @@ where
             } else {
                 MakeZK::Inherited(rng)
             },
-            hp_sponge,
+            Some(hp_sponge),
         )?;
 
         let beta_challenges = Self::compute_beta_challenges(
@@ -725,7 +710,7 @@ where
             randomness,
         };
 
-        let accumulator = Accumulator::<_, _, Self> {
+        let accumulator = Accumulator::<_, Self> {
             instance: combined_acc_instance,
             witness: combined_acc_witness,
         };
@@ -738,17 +723,19 @@ where
         Ok((accumulator, proof))
     }
 
-    fn verify_with_sponge<'a>(
+    fn verify<'a, S: CryptographicSponge<ConstraintF<G>>>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        mut sponge: S,
+        sponge: Option<S>,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
     {
+        let mut sponge = sponge.unwrap_or_else(|| S::new());
+
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
         let as_sponge = sponge.new_fork(PROTOCOL_NAME);
 
@@ -792,13 +779,13 @@ where
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        let hp_verify = ASForHadamardProducts::<_, S>::verify_with_sponge(
+        let hp_verify = ASForHadamardProducts::<G>::verify(
             &verifier_key.nark_index.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
             &proof.hp_proof,
-            hp_sponge,
+            Some(hp_sponge),
         )?;
 
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
@@ -818,13 +805,16 @@ where
             && comm_c.eq(&new_accumulator_instance.comm_c))
     }
 
-    fn decide_with_sponge(
+    fn decide<'a, S: CryptographicSponge<ConstraintF<G>>>(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
-        mut sponge: S,
-    ) -> Result<bool, Self::Error> {
-        sponge.fork(HP_AS_PROTOCOL_NAME);
-        let hp_sponge = sponge;
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, Self>,
+        sponge: Option<S>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a,
+    {
+        let mut hp_sponge = sponge.unwrap_or_else(|| S::new());
+        hp_sponge.fork(HP_AS_PROTOCOL_NAME);
 
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -880,13 +870,13 @@ where
             && comm_c.eq(&instance.comm_c);
 
         Ok(comm_check
-            && ASForHadamardProducts::<_, S>::decide_with_sponge(
+            && ASForHadamardProducts::<G>::decide(
                 &decider_key.ck,
-                AccumulatorRef::<_, _, ASForHadamardProducts<_, S>> {
+                AccumulatorRef::<_, ASForHadamardProducts<G>> {
                     instance: &instance.hp_instance,
                     witness: &witness.hp_witness,
                 },
-                hp_sponge,
+                Some(hp_sponge),
             )?)
     }
 }
@@ -911,6 +901,7 @@ pub mod tests {
     };
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_std::marker::PhantomData;
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
@@ -958,10 +949,13 @@ pub mod tests {
         }
     }
 
-    pub struct ASForR1CSNarkTestInput {}
+    pub struct ASForR1CSNarkTestInput<CF: PrimeField, S: CryptographicSponge<CF>> {
+        _cf: PhantomData<CF>,
+        _sponge: PhantomData<S>,
+    }
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>
-        for ASForR1CSNarkTestInput
+    impl<G, S> ASTestInput<ConstraintF<G>, ASForR1CSNark<G, DummyCircuit<G::ScalarField>>>
+        for ASForR1CSNarkTestInput<ConstraintF<G>, S>
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
@@ -975,24 +969,21 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
+            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>> as AccumulationScheme<
                 ConstraintF<G>,
-                S,
             >>::PredicateParams,
-            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
+            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>> as AccumulationScheme<
                 ConstraintF<G>,
-                S,
             >>::PredicateIndex,
         ) {
-            let nark_pp = R1CSNark::<G, S>::setup();
-            let _make_zk = test_params.make_zk;
+            let nark_pp = R1CSNark::<G>::setup();
             let circuit = DummyCircuit {
                 a: Some(G::ScalarField::rand(rng)),
                 b: Some(G::ScalarField::rand(rng)),
                 params: test_params.clone(),
             };
 
-            let (pk, _) = R1CSNark::<G, S>::index(&nark_pp, circuit.clone()).unwrap();
+            let (pk, _) = R1CSNark::<G>::index(&nark_pp, circuit.clone()).unwrap();
 
             ((test_params.clone(), pk), nark_pp, circuit)
         }
@@ -1001,8 +992,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>>
-        {
+        ) -> Vec<Input<ConstraintF<G>, ASForR1CSNark<G, DummyCircuit<G::ScalarField>>>> {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -1016,11 +1006,11 @@ pub mod tests {
                 let mut nark_sponge = S::new();
                 nark_sponge.fork(r1cs_nark::PROTOCOL_NAME);
 
-                let proof = R1CSNark::<G, S>::prove(
+                let proof = R1CSNark::<G>::prove(
                     ipk,
                     circuit.clone(),
                     test_params.make_zk,
-                    nark_sponge,
+                    Some(nark_sponge),
                     Some(rng),
                 )
                 .unwrap();
@@ -1045,12 +1035,10 @@ pub mod tests {
                     make_zk: proof.make_zk,
                 };
 
-                inputs.push(
-                    Input::<_, _, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>> {
-                        instance,
-                        witness,
-                    },
-                );
+                inputs.push(Input::<_, ASForR1CSNark<G, DummyCircuit<G::ScalarField>>> {
+                    instance,
+                    witness,
+                });
             }
 
             inputs
@@ -1063,10 +1051,10 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = ASForR1CSNark<G, DummyCircuit<F>, PoseidonSponge<CF>>;
-    type I = ASForR1CSNarkTestInput;
+    type AS = ASForR1CSNark<G, DummyCircuit<F>>;
+    type I = ASForR1CSNarkTestInput<CF, Sponge>;
 
-    type Tests = ASTests<CF, Sponge, AS, I>;
+    type Tests = ASTests<CF, AS, I, Sponge>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {

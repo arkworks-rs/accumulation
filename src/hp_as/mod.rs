@@ -32,24 +32,21 @@ pub mod constraints;
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub struct ASForHadamardProducts<G, S>
+pub struct ASForHadamardProducts<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
-    _sponge: PhantomData<S>,
 }
 
-impl<G, S> ASForHadamardProducts<G, S>
+impl<G> ASForHadamardProducts<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn squeeze_mu_challenges(
-        sponge: &mut S,
+        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
         make_zk: bool,
     ) -> Vec<G::ScalarField> {
@@ -70,7 +67,10 @@ where
         mu_challenges
     }
 
-    fn squeeze_nu_challenges(sponge: &mut S, num_inputs: usize) -> Vec<G::ScalarField> {
+    fn squeeze_nu_challenges(
+        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
+        num_inputs: usize,
+    ) -> Vec<G::ScalarField> {
         let nu_size = FieldElementSize::Truncated(128);
         let nu_challenge: G::ScalarField = sponge
             .squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())
@@ -437,11 +437,10 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForHadamardProducts<G, S>
+impl<G> AccumulationScheme<ConstraintF<G>> for ASForHadamardProducts<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     type PublicParameters = ();
     type PredicateParams = ();
@@ -473,17 +472,18 @@ where
         Ok((ck.clone(), *predicate_index, ck))
     }
 
-    fn prove_with_sponge<'a>(
+    fn prove<'a, S: CryptographicSponge<ConstraintF<G>>>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, Self>>,
         make_zk: MakeZK<'_>,
-        sponge: S,
-    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
+        sponge: Option<S>,
+    ) -> Result<(Accumulator<ConstraintF<G>, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
-        S: 'a,
     {
+        let sponge = sponge.unwrap_or_else(|| S::new());
+
         let inputs = inputs.into_iter().collect::<Vec<_>>();
         let accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
 
@@ -645,7 +645,7 @@ where
             hiding_rands.as_ref(),
         );
 
-        let accumulator = Accumulator::<_, _, Self> {
+        let accumulator = Accumulator::<_, Self> {
             instance: accumulator_instance,
             witness: accumulator_witness,
         };
@@ -653,18 +653,19 @@ where
         Ok((accumulator, proof))
     }
 
-    fn verify_with_sponge<'a>(
+    fn verify<'a, S: CryptographicSponge<ConstraintF<G>>>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: S,
+        sponge: Option<S>,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
-        S: 'a,
     {
+        let sponge = sponge.unwrap_or_else(|| S::new());
+
         let mut input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
@@ -716,11 +717,14 @@ where
         Ok(accumulator_instance.eq(new_accumulator_instance))
     }
 
-    fn decide_with_sponge(
+    fn decide<'a, S: CryptographicSponge<ConstraintF<G>>>(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
-        _sponge: S,
-    ) -> Result<bool, Self::Error> {
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, Self>,
+        _sponge: Option<S>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a,
+    {
         let instance = accumulator.instance;
         let witness = accumulator.witness;
         let randomness = witness.randomness.as_ref();
@@ -771,11 +775,10 @@ pub mod tests {
 
     pub struct ASForHPTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForHadamardProducts<G, S>> for ASForHPTestInput
+    impl<G> ASTestInput<ConstraintF<G>, ASForHadamardProducts<G>> for ASForHPTestInput
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = ASForHPTestParams;
         type InputParams = (PedersenCommitmentCK<G>, bool);
@@ -785,8 +788,8 @@ pub mod tests {
             _rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
-            <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+            <ASForHadamardProducts<G> as AccumulationScheme<ConstraintF<G>>>::PredicateParams,
+            <ASForHadamardProducts<G> as AccumulationScheme<ConstraintF<G>>>::PredicateIndex,
         ) {
             let pp = PedersenCommitment::setup(test_params.vector_len);
             let ck = PedersenCommitment::trim(&pp, test_params.vector_len);
@@ -797,7 +800,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, ASForHadamardProducts<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, ASForHadamardProducts<G>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_num_elems();
 
@@ -805,10 +808,8 @@ pub mod tests {
                 .map(|_| {
                     let a_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
                     let b_vec = vec![G::ScalarField::rand(&mut rng); vector_len];
-                    let product = ASForHadamardProducts::<G, S>::compute_hp(
-                        a_vec.as_slice(),
-                        b_vec.as_slice(),
-                    );
+                    let product =
+                        ASForHadamardProducts::<G>::compute_hp(a_vec.as_slice(), b_vec.as_slice());
 
                     let randomness = if input_params.1 {
                         let rand_1 = G::ScalarField::rand(&mut rng);
@@ -853,7 +854,7 @@ pub mod tests {
                         randomness,
                     };
 
-                    Input::<_, _, ASForHadamardProducts<G, S>> { instance, witness }
+                    Input::<_, ASForHadamardProducts<G>> { instance, witness }
                 })
                 .collect::<Vec<_>>()
         }
@@ -864,10 +865,10 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = ASForHadamardProducts<G, Sponge>;
+    type AS = ASForHadamardProducts<G>;
     type I = ASForHPTestInput;
 
-    type Tests = ASTests<CF, Sponge, AS, I>;
+    type Tests = ASTests<CF, AS, I, Sponge>;
 
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {

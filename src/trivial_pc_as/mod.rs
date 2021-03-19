@@ -36,21 +36,18 @@ pub mod constraints;
 ///
 /// [pc_ped]: ark_poly_commit::pedersen_pc::PedersenPC
 /// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub struct ASForTrivialPC<G, S>
+pub struct ASForTrivialPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     _curve: PhantomData<G>,
-    _sponge: PhantomData<S>,
 }
 
-impl<G, S> ASForTrivialPC<G, S>
+impl<G> ASForTrivialPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &pedersen_pc::CommitterKey<G>,
@@ -96,8 +93,8 @@ where
 
     fn compute_witness_polynomials_and_commitments<'a>(
         ck: &pedersen_pc::CommitterKey<G>,
-        inputs: &[InputRef<'a, ConstraintF<G>, S, Self>],
-        accumulators: &[AccumulatorRef<'a, ConstraintF<G>, S, Self>],
+        inputs: &[InputRef<'a, ConstraintF<G>, Self>],
+        accumulators: &[AccumulatorRef<'a, ConstraintF<G>, Self>],
     ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
@@ -242,11 +239,10 @@ where
     }
 }
 
-impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForTrivialPC<G, S>
+impl<G> AccumulationScheme<ConstraintF<G>> for ASForTrivialPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
 {
     type PublicParameters = ();
     type PredicateParams = pedersen_pc::UniversalParams<G>;
@@ -286,20 +282,20 @@ where
         Ok((ck, *predicate_index, vk))
     }
 
-    fn prove_with_sponge<'a>(
+    fn prove<'a, S: CryptographicSponge<ConstraintF<G>>>(
         prover_key: &Self::ProverKey,
-        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, S, Self>>,
-        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, S, Self>>,
+        inputs: impl IntoIterator<Item = InputRef<'a, ConstraintF<G>, Self>>,
+        old_accumulators: impl IntoIterator<Item = AccumulatorRef<'a, ConstraintF<G>, Self>>,
         _make_zk: MakeZK<'_>,
-        sponge: S,
-    ) -> Result<(Accumulator<ConstraintF<G>, S, Self>, Self::Proof), Self::Error>
+        sponge: Option<S>,
+    ) -> Result<(Accumulator<ConstraintF<G>, Self>, Self::Proof), Self::Error>
     where
         Self: 'a,
-        S: 'a,
     {
-        let inputs: Vec<InputRef<'a, _, _, Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<AccumulatorRef<'a, _, _, Self>> =
-            old_accumulators.into_iter().collect();
+        let sponge = sponge.unwrap_or_else(|| S::new());
+
+        let inputs: Vec<InputRef<'a, _, Self>> = inputs.into_iter().collect();
+        let accumulators: Vec<AccumulatorRef<'a, _, Self>> = old_accumulators.into_iter().collect();
 
         let input_instances = inputs
             .iter()
@@ -413,7 +409,7 @@ where
             eval: combined_eval,
         };
 
-        let new_accumulator = Accumulator::<_, _, Self> {
+        let new_accumulator = Accumulator::<_, Self> {
             instance: new_accumulator_instance,
             witness: combined_polynomial,
         };
@@ -421,18 +417,19 @@ where
         Ok((new_accumulator, proof))
     }
 
-    fn verify_with_sponge<'a>(
+    fn verify<'a, S: CryptographicSponge<ConstraintF<G>>>(
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: S,
+        sponge: Option<S>,
     ) -> Result<bool, Self::Error>
     where
         Self: 'a,
-        S: 'a,
     {
+        let sponge = sponge.unwrap_or_else(|| S::new());
+
         // Collect the input and run basic checks on them.
         let input_instances = input_instances
             .into_iter()
@@ -542,11 +539,14 @@ where
         Ok(true)
     }
 
-    fn decide_with_sponge(
+    fn decide<'a, S: CryptographicSponge<ConstraintF<G>>>(
         decider_key: &Self::DeciderKey,
-        accumulator: AccumulatorRef<'_, ConstraintF<G>, S, Self>,
-        _sponge: S,
-    ) -> Result<bool, Self::Error> {
+        accumulator: AccumulatorRef<'_, ConstraintF<G>, Self>,
+        _sponge: Option<S>,
+    ) -> Result<bool, Self::Error>
+    where
+        Self: 'a,
+    {
         let check = PedersenPC::check_individual_opening_challenges(
             decider_key,
             vec![&accumulator.instance.commitment],
@@ -589,11 +589,10 @@ pub mod tests {
 
     pub struct ASForTrivialPCTestInput {}
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForTrivialPC<G, S>> for ASForTrivialPCTestInput
+    impl<G> ASTestInput<ConstraintF<G>, ASForTrivialPC<G>> for ASForTrivialPCTestInput
     where
         G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
     {
         type TestParams = ASForTrivialPCTestParams;
         type InputParams = pedersen_pc::CommitterKey<G>;
@@ -603,8 +602,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <ASForTrivialPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
-            <ASForTrivialPC<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
+            <ASForTrivialPC<G> as AccumulationScheme<ConstraintF<G>>>::PredicateParams,
+            <ASForTrivialPC<G> as AccumulationScheme<ConstraintF<G>>>::PredicateIndex,
         ) {
             let max_degree = test_params.degree;
             let supported_degree = max_degree;
@@ -629,7 +628,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, ASForTrivialPC<G, S>>> {
+        ) -> Vec<Input<ConstraintF<G>, ASForTrivialPC<G>>> {
             let ck = input_params;
             let degree = PCCommitterKey::supported_degree(ck);
 
@@ -667,7 +666,7 @@ pub mod tests {
                         eval,
                     };
 
-                    Input::<_, _, ASForTrivialPC<G, S>> {
+                    Input::<_, ASForTrivialPC<G>> {
                         instance,
                         witness: labeled_polynomial,
                     }
@@ -683,10 +682,10 @@ pub mod tests {
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = ASForTrivialPC<G, Sponge>;
+    type AS = ASForTrivialPC<G>;
     type I = ASForTrivialPCTestInput;
 
-    type Tests = ASTests<CF, Sponge, AS, I>;
+    type Tests = ASTests<CF, AS, I, Sponge>;
 
     #[test]
     pub fn single_input_initialization_test() -> Result<(), BoxedError> {

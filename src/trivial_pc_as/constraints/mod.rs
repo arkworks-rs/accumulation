@@ -10,7 +10,7 @@ use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
-use ark_relations::r1cs::SynthesisError;
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
@@ -25,29 +25,23 @@ pub use data_structures::*;
 /// The verifier gadget of [`ASForTrivialPC`][as_for_trivial_pc].
 ///
 /// [as_for_trivial_pc]: crate::trivial_pc_as::ASForTrivialPC
-pub struct ASForTrivialPCVerifierGadget<G, C, S, SV>
+pub struct ASForTrivialPCVerifierGadget<G, C>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
-    _sponge: PhantomData<S>,
-    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> ASForTrivialPCVerifierGadget<G, C, S, SV>
+impl<G, C> ASForTrivialPCVerifierGadget<G, C>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
     fn combine_evaluation<'a>(
@@ -77,15 +71,13 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForTrivialPC<G, S>>
-    for ASForTrivialPCVerifierGadget<G, C, S, SV>
+impl<G, C> ASVerifierGadget<ConstraintF<G>, ASForTrivialPC<G>>
+    for ASForTrivialPCVerifierGadget<G, C>
 where
     G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -103,18 +95,25 @@ where
             sponge,
         )
     )]
-    fn verify_with_sponge<'a>(
+    fn verify<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
+        cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
         input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
         old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
         new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
-        sponge: SV,
+        sponge: Option<SV>,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
+        let sponge = sponge.unwrap_or_else(|| SV::new(cs));
+
         let input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
@@ -227,11 +226,11 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = ASForTrivialPC<G, Sponge>;
-    type ASV = ASForTrivialPCVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = ASForTrivialPC<G>;
+    type ASV = ASForTrivialPCVerifierGadget<G, C>;
     type I = ASForTrivialPCTestInput;
 
-    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+    type Tests = ASVerifierGadgetTests<CF, AS, ASV, I, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_initialization_no_zk() {

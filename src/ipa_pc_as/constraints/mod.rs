@@ -1,5 +1,5 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, NNFieldVar};
-use crate::ipa_pc_as::{AtomicASForInnerProductArgPC, IpaPCDomain};
+use crate::ipa_pc_as::{ASForIpaPCDomain, AtomicASForInnerProductArgPC, IpaPCDomain};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -32,29 +32,23 @@ pub use data_structures::*;
 /// The verifier gadget of [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
 ///
 /// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
-pub struct AtomicASForIpaPCVerifierGadget<G, C, S, SV>
+pub struct AtomicASForIpaPCVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
-    _sponge: PhantomData<S>,
-    _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> AtomicASForIpaPCVerifierGadget<G, C, S, SV>
+impl<G, C> AtomicASForIpaPCVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
     fn deterministic_commit_to_linear_polynomial(
@@ -81,10 +75,15 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, inputs))]
-    fn succinct_check_inputs<'a>(
+    fn succinct_check_inputs<
+        'a,
+        I: IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
-        inputs: impl IntoIterator<Item = &'a InputInstanceVar<G, C>>,
+        inputs: I,
     ) -> Result<
         Vec<(
             Boolean<ConstraintF<G>>,
@@ -122,8 +121,8 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
-    fn absorb_check_polynomial_into_sponge(
-        sponge: &mut SV,
+    fn absorb_check_polynomial_into_sponge<S: CryptographicSponge<ConstraintF<G>>>(
+        sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
     ) -> Result<(), SynthesisError> {
         let mut bytes_input = Vec::new();
@@ -136,7 +135,11 @@ where
     }
 
     #[tracing::instrument(target = "r1cs", skip(ipa_vk, succinct_checks, proof, as_sponge))]
-    fn combine_succinct_checks_and_proof<'a>(
+    fn combine_succinct_checks_and_proof<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
         ipa_vk: &ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
         succinct_checks: &'a Vec<(
             Boolean<ConstraintF<G>>,
@@ -144,7 +147,7 @@ where
             &FinalCommKeyVar<C>,
         )>,
         proof: &ProofVar<G, C>,
-        as_sponge: SV,
+        as_sponge: DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, ASForIpaPCDomain>,
     ) -> Result<
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
@@ -281,15 +284,13 @@ where
     }
 }
 
-impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, AtomicASForInnerProductArgPC<G, S>>
-    for AtomicASForIpaPCVerifierGadget<G, C, S, SV>
+impl<G, C> ASVerifierGadget<ConstraintF<G>, AtomicASForInnerProductArgPC<G>>
+    for AtomicASForIpaPCVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<G, C>;
     type InputInstance = InputInstanceVar<G, C>;
@@ -299,48 +300,48 @@ where
     #[tracing::instrument(
         target = "r1cs",
         skip(
-            _verifier_key,
-            _inputs,
-            _old_accumulators,
-            _new_accumulator,
-            _proof,
-            _sponge,
+            cs,
+            verifier_key,
+            input_instances,
+            old_accumulator_instances,
+            new_accumulator_instance,
+            proof,
+            sponge
         )
     )]
-    fn verify_with_sponge<'a>(
-        _verifier_key: &Self::VerifierKey,
-        _inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        _old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        _new_accumulator: &Self::AccumulatorInstance,
-        _proof: &Self::Proof,
-        _sponge: SV,
-    ) -> Result<Boolean<ConstraintF<G>>, SynthesisError> {
-        unimplemented!(
-            "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
-        );
-    }
-
-    #[tracing::instrument(
-        target = "r1cs",
-        skip(cs, verifier_key, inputs, old_accumulators, new_accumulator, proof,)
-    )]
-    fn verify<'a>(
+    fn verify<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
         cs: ConstraintSystemRef<ConstraintF<G>>,
         verifier_key: &Self::VerifierKey,
-        inputs: impl IntoIterator<Item = &'a Self::InputInstance>,
-        old_accumulators: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
-        new_accumulator: &Self::AccumulatorInstance,
+        input_instances: impl IntoIterator<Item = &'a Self::InputInstance>,
+        old_accumulator_instances: impl IntoIterator<Item = &'a Self::AccumulatorInstance>,
+        new_accumulator_instance: &Self::AccumulatorInstance,
         proof: &Self::Proof,
+        sponge: Option<SV>,
     ) -> Result<Boolean<ConstraintF<G>>, SynthesisError>
     where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let as_sponge = SV::new(cs.clone());
+        if sponge.is_some() {
+            unimplemented!(
+                "ASForIpaPC is unable to accept sponge objects until IpaPC gets updated to accept them."
+            );
+        }
+
+        let as_sponge =
+            DomainSeparatedSpongeVar::<ConstraintF<G>, S, SV, ASForIpaPCDomain>::new(cs.clone());
 
         let mut verify_result = Boolean::TRUE;
 
-        if new_accumulator.ipa_commitment.shifted_comm.is_some() {
+        if new_accumulator_instance
+            .ipa_commitment
+            .shifted_comm
+            .is_some()
+        {
             return Ok(Boolean::FALSE);
         }
 
@@ -356,10 +357,10 @@ where
             )?;
         }
 
-        let succinct_check_result = Self::succinct_check_inputs(
+        let succinct_check_result = Self::succinct_check_inputs::<_, S, SV>(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_svk,
-            inputs.into_iter().chain(old_accumulators),
+            input_instances.into_iter().chain(old_accumulator_instances),
         )?;
 
         if succinct_check_result.is_empty() {
@@ -380,10 +381,10 @@ where
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
-        verify_result =
-            verify_result.and(&combined_commitment.is_eq(&new_accumulator.ipa_commitment.comm)?)?;
+        verify_result = verify_result
+            .and(&combined_commitment.is_eq(&new_accumulator_instance.ipa_commitment.comm)?)?;
 
-        verify_result = verify_result.and(&challenge.is_eq(&new_accumulator.point)?)?;
+        verify_result = verify_result.and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
 
         let mut eval =
             Self::evaluate_combined_check_polynomials(combined_check_poly_addends, &challenge)?;
@@ -395,21 +396,19 @@ where
             );
         };
 
-        verify_result = verify_result.and(&eval.is_eq(&new_accumulator.evaluation)?)?;
+        verify_result = verify_result.and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
 
         Ok(verify_result)
     }
 }
 
-impl<G, C, S, SV> AtomicASVerifierGadget<ConstraintF<G>, S, SV, AtomicASForInnerProductArgPC<G, S>>
-    for AtomicASForIpaPCVerifierGadget<G, C, S, SV>
+impl<G, C> AtomicASVerifierGadget<ConstraintF<G>, AtomicASForInnerProductArgPC<G>>
+    for AtomicASForIpaPCVerifierGadget<G, C>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
-    SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
 }
 
@@ -429,11 +428,11 @@ pub mod tests {
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = AtomicASForInnerProductArgPC<G, Sponge>;
-    type I = AtomicASForIpaPCTestInput;
-    type ASV = AtomicASForIpaPCVerifierGadget<G, C, Sponge, SpongeVar>;
+    type AS = AtomicASForInnerProductArgPC<G>;
+    type I = AtomicASForIpaPCTestInput<CF, Sponge>;
+    type ASV = AtomicASForIpaPCVerifierGadget<G, C>;
 
-    type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
+    type Tests = ASVerifierGadgetTests<CF, AS, ASV, I, Sponge, SpongeVar>;
 
     #[test]
     pub fn test_initialization_no_zk() {
