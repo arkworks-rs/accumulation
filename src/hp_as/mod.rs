@@ -763,7 +763,7 @@ pub mod tests {
     use ark_ec::AffineCurve;
     use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::Absorbable;
     use ark_std::test_rng;
     use ark_std::UniformRand;
     use rand_core::RngCore;

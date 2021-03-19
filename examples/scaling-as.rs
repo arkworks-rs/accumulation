@@ -107,7 +107,7 @@ fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
             Input::<CF, AS>::map_to_refs(&inputs),
             Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
             MakeZK::Inherited(Some(rng)),
-            None::<S>
+            None::<S>,
         )
         .unwrap();
         let prover_time = start.elapsed();

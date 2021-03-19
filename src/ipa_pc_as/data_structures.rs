@@ -113,19 +113,19 @@ impl<CF: PrimeField> CryptographicSponge<CF> for UnimplementedSponge {
         unimplemented!()
     }
 
-    fn absorb(&mut self, input: &impl Absorbable<CF>) {
+    fn absorb(&mut self, _input: &impl Absorbable<CF>) {
         unimplemented!()
     }
 
-    fn squeeze_bytes(&mut self, num_bytes: usize) -> Vec<u8> {
+    fn squeeze_bytes(&mut self, _num_bytes: usize) -> Vec<u8> {
         unimplemented!()
     }
 
-    fn squeeze_bits(&mut self, num_bits: usize) -> Vec<bool> {
+    fn squeeze_bits(&mut self, _num_bits: usize) -> Vec<bool> {
         unimplemented!()
     }
 
-    fn squeeze_field_elements(&mut self, num_elements: usize) -> Vec<CF> {
+    fn squeeze_field_elements(&mut self, _num_elements: usize) -> Vec<CF> {
         unimplemented!()
     }
 }

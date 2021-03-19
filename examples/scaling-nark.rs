@@ -5,7 +5,7 @@
 // For benchmarking
 use ark_accumulation::r1cs_nark_as::r1cs_nark::R1CSNark;
 use ark_ff::PrimeField;
-use ark_pallas::{Affine, Fq, Fr};
+use ark_pallas::{Affine, Fr};
 use ark_relations::{
     lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
