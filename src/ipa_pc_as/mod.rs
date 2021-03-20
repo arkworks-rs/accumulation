@@ -830,7 +830,7 @@ pub mod tests {
     #[test]
     pub fn single_input_initialization_test_no_zk() -> Result<(), BoxedError> {
         Tests::single_input_initialization_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -838,7 +838,7 @@ pub mod tests {
     #[test]
     pub fn single_input_initialization_test_zk() -> Result<(), BoxedError> {
         Tests::single_input_initialization_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }
@@ -846,7 +846,7 @@ pub mod tests {
     #[test]
     pub fn multiple_inputs_initialization_test_no_zk() -> Result<(), BoxedError> {
         Tests::multiple_inputs_initialization_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -854,7 +854,7 @@ pub mod tests {
     #[test]
     pub fn multiple_input_initialization_test_zk() -> Result<(), BoxedError> {
         Tests::multiple_inputs_initialization_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }
@@ -862,7 +862,7 @@ pub mod tests {
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), BoxedError> {
         Tests::simple_accumulation_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -870,7 +870,7 @@ pub mod tests {
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), BoxedError> {
         Tests::simple_accumulation_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }
@@ -878,7 +878,7 @@ pub mod tests {
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_no_zk() -> Result<(), BoxedError> {
         Tests::multiple_accumulations_multiple_inputs_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -886,7 +886,7 @@ pub mod tests {
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test_zk() -> Result<(), BoxedError> {
         Tests::multiple_accumulations_multiple_inputs_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }
@@ -894,7 +894,7 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -902,7 +902,7 @@ pub mod tests {
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), BoxedError> {
         Tests::accumulators_only_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }
@@ -910,7 +910,7 @@ pub mod tests {
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
         Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: false,
         })
     }
@@ -918,7 +918,7 @@ pub mod tests {
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
         Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
-            degree: 8,
+            degree: 11,
             make_zk: true,
         })
     }

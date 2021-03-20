@@ -438,7 +438,7 @@ pub mod tests {
     pub fn test_initialization_no_zk() {
         Tests::test_initialization(
             &AtomicASForIpaPCTestParams {
-                degree: 8,
+                degree: 11,
                 make_zk: false,
             },
             1,
@@ -449,7 +449,7 @@ pub mod tests {
     pub fn test_initialization_zk() {
         Tests::test_initialization(
             &AtomicASForIpaPCTestParams {
-                degree: 8,
+                degree: 11,
                 make_zk: true,
             },
             1,
@@ -460,7 +460,7 @@ pub mod tests {
     pub fn test_simple_accumulation_no_zk() {
         Tests::test_simple_accumulation(
             &AtomicASForIpaPCTestParams {
-                degree: 8,
+                degree: 11,
                 make_zk: false,
             },
             1,
@@ -471,7 +471,7 @@ pub mod tests {
     pub fn test_simple_accumulation_zk() {
         Tests::test_simple_accumulation(
             &AtomicASForIpaPCTestParams {
-                degree: 8,
+                degree: 11,
                 make_zk: true,
             },
             1,

@@ -363,7 +363,7 @@ pub mod tests {
     pub fn test_initialization_no_zk() {
         Tests::test_initialization(
             &ASForHPTestParams {
-                vector_len: 8,
+                vector_len: 11,
                 make_zk: false,
             },
             1,
@@ -374,7 +374,7 @@ pub mod tests {
     pub fn test_initialization_zk() {
         Tests::test_initialization(
             &ASForHPTestParams {
-                vector_len: 8,
+                vector_len: 11,
                 make_zk: true,
             },
             1,
@@ -385,7 +385,7 @@ pub mod tests {
     pub fn test_simple_accumulation_no_zk() {
         Tests::test_simple_accumulation(
             &ASForHPTestParams {
-                vector_len: 8,
+                vector_len: 11,
                 make_zk: false,
             },
             1,
@@ -396,7 +396,7 @@ pub mod tests {
     pub fn test_simple_accumulation_zk() {
         Tests::test_simple_accumulation(
             &ASForHPTestParams {
-                vector_len: 8,
+                vector_len: 11,
                 make_zk: true,
             },
             1,

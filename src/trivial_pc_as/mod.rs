@@ -689,31 +689,31 @@ pub mod tests {
 
     #[test]
     pub fn single_input_initialization_test() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::single_input_initialization_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
     pub fn multiple_inputs_initialization_test() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::multiple_inputs_initialization_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
     pub fn simple_accumulation_test() -> Result<(), BoxedError> {
-        Tests::simple_accumulation_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::simple_accumulation_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
     pub fn multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::multiple_accumulations_multiple_inputs_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
     pub fn accumulators_only_test() -> Result<(), BoxedError> {
-        Tests::accumulators_only_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::accumulators_only_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForTrivialPCTestParams { degree: 8 })
+        Tests::no_accumulators_or_inputs_fail_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 }

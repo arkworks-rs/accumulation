@@ -234,26 +234,26 @@ pub mod tests {
 
     #[test]
     pub fn test_initialization_no_zk() {
-        Tests::test_initialization(&ASForTrivialPCTestParams { degree: 8 }, 1);
+        Tests::test_initialization(&ASForTrivialPCTestParams { degree: 11 }, 1);
     }
 
     #[test]
     pub fn test_initialization_zk() {
-        Tests::test_initialization(&ASForTrivialPCTestParams { degree: 8 }, 1);
+        Tests::test_initialization(&ASForTrivialPCTestParams { degree: 11 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_no_zk() {
-        Tests::test_simple_accumulation(&ASForTrivialPCTestParams { degree: 8 }, 1);
+        Tests::test_simple_accumulation(&ASForTrivialPCTestParams { degree: 11 }, 1);
     }
 
     #[test]
     pub fn test_simple_accumulation_zk() {
-        Tests::test_simple_accumulation(&ASForTrivialPCTestParams { degree: 8 }, 1);
+        Tests::test_simple_accumulation(&ASForTrivialPCTestParams { degree: 11 }, 1);
     }
 
     #[test]
     pub fn print_breakdown() {
-        Tests::print_costs_breakdown(&ASForTrivialPCTestParams { degree: 8 });
+        Tests::print_costs_breakdown(&ASForTrivialPCTestParams { degree: 11 });
     }
 }

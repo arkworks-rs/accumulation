@@ -208,7 +208,7 @@ pub mod tests {
     use ark_std::vec::Vec;
     use rand_core::RngCore;
 
-    pub const NUM_ITERATIONS: usize = 1;
+    pub const NUM_ITERATIONS: usize = 50;
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
     pub trait ASTestInput<CF: PrimeField, A: AccumulationScheme<CF>> {
