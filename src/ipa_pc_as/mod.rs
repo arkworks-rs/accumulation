@@ -39,12 +39,12 @@ type IpaPC<G, S> = InnerProductArgPC<
 >;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
-/// The construction is described in detail in [BCMS20][pcdas].
+/// The construction is described in detail in [BCMS20][bcms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
-/// [pcdas]: https://eprint.iacr.org/2020/499
+/// [bcms20]: https://eprint.iacr.org/2020/499
 pub struct AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

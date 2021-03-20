@@ -1,8 +1,9 @@
 //! A crate that provides infrastructure to implement accumulation schemes.
-//! The interface for accumulation schemes were formalized in [BCMS20][pcdas] and [BCLMS20][pcdwsa].
+//! The interface for accumulation schemes were formalized in [BCMS20][bcms20] and
+//! [BCLMS20][bclms20].
 //!
-//! [pcdas]: https://eprint.iacr.org/2020/499.pdf
-//! [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+//! [bcms20]: https://eprint.iacr.org/2020/499.pdf
+//! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 
 #![warn(
     const_err,
@@ -42,30 +43,30 @@ pub mod error;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-/// An accumulation scheme for trivial homomorphic commitment schemes.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
-///
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
-pub mod trivial_pc_as;
-
 /// An accumulation scheme for the Hadamard product relation.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
+/// The construction is described in detail in [BCLMS20][bclms20].
 ///
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub mod hp_as;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
-/// The construction is described in detail in [BCMS20][pcdas].
+/// The construction is described in detail in [BCMS20][bcms20].
 ///
-/// [pcdas]: https://eprint.iacr.org/2020/499
+/// [bcms20]: https://eprint.iacr.org/2020/499
 pub mod ipa_pc_as;
 
 /// An accumulation scheme for a NARK for R1CS.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
+/// The construction is described in detail in [BCLMS20][bclms20].
 ///
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 #[cfg(feature = "r1cs")]
 pub mod r1cs_nark_as;
+
+/// An accumulation scheme for trivial homomorphic commitment schemes.
+/// The construction is described in detail in [BCLMS20][bclms20].
+///
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+pub mod trivial_pc_as;
 
 /// Specifies the zero-knowledge configuration for an accumulation.
 pub enum MakeZK<'a> {
@@ -93,12 +94,12 @@ impl<'a> MakeZK<'a> {
 /// also outputs a [`Proof`][pf] attesting that the [`Accumulator`][acc] was computed correctly,
 /// which a verifier can check. At any point, a decider can use an [`Accumulator`][acc] to determine
 /// if each accumulated input satisfied the predicate.
-/// The interface is defined in [BCLMS20][pcdwsa] as `SplitAccumulationScheme`.
+/// The interface is defined in [BCLMS20][bclms20] as `SplitAccumulationScheme`.
 ///
 /// [in]: Input
 /// [acc]: Accumulator
 /// [pf]: AccumulationScheme::Proof
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub trait AccumulationScheme<CF: PrimeField>: Sized {
     /// The public parameters for the accumulation scheme.
     type PublicParameters: Clone;
@@ -109,8 +110,8 @@ pub trait AccumulationScheme<CF: PrimeField>: Sized {
     /// The index of the accumulation scheme's predicate.
     type PredicateIndex: Clone;
 
-    /// The key used to accumulate inputs and old accumulators and to prove that the accumulation was
-    /// computed correctly.
+    /// The key used to accumulate inputs and old accumulators and to prove that the accumulation
+    /// was computed correctly.
     type ProverKey: Clone;
 
     /// The key used to check that an accumulator was computed correctly from the inputs
@@ -187,11 +188,11 @@ pub trait AccumulationScheme<CF: PrimeField>: Sized {
 
 /// A special case of an [`AccumulationScheme`] that has empty witnesses, so entire
 /// [`Inputs`][Input] and [`Accumulators`][Accumulator] are passed into the verifier.
-/// The interface is defined in [BCMS20][pcdas] as `AccumulationScheme` and in [BCLMS20][pcdwsa] as
-/// `AtomicAccumulationScheme`.
+/// The interface is defined in [BCMS20][bcms20] as `AccumulationScheme` and in [BCLMS20][bclms20]
+/// as `AtomicAccumulationScheme`.
 ///
-/// [pcdas]: https://eprint.iacr.org/2020/499.pdf
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bcms20]: https://eprint.iacr.org/2020/499.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub trait AtomicAccumulationScheme<CF: PrimeField>:
     AccumulationScheme<CF, InputWitness = (), AccumulatorWitness = ()>
 {
@@ -258,8 +259,8 @@ pub mod tests {
         I: ASTestInput<CF, AS>,
         S: CryptographicSponge<CF>,
     {
-        /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of proving
-        /// and verifying.
+        /// For each iteration, runs the accumulation scheme for `num_accumulations` steps of
+        /// proving and verifying.
         /// At the end of the iteration, the last accumulator is put through a single decider.
         /// The function will return whether all of the verifiers and deciders returned true
         /// from all of the iterations.

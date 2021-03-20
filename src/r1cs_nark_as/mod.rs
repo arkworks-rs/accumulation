@@ -39,12 +39,12 @@ pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"AS-FOR-HP-2020";
 pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 
 /// An accumulation scheme for a NARK for R1CS.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
+/// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForR1CSNark<G, CS>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

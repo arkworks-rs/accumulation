@@ -29,13 +29,13 @@ pub mod constraints;
 
 /// An accumulation scheme for trivial homomorphic commitment schemes. The implementation is
 /// specialized for the [`PedersenPC`][pc_ped] scheme.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
+/// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
 /// [pc_ped]: ark_poly_commit::pedersen_pc::PedersenPC
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForTrivialPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

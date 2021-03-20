@@ -1,6 +1,7 @@
 <h1 align="center">Accumulation Schemes</h1>
 
 <p align="center">
+    <img src="https://github.com/arkworks-rs/accumulation/workflows/CI/badge.svg?branch=master">
     <a href="https://github.com/arkworks-rs/accumulation/blob/master/LICENSE-APACHE">
         <img src="https://img.shields.io/badge/license-APACHE-blue.svg"></a>
     <a href="https://github.com/arkworks-rs/accumulation/blob/master/LICENSE-MIT">
@@ -21,10 +22,19 @@ An accumulation scheme for a predicate is a cryptographic primitive that allows 
 prover to receive a stream of inputs and accumulate them into an object called an *accumulator*.
 Given the inputs and outputs of the prover, an accumulation verifier can verify that the set of
 inputs was properly accumulated. At any time, an accumulation decider can use a single accumulator
-to determine whether all the previously accumulated inputs satisfies the predicate. 
+to determine whether all the previously accumulated inputs satisfy the predicate.
  
-This library provides implementations of accumulation schemes for different predicates and the
-constraints for their accumulation verifier.
+This library provides the following implementations:
+- [`hp_as`](src/hp_as): An accumulation scheme for Hadamard Products
+
+- [`ipa_pc_as`](src/ipa_pc_as): An accumulation scheme for a polynomial commitment scheme based on
+Inner Product Arguments
+
+- [`r1cs_nark_as`](src/r1cs_nark_as): An accumulation scheme for an
+[`R1CS NARK`](src/r1cs_nark_as/r1cs_nark), which implemented in this library
+
+- [`trivial_pc_as`](src/trivial_pc_as): An accumulation scheme for a trivial polynomial commitment
+scheme
 
 ## Build guide
 

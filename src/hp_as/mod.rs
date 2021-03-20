@@ -26,12 +26,12 @@ pub use data_structures::*;
 pub mod constraints;
 
 /// An accumulation scheme for the Hadamard product relation.
-/// The construction is described in detail in [BCLMS20][pcdwsa].
+/// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
-/// [pcdwsa]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForHadamardProducts<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
