@@ -24,17 +24,23 @@ Given the inputs and outputs of the prover, an accumulation verifier can verify 
 inputs was properly accumulated. At any time, an accumulation decider can use a single accumulator
 to determine whether all the previously accumulated inputs satisfy the predicate.
  
-This library provides the following implementations:
-- [`hp_as`](src/hp_as): An accumulation scheme for Hadamard Products
+This library provides the following features that enable specific implementations of accumulation
+schemes:
 
-- [`ipa_pc_as`](src/ipa_pc_as): An accumulation scheme for a polynomial commitment scheme based on
-Inner Product Arguments
+- [`hp-as`](src/hp_as): An accumulation scheme for Hadamard Products
 
-- [`r1cs_nark_as`](src/r1cs_nark_as): An accumulation scheme for an
-[`R1CS NARK`](src/r1cs_nark_as/r1cs_nark), which implemented in this library
+- [`ipa-pc-as`](src/ipa_pc_as): An accumulation scheme for the polynomial commitment scheme based on
+Inner Product Arguments (as [implemented](
+https://github.com/arkworks-rs/poly-commit/tree/accumulation-experimental/src/ipa_pc) in the
+[`poly-commit`](https://github.com/arkworks-rs/poly-commit) library)
 
-- [`trivial_pc_as`](src/trivial_pc_as): An accumulation scheme for a trivial polynomial commitment
-scheme
+- [`r1cs-nark-as`](src/r1cs_nark_as): An accumulation scheme for a NARK for R1CS (as
+[implemented](src/r1cs_nark_as/r1cs_nark) in this library)
+
+- [`trivial-pc-as`](src/trivial_pc_as): An accumulation scheme for the trivial polynomial commitment
+scheme (as [implemented](
+https://github.com/arkworks-rs/poly-commit/tree/accumulation-experimental/src/trivial_pc) in the
+[`poly-commit`](https://github.com/arkworks-rs/poly-commit) library)
 
 ## Build guide
 

@@ -27,14 +27,14 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-/// An accumulation scheme for trivial homomorphic commitment schemes. The implementation is
-/// specialized for the [`TrivialPC`][pc_ped] scheme.
+/// An accumulation scheme for a trivial homomorphic commitment schemes.
+/// This implementation is specialized for [`TrivialPC`][trivial-pc].
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
-/// [pc_ped]: ark_poly_commit::trivial_pc::TrivialPC
+/// [trivial-pc]: ark_poly_commit::trivial_pc::TrivialPC
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForTrivialPC<G>
 where

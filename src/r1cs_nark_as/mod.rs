@@ -39,6 +39,7 @@ pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"AS-FOR-HP-2020";
 pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 
 /// An accumulation scheme for a NARK for R1CS.
+/// This implementation is specialized for [`r1cs_nark`].
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when

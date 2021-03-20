@@ -38,12 +38,14 @@ type IpaPC<G, S> = InnerProductArgPC<
     DomainSeparatedSponge<ConstraintF<G>, S, IpaPCDomain>,
 >;
 
-/// An accumulation scheme based on the hardness of the discrete log problem.
+/// An accumulation scheme for a polynomial commitment scheme based on inner product arguments.
+/// This implementation is specialized for [`InnerProductArgPC`][ipa-pc].
 /// The construction is described in detail in [BCMS20][bcms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
+/// [ipa-pc]: ark_poly_commit::ipa_pc::InnerProductArgPC
 /// [bcms20]: https://eprint.iacr.org/2020/499
 pub struct AtomicASForInnerProductArgPC<G>
 where
