@@ -24,7 +24,7 @@ use ark_accumulation::{trivial_pc_as, trivial_pc_as::ASForTrivialPC};
 use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
-use ark_poly_commit::pedersen_pc::PedersenPC;
+use ark_poly_commit::trivial_pc::TrivialPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
@@ -33,7 +33,7 @@ use ark_std::vec::Vec;
 use blake2::Blake2s;
 use rand_core::RngCore;
 
-type PedPC = PedersenPC<G1Affine, DensePolynomial<Fr>>;
+type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;
 type ASForTrivPC = ASForTrivialPC<G1Affine>;
 
 type IpaPC = InnerProductArgPC<
@@ -147,26 +147,26 @@ fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
     }
 }
 
-type PedPCKeys = (
-    <PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
-    <PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
+type TrivPCKeys = (
+    <TrivPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    <TrivPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::VerifierKey,
 );
 
 fn lh_param_gen<R: RngCore>(
     degree: usize,
     rng: &mut R,
 ) -> (
-    PedPCKeys,
+    TrivPCKeys,
     <ASForTrivPC as AccumulationScheme<Fq>>::PredicateParams,
     <ASForTrivPC as AccumulationScheme<Fq>>::PredicateIndex,
 ) {
-    let predicate_params = PedPC::setup(degree, None, rng).unwrap();
-    let (ck, vk) = PedPC::trim(&predicate_params, degree, 0, None).unwrap();
+    let predicate_params = TrivPC::setup(degree, None, rng).unwrap();
+    let (ck, vk) = TrivPC::trim(&predicate_params, degree, 0, None).unwrap();
     ((ck, vk), predicate_params, degree)
 }
 
 fn lh_input_gen<R: RngCore>(
-    ck: &<PedPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
+    ck: &<TrivPC as PolynomialCommitment<Fr, DensePolynomial<Fr>>>::CommitterKey,
     rng: &mut R,
 ) -> Vec<Input<Fq, ASForTrivPC>> {
     let labeled_polynomials = vec![{
@@ -179,7 +179,7 @@ fn lh_input_gen<R: RngCore>(
         labeled_polynomial
     }];
 
-    let (labeled_commitments, _) = PedPC::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
+    let (labeled_commitments, _) = TrivPC::commit(ck, &labeled_polynomials, Some(rng)).unwrap();
 
     let inputs = labeled_polynomials
         .into_iter()
@@ -303,7 +303,7 @@ fn main() {
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking ASForTrivPC ================");
-    profile_as::<_, _, PedPC, _, PoseidonSponge<Fq>, ASForTrivPC, _, _, _>(
+    profile_as::<_, _, TrivPC, _, PoseidonSponge<Fq>, ASForTrivPC, _, _, _>(
         min_degree,
         max_degree,
         lh_param_gen,

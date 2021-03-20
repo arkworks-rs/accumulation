@@ -20,7 +20,7 @@ use crate::ipa_pc_as::IpaPCDomain;
 use ark_accumulation::ipa_pc_as;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
-use ark_poly_commit::pedersen_pc::PedersenPC;
+use ark_poly_commit::trivial_pc::TrivialPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
@@ -28,7 +28,7 @@ use ark_sponge::poseidon::PoseidonSponge;
 use ark_std::vec::Vec;
 use blake2::Blake2s;
 
-type PedPC = PedersenPC<G1Affine, DensePolynomial<Fr>>;
+type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;
 
 type IpaPC = InnerProductArgPC<
     G1Affine,
@@ -124,7 +124,7 @@ fn main() {
 
     let rng = &mut ark_std::test_rng();
     println!("\n\n\n================ Benchmarking PC_LH ================");
-    profile_pc::<_, PedPC, _>(min_degree, max_degree, rng);
+    profile_pc::<_, TrivPC, _>(min_degree, max_degree, rng);
     println!("\n\n\n================ Benchmarking IpaPC ================");
     profile_pc::<_, IpaPC, _>(min_degree, max_degree, rng);
 }

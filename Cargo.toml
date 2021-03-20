@@ -14,7 +14,7 @@ edition = "2018"
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-poly-commit = { git = "https://github.com/Will-Lin4/poly-commit", branch = "accumulation-experimental", default-features = false }
+ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit", branch = "accumulation-experimental", default-features = false }
 ark-serialize = { git = "https://github.com/arkworks-rs/algebra", default-features = false, features = [ "derive" ] }
 ark-snark = { git = "https://github.com/arkworks-rs/snark", default-features = false }
 ark-sponge = { git = "https://github.com/arkworks-rs/sponge/", branch = "experimental", default-features = false }
@@ -60,7 +60,7 @@ std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-
 impl = []
 hp-as = [ "impl" ]
 ipa-pc-as = [ "impl" ]
-r1cs-nark-as = [ "impl", "r1cs" ]
+r1cs-nark-as = [ "hp-as", "impl", "r1cs" ]
 trivial-pc-as = [ "impl" ]
 
 [[example]]

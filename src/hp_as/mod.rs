@@ -7,7 +7,7 @@ use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
+use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
@@ -761,7 +761,7 @@ pub mod tests {
     use crate::AccumulationScheme;
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
-    use ark_poly_commit::pedersen_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
+    use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::Absorbable;
     use ark_std::test_rng;

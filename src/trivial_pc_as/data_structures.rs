@@ -1,6 +1,6 @@
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField};
-use ark_poly_commit::{pedersen_pc, LabeledCommitment};
+use ark_poly_commit::{trivial_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
@@ -13,7 +13,7 @@ use ark_std::vec::Vec;
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputInstance<G: AffineCurve> {
     /// Pedersen commitment to a polynomial.
-    pub commitment: LabeledCommitment<pedersen_pc::Commitment<G>>,
+    pub commitment: LabeledCommitment<trivial_pc::Commitment<G>>,
 
     /// Point where the proof was opened at.
     pub point: G::ScalarField,
@@ -49,7 +49,7 @@ impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputIn
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SingleProof<G: AffineCurve> {
     /// Pedersen commitment to the witness polynomial.
-    pub(crate) witness_commitment: LabeledCommitment<pedersen_pc::Commitment<G>>,
+    pub(crate) witness_commitment: LabeledCommitment<trivial_pc::Commitment<G>>,
 
     /// Evaluation of the witness polynomial at the challenge point.
     pub(crate) witness_eval: G::ScalarField,

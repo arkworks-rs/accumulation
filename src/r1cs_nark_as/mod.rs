@@ -12,7 +12,7 @@ use crate::{AccumulationScheme, MakeZK};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::UniformRand;
 use ark_ff::{One, Zero};
-use ark_poly_commit::pedersen_pc::PedersenCommitment;
+use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;

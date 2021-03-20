@@ -6,9 +6,9 @@ use crate::{AccumulationScheme, MakeZK};
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, One, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::pedersen_pc::PedersenPC;
+use ark_poly_commit::trivial_pc::TrivialPC;
 use ark_poly_commit::{
-    pedersen_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCCommitterKey,
+    trivial_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCCommitterKey,
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
@@ -28,13 +28,13 @@ pub use data_structures::*;
 pub mod constraints;
 
 /// An accumulation scheme for trivial homomorphic commitment schemes. The implementation is
-/// specialized for the [`PedersenPC`][pc_ped] scheme.
+/// specialized for the [`TrivialPC`][pc_ped] scheme.
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
 ///
-/// [pc_ped]: ark_poly_commit::pedersen_pc::PedersenPC
+/// [pc_ped]: ark_poly_commit::trivial_pc::TrivialPC
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForTrivialPC<G>
 where
@@ -50,7 +50,7 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
-        ck: &pedersen_pc::CommitterKey<G>,
+        ck: &trivial_pc::CommitterKey<G>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
         input_witnesses: impl IntoIterator<
             Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -60,7 +60,7 @@ where
         witness_polynomials_output: &mut Vec<
             LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         >,
-        witness_commitments_output: &mut Vec<LabeledCommitment<pedersen_pc::Commitment<G>>>,
+        witness_commitments_output: &mut Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
     ) -> Result<(), PCError> {
         for (instance, witness) in input_instances.into_iter().zip(input_witnesses) {
             let point = instance.point;
@@ -80,7 +80,7 @@ where
             );
 
             let mut witness_commitments =
-                PedersenPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
+                TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
 
             let witness_commitment = witness_commitments.pop().unwrap();
 
@@ -92,13 +92,13 @@ where
     }
 
     fn compute_witness_polynomials_and_commitments<'a>(
-        ck: &pedersen_pc::CommitterKey<G>,
+        ck: &trivial_pc::CommitterKey<G>,
         inputs: &[InputRef<'a, ConstraintF<G>, Self>],
         accumulators: &[AccumulatorRef<'a, ConstraintF<G>, Self>],
     ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
-            Vec<LabeledCommitment<pedersen_pc::Commitment<G>>>,
+            Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
         ),
         PCError,
     > {
@@ -161,9 +161,9 @@ where
     }
 
     fn combine_commitments<'a>(
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<pedersen_pc::Commitment<G>>>,
+        commitments: impl IntoIterator<Item = &'a LabeledCommitment<trivial_pc::Commitment<G>>>,
         challenges: &[G::ScalarField],
-    ) -> pedersen_pc::Commitment<G> {
+    ) -> trivial_pc::Commitment<G> {
         let mut scalar_commitment_pairs = Vec::new();
         for (i, c) in commitments.into_iter().enumerate() {
             scalar_commitment_pairs.push((challenges[i], c.commitment().clone()));
@@ -192,7 +192,7 @@ where
     }
 
     fn check_input_witness<'a>(
-        prover_key: &pedersen_pc::CommitterKey<G>,
+        prover_key: &trivial_pc::CommitterKey<G>,
         witness: &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         is_accumulator: bool,
     ) -> Result<&'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>, BoxedError>
@@ -245,12 +245,12 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
     type PublicParameters = ();
-    type PredicateParams = pedersen_pc::UniversalParams<G>;
+    type PredicateParams = trivial_pc::UniversalParams<G>;
     type PredicateIndex = usize;
 
-    type ProverKey = pedersen_pc::CommitterKey<G>;
+    type ProverKey = trivial_pc::CommitterKey<G>;
     type VerifierKey = usize;
-    type DeciderKey = pedersen_pc::CommitterKey<G>;
+    type DeciderKey = trivial_pc::CommitterKey<G>;
 
     type InputInstance = InputInstance<G>;
     type InputWitness = LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>;
@@ -271,7 +271,7 @@ where
         predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ck, vk) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
+        let (ck, vk) = TrivialPC::<G, DensePolynomial<G::ScalarField>>::trim(
             predicate_params,
             *predicate_index,
             0,
@@ -547,12 +547,12 @@ where
     where
         Self: 'a,
     {
-        let check = PedersenPC::check_individual_opening_challenges(
+        let check = TrivialPC::check_individual_opening_challenges(
             decider_key,
             vec![&accumulator.instance.commitment],
             &accumulator.instance.point,
             vec![accumulator.instance.eval],
-            &pedersen_pc::Proof {
+            &trivial_pc::Proof {
                 polynomial: accumulator.witness.clone(),
             },
             &|_| G::ScalarField::one(),
@@ -574,12 +574,12 @@ pub mod tests {
     use ark_ec::AffineCurve;
     use ark_ff::ToConstraintField;
     use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly_commit::pedersen_pc::PedersenPC;
+    use ark_poly_commit::trivial_pc::TrivialPC;
     use ark_poly_commit::{
-        pedersen_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
+        trivial_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
     };
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::Absorbable;
     use ark_std::UniformRand;
     use rand_core::RngCore;
 
@@ -595,7 +595,7 @@ pub mod tests {
         ConstraintF<G>: Absorbable<ConstraintF<G>>,
     {
         type TestParams = ASForTrivialPCTestParams;
-        type InputParams = pedersen_pc::CommitterKey<G>;
+        type InputParams = trivial_pc::CommitterKey<G>;
 
         fn setup(
             test_params: &Self::TestParams,
@@ -610,10 +610,10 @@ pub mod tests {
             let supported_hiding_bound = 0;
 
             let predicate_params =
-                PedersenPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
+                TrivialPC::<G, DensePolynomial<G::ScalarField>>::setup(max_degree, None, rng)
                     .unwrap();
 
-            let (ck, _) = PedersenPC::<G, DensePolynomial<G::ScalarField>>::trim(
+            let (ck, _) = TrivialPC::<G, DensePolynomial<G::ScalarField>>::trim(
                 &predicate_params,
                 supported_degree,
                 supported_hiding_bound,
@@ -645,13 +645,12 @@ pub mod tests {
                 })
                 .collect();
 
-            let (labeled_commitments, _) =
-                PedersenPC::<G, DensePolynomial<G::ScalarField>>::commit(
-                    ck,
-                    &labeled_polynomials,
-                    Some(rng),
-                )
-                .unwrap();
+            let (labeled_commitments, _) = TrivialPC::<G, DensePolynomial<G::ScalarField>>::commit(
+                ck,
+                &labeled_polynomials,
+                Some(rng),
+            )
+            .unwrap();
 
             let inputs = labeled_polynomials
                 .into_iter()

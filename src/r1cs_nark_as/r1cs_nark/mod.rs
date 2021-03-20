@@ -2,7 +2,7 @@ use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
-use ark_poly_commit::pedersen_pc::PedersenCommitment;
+use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
     SynthesisMode,

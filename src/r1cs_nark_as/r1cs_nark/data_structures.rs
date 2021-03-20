@@ -1,6 +1,6 @@
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
-use ark_poly_commit::pedersen_pc::CommitterKey;
+use ark_poly_commit::trivial_pc::CommitterKey;
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
