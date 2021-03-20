@@ -1,10 +1,14 @@
 use crate::AccumulationScheme;
 
-use ark_ec::AffineCurve;
-use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
+use ark_std::rand::RngCore;
 
+// Useful type alias for implementations.
+#[cfg(feature = "impl")]
+use {ark_ec::AffineCurve, ark_ff::Field};
+
+#[cfg(feature = "impl")]
 pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 
 /// A pair consisting of references to an instance and witness.
@@ -139,3 +143,25 @@ pub type InputRef<'a, CF, A> = InstanceWitnessPairRef<
     <A as AccumulationScheme<CF>>::InputInstance,
     <A as AccumulationScheme<CF>>::InputWitness,
 >;
+
+/// Specifies the zero-knowledge configuration for an accumulation.
+pub enum MakeZK<'a> {
+    /// Always enable zero-knowledge accumulation if available.
+    Enabled(&'a mut dyn RngCore),
+
+    /// Enable zero-knowledge accumulation if any input or accumulator requires zero-knowledge.
+    Inherited(Option<&'a mut dyn RngCore>),
+}
+
+impl<'a> MakeZK<'a> {
+    #[cfg(feature = "impl")]
+    pub(crate) fn into_components<F: Fn() -> bool>(
+        self,
+        inherit_zk: F,
+    ) -> (bool, Option<&'a mut dyn RngCore>) {
+        match self {
+            MakeZK::Enabled(rng) => (true, Some(rng)),
+            MakeZK::Inherited(rng) => (inherit_zk(), rng),
+        }
+    }
+}

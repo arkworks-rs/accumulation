@@ -5,7 +5,7 @@
 //! [bcms20]: https://eprint.iacr.org/2020/499.pdf
 //! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 
-#![warn(
+#![deny(
     const_err,
     future_incompatible,
     missing_docs,
@@ -29,6 +29,7 @@ use rand_core::RngCore;
 #[macro_use]
 extern crate derivative;
 
+#[cfg(feature = "r1cs-nark-as")]
 #[macro_use]
 extern crate bench_utils;
 
@@ -47,47 +48,29 @@ pub mod constraints;
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+#[cfg(feature = "hp-as")]
 pub mod hp_as;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction is described in detail in [BCMS20][bcms20].
 ///
 /// [bcms20]: https://eprint.iacr.org/2020/499
+#[cfg(feature = "ipa-pc-as")]
 pub mod ipa_pc_as;
 
 /// An accumulation scheme for a NARK for R1CS.
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
-#[cfg(feature = "r1cs")]
+#[cfg(feature = "r1cs-nark-as")]
 pub mod r1cs_nark_as;
 
 /// An accumulation scheme for trivial homomorphic commitment schemes.
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+#[cfg(feature = "trivial-pc-as")]
 pub mod trivial_pc_as;
-
-/// Specifies the zero-knowledge configuration for an accumulation.
-pub enum MakeZK<'a> {
-    /// Always enable zero-knowledge accumulation if available.
-    Enabled(&'a mut dyn RngCore),
-
-    /// Enable zero-knowledge accumulation if any input or accumulator requires zero-knowledge.
-    Inherited(Option<&'a mut dyn RngCore>),
-}
-
-impl<'a> MakeZK<'a> {
-    fn into_components<F: Fn() -> bool>(
-        self,
-        inherit_zk: F,
-    ) -> (bool, Option<&'a mut dyn RngCore>) {
-        match self {
-            MakeZK::Enabled(rng) => (true, Some(rng)),
-            MakeZK::Inherited(rng) => (inherit_zk(), rng),
-        }
-    }
-}
 
 /// An interface for an accumulation scheme. In an accumulation scheme for a predicate, a prover
 /// accumulates a stream of [`Inputs`][in] into an object called an [`Accumulator`][acc]. The prover

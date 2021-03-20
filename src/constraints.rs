@@ -1,15 +1,17 @@
 use crate::AccumulationScheme;
-use crate::ConstraintF;
 
-use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
-use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::CryptographicSponge;
 
+#[cfg(feature = "impl")]
+use {crate::ConstraintF, ark_ec::AffineCurve, ark_nonnative_field::NonNativeFieldVar};
+
+// Useful type alias for implementations.
+#[cfg(feature = "impl")]
 pub(crate) type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
 
 /// The verifier gadget of an [`AccumulationScheme`].

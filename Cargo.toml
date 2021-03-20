@@ -55,3 +55,22 @@ r1cs = [ "ark-crypto-primitives/r1cs", "ark-nonnative-field", "ark-poly-commit/r
 std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-field/std",
         "ark-poly/std", "ark-poly-commit/std", "ark-relations/std", "ark-r1cs-std/std",
         "ark-serialize/std", "ark-sponge/std", "ark-std/std", "bench-utils/std" ]
+
+# Accumulation scheme implementations
+impl = []
+hp-as = [ "impl" ]
+ipa-pc-as = [ "impl" ]
+r1cs-nark-as = [ "impl", "r1cs" ]
+trivial-pc-as = [ "impl" ]
+
+[[example]]
+name = "scaling-as"
+required-features = [ "hp-as", "ipa-pc-as", "r1cs-nark-as", "trivial-pc-as" ]
+
+[[example]]
+name = "scaling-nark"
+required-features = [ "hp-as", "r1cs-nark-as" ]
+
+[[example]]
+name = "scaling-pc"
+required-features = [ "ipa-pc-as" ]
