@@ -31,7 +31,7 @@ extern crate derivative;
 
 #[cfg(feature = "r1cs-nark-as")]
 #[macro_use]
-extern crate bench_utils;
+extern crate ark_std;
 
 /// Common data structures used by [`AccumulationScheme`].
 pub use data_structures::*;
