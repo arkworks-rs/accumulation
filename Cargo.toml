@@ -53,7 +53,7 @@ r1cs = [ "ark-crypto-primitives/r1cs", "ark-nonnative-field", "ark-poly-commit/r
 
 std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-field/std",
         "ark-poly/std", "ark-poly-commit/std", "ark-relations/std", "ark-r1cs-std/std",
-        "ark-serialize/std", "ark-sponge/std", "ark-std/std", "bench-utils/std" ]
+        "ark-serialize/std", "ark-sponge/std", "ark-std/std" ]
 
 # Accumulation scheme implementations
 impl = []
