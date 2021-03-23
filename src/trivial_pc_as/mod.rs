@@ -49,6 +49,72 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_input_instance_structure(
+        instance: &InputInstance<G>,
+        is_accumulator: bool,
+    ) -> Result<&InputInstance<G>, BoxedError> {
+        if instance.commitment.degree_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Degree bounds on accumulator instances are unsupported.".to_string(),
+                )));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Degree bounds on input instances are unsupported.".to_string(),
+            )));
+        }
+
+        Ok(instance)
+    }
+
+    fn check_input_witness_structure<'a>(
+        witness: &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+        prover_key: &trivial_pc::CommitterKey<G>,
+        is_accumulator: bool,
+    ) -> Result<&'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>, BoxedError>
+    {
+        if witness.degree_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Degree bounds on accumulator witnesses are unsupported.".to_string(),
+                )));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Degree bounds on input witnesses are unsupported.".to_string(),
+            )));
+        }
+
+        if witness.hiding_bound().is_some() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(
+                    "Hiding bounds on accumulator witnesses are unsupported.".to_string(),
+                )));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(
+                "Hiding bounds on input witnesses are unsupported.".to_string(),
+            )));
+        }
+
+        if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
+            if is_accumulator {
+                return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
+                    "An accumulator witness of degree {} is unsupported for this prover key",
+                    witness.degree()
+                ))));
+            }
+
+            return Err(BoxedError::new(ASError::MalformedInput(format!(
+                "An input witness of degree {} is unsupported for this prover key",
+                witness.degree()
+            ))));
+        }
+
+        Ok(witness)
+    }
+
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &trivial_pc::CommitterKey<G>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
@@ -171,72 +237,6 @@ where
 
         scalar_commitment_pairs.into_iter().sum()
     }
-
-    fn check_input_instance(
-        instance: &InputInstance<G>,
-        is_accumulator: bool,
-    ) -> Result<&InputInstance<G>, BoxedError> {
-        if instance.commitment.degree_bound().is_some() {
-            if is_accumulator {
-                return Err(BoxedError::new(ASError::MalformedAccumulator(
-                    "Degree bounds on accumulator instances are unsupported.".to_string(),
-                )));
-            }
-
-            return Err(BoxedError::new(ASError::MalformedInput(
-                "Degree bounds on input instances are unsupported.".to_string(),
-            )));
-        }
-
-        Ok(instance)
-    }
-
-    fn check_input_witness<'a>(
-        prover_key: &trivial_pc::CommitterKey<G>,
-        witness: &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
-        is_accumulator: bool,
-    ) -> Result<&'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>, BoxedError>
-    {
-        if witness.degree_bound().is_some() {
-            if is_accumulator {
-                return Err(BoxedError::new(ASError::MalformedAccumulator(
-                    "Degree bounds on accumulator witnesses are unsupported.".to_string(),
-                )));
-            }
-
-            return Err(BoxedError::new(ASError::MalformedInput(
-                "Degree bounds on input witnesses are unsupported.".to_string(),
-            )));
-        }
-
-        if witness.hiding_bound().is_some() {
-            if is_accumulator {
-                return Err(BoxedError::new(ASError::MalformedAccumulator(
-                    "Hiding bounds on accumulator witnesses are unsupported.".to_string(),
-                )));
-            }
-
-            return Err(BoxedError::new(ASError::MalformedInput(
-                "Hiding bounds on input witnesses are unsupported.".to_string(),
-            )));
-        }
-
-        if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
-            if is_accumulator {
-                return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
-                    "An accumulator witness of degree {} is unsupported for this prover key",
-                    witness.degree()
-                ))));
-            }
-
-            return Err(BoxedError::new(ASError::MalformedInput(format!(
-                "An input witness of degree {} is unsupported for this prover key",
-                witness.degree()
-            ))));
-        }
-
-        Ok(witness)
-    }
 }
 
 impl<G> AccumulationScheme<ConstraintF<G>> for ASForTrivialPC<G>
@@ -299,19 +299,19 @@ where
 
         let input_instances = inputs
             .iter()
-            .map(|input| Self::check_input_instance(input.instance, false))
+            .map(|input| Self::check_input_instance_structure(input.instance, false))
             .chain(
                 accumulators
                     .iter()
-                    .map(|accumulator| Self::check_input_instance(accumulator.instance, true)),
+                    .map(|accumulator| Self::check_input_instance_structure(accumulator.instance, true)),
             )
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
         let input_witnesses = inputs
             .iter()
-            .map(|input| Self::check_input_witness(prover_key, input.witness, false))
+            .map(|input| Self::check_input_witness_structure(input.witness, prover_key, false))
             .chain(accumulators.iter().map(|accumulator| {
-                Self::check_input_witness(prover_key, accumulator.witness, true)
+                Self::check_input_witness_structure(accumulator.witness, prover_key, true)
             }))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
@@ -433,11 +433,11 @@ where
         // Collect the input and run basic checks on them.
         let input_instances = input_instances
             .into_iter()
-            .map(|instance| Self::check_input_instance(instance, false))
+            .map(|instance| Self::check_input_instance_structure(instance, false))
             .chain(
                 old_accumulator_instances
                     .into_iter()
-                    .map(|instance| Self::check_input_instance(instance, true)),
+                    .map(|instance| Self::check_input_instance_structure(instance, true)),
             )
             .collect::<Result<Vec<_>, BoxedError>>();
 
@@ -450,7 +450,7 @@ where
             return Ok(false);
         }
 
-        let new_accumulator_instance = Self::check_input_instance(new_accumulator_instance, true);
+        let new_accumulator_instance = Self::check_input_instance_structure(new_accumulator_instance, true);
         if new_accumulator_instance.is_err() {
             return Ok(false);
         }
