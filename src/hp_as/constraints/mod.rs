@@ -39,6 +39,26 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
+        assert!(num_inputs > 0);
+
+        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+            return false;
+        }
+
+        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
+            1
+        } else {
+            0
+        };
+
+        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+            return false;
+        }
+
+        true
+    }
+
     #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs, make_zk))]
     fn squeeze_mu_challenges<S: CryptographicSponge<ConstraintF<G>>>(
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -211,29 +231,6 @@ where
             _curve: PhantomData,
         })
     }
-
-    fn check_verify_inputs(inputs: &Vec<&InputInstanceVar<G, C>>, proof: &ProofVar<G, C>) -> bool {
-        let num_inputs = inputs.len();
-        if num_inputs == 0 {
-            return false;
-        }
-
-        if proof.t_comms.low.len() != proof.t_comms.high.len() {
-            return false;
-        }
-
-        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
-            1
-        } else {
-            0
-        };
-
-        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
-            return false;
-        }
-
-        true
-    }
 }
 
 impl<G, C> ASVerifierGadget<ConstraintF<G>, ASForHadamardProducts<G>>
@@ -278,16 +275,20 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| SV::new(cs));
 
-        let mut input_instances = input_instances
+        let mut all_input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if !Self::check_verify_inputs(&input_instances, proof) {
+        if all_input_instances.len() == 0 {
             return Ok(Boolean::FALSE);
         }
 
-        let mut num_inputs = input_instances.len();
+        if !Self::check_proof_structure(proof, all_input_instances.len()) {
+            return Ok(Boolean::FALSE);
+        }
+
+        let mut num_inputs = all_input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
         let default_input_instance;
@@ -298,14 +299,14 @@ where
             )?);
 
             num_inputs += 1;
-            input_instances.push(default_input_instance.as_ref().unwrap());
+            all_input_instances.push(default_input_instance.as_ref().unwrap());
         };
 
         let mut challenges_sponge = sponge;
         absorb_gadget!(
             &mut challenges_sponge,
             &verifier_key.num_supported_elems,
-            &input_instances,
+            &all_input_instances,
             &proof.hiding_comms
         );
 
@@ -317,7 +318,7 @@ where
         let nu_challenges_bits = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
 
         let accumulator_instance = Self::compute_combined_hp_commitments(
-            input_instances.as_slice(),
+            all_input_instances.as_slice(),
             proof,
             &mu_challenges_bits,
             &nu_challenges_bits,

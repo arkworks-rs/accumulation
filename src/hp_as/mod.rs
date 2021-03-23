@@ -1,5 +1,5 @@
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
-use crate::error::ASError::MalformedInput;
+use crate::error::ASError::{MalformedAccumulator, MalformedInput};
 use crate::error::{ASError, BoxedError};
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
@@ -45,6 +45,71 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_input_witness_structure<'a>(
+        witness: &'a InputWitness<G::ScalarField>,
+        prover_key: &'a PedersenCommitmentCK<G>,
+        vec_len: usize,
+        is_accumulator: bool,
+    ) -> Result<&'a InputWitness<G::ScalarField>, BoxedError> {
+        if witness.a_vec.len() == 0 || witness.b_vec.len() == 0 {
+            let message =
+                "A vector of the Hadamard Product relation with a length of 0 is unsupported."
+                    .to_string();
+            return Err(BoxedError::new(if is_accumulator {
+                MalformedAccumulator(message)
+            } else {
+                MalformedInput(message)
+            }));
+        }
+
+        if witness.a_vec.len() > prover_key.supported_num_elems()
+            || witness.b_vec.len() > prover_key.supported_num_elems()
+        {
+            let message =
+                "A vector of the Hadamard Product relation has a length that exceeds the prover \
+                key's supported length."
+                    .to_string();
+            return Err(BoxedError::new(if is_accumulator {
+                MalformedAccumulator(message)
+            } else {
+                MalformedInput(message)
+            }));
+        }
+
+        if witness.a_vec.len() != witness.b_vec.len() || witness.a_vec.len() != vec_len {
+            let message =
+                "All of the vectors of the Hadamard Product relation must have equal lengths"
+                    .to_string();
+            return Err(BoxedError::new(if is_accumulator {
+                MalformedAccumulator(message)
+            } else {
+                MalformedInput(message)
+            }));
+        }
+
+        Ok(witness)
+    }
+
+    fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
+        assert!(num_inputs > 0);
+
+        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+            return false;
+        }
+
+        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
+            1
+        } else {
+            0
+        };
+
+        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+            return false;
+        }
+
+        true
+    }
+    
     fn squeeze_mu_challenges(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
@@ -412,29 +477,6 @@ where
             randomness,
         }
     }
-
-    fn check_verify_inputs(inputs: &Vec<&InputInstance<G>>, proof: &Proof<G>) -> bool {
-        let num_inputs = inputs.len();
-        if num_inputs == 0 {
-            return false;
-        }
-
-        if proof.t_comms.low.len() != proof.t_comms.high.len() {
-            return false;
-        }
-
-        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
-            1
-        } else {
-            0
-        };
-
-        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
-            return false;
-        }
-
-        true
-    }
 }
 
 impl<G> AccumulationScheme<ConstraintF<G>> for ASForHadamardProducts<G>
@@ -485,42 +527,37 @@ where
         let sponge = sponge.unwrap_or_else(|| S::new());
 
         let inputs = inputs.into_iter().collect::<Vec<_>>();
-        let accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
+        let old_accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
 
-        // Combine inputs and accumulators to be processed together
-        let mut input_instances = inputs
-            .iter()
-            .chain(&accumulators)
-            .map(|input| input.instance)
-            .collect::<Vec<_>>();
-
-        if input_instances.len() == 0 {
+        if inputs.len() == 0 && old_accumulators.len() == 0 {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
         }
 
-        let mut input_witnesses = inputs
-            .iter()
-            .chain(&accumulators)
-            .map(|input| {
-                let witness = input.witness;
-                if witness.a_vec.len() > prover_key.supported_num_elems()
-                    || witness.b_vec.len() > prover_key.supported_num_elems()
-                {
-                    return Err(BoxedError::new(MalformedInput(
-                        "An input witness vector has a length that exceeds the prover key's \
-                        supported vector length."
-                            .to_string(),
-                    )));
-                }
+        let hp_vec_len = if old_accumulators.len() == 0 {
+            inputs[0].witness.a_vec.len()
+        } else {
+            old_accumulators[0].witness.a_vec.len()
+        };
 
-                Ok(witness)
-            })
+        // Combine inputs and accumulators to be processed together
+        let mut all_input_instances = inputs
+            .iter()
+            .chain(&old_accumulators)
+            .map(|input| input.instance)
+            .collect::<Vec<_>>();
+
+        let mut all_input_witnesses = inputs
+            .iter()
+            .map(|input| Self::check_input_witness_structure(input.witness, prover_key, hp_vec_len, false))
+            .chain(old_accumulators.iter().map(|accumulator| {
+                Self::check_input_witness_structure(accumulator.witness, prover_key, hp_vec_len, true)
+            }))
             .collect::<Result<Vec<&InputWitness<G::ScalarField>>, BoxedError>>()?;
 
         let (make_zk, rng) = make_zk.into_components(|| {
-            input_witnesses.iter().fold(false, |make_zk, witness| {
+            all_input_witnesses.iter().fold(false, |make_zk, witness| {
                 make_zk || witness.randomness.is_some()
             })
         });
@@ -531,8 +568,7 @@ where
             )));
         }
 
-        let mut num_inputs = input_instances.len();
-        let hp_vec_len = prover_key.supported_num_elems();
+        let mut num_inputs = all_input_instances.len();
 
         let default_input_instance;
         let default_input_witness;
@@ -542,8 +578,8 @@ where
             default_input_witness = Some(InputWitness::default());
 
             num_inputs += 1;
-            input_instances.push(default_input_instance.as_ref().unwrap());
-            input_witnesses.push(default_input_witness.as_ref().unwrap());
+            all_input_instances.push(default_input_instance.as_ref().unwrap());
+            all_input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
         let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk {
@@ -562,10 +598,10 @@ where
 
             let comm_3 = {
                 let rand_prod_1 =
-                    Self::compute_hp(a.as_slice(), input_witnesses[0].b_vec.as_slice());
+                    Self::compute_hp(a.as_slice(), all_input_witnesses[0].b_vec.as_slice());
 
                 let rand_prod_2 = Self::compute_hp(
-                    input_witnesses.last().unwrap().a_vec.as_slice(),
+                    all_input_witnesses.last().unwrap().a_vec.as_slice(),
                     b.as_slice(),
                 );
 
@@ -599,7 +635,7 @@ where
         absorb!(
             &mut challenges_sponge,
             prover_key.supported_num_elems() as u64,
-            input_instances,
+            all_input_instances,
             hiding_comms
         );
 
@@ -607,7 +643,7 @@ where
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
 
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
-            input_witnesses.as_slice(),
+            all_input_witnesses.as_slice(),
             mu_challenges.as_slice(),
             hp_vec_len,
             hiding_vecs.as_ref(),
@@ -629,7 +665,7 @@ where
         }
 
         let accumulator_instance = Self::compute_combined_hp_commitments(
-            input_instances.as_slice(),
+            all_input_instances.as_slice(),
             &proof,
             mu_challenges.as_slice(),
             nu_challenges.as_slice(),
@@ -637,7 +673,7 @@ where
         );
 
         let accumulator_witness = Self::compute_combined_hp_openings(
-            input_witnesses.as_slice(),
+            all_input_witnesses.as_slice(),
             mu_challenges.as_slice(),
             nu_challenges.as_slice(),
             combined_challenges.as_slice(),
@@ -666,16 +702,20 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let mut input_instances = input_instances
+        let mut all_input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if !Self::check_verify_inputs(&input_instances, proof) {
+        if all_input_instances.len() == 0 {
             return Ok(false);
         }
 
-        let mut num_inputs = input_instances.len();
+        if !Self::check_proof_structure(proof, all_input_instances.len()) {
+            return Ok(false);
+        }
+
+        let mut num_inputs = all_input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
         let default_input_instance;
@@ -683,14 +723,14 @@ where
             default_input_instance = Some(InputInstance::default());
 
             num_inputs += 1;
-            input_instances.push(default_input_instance.as_ref().unwrap());
+            all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
         let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
             *verifier_key as u64,
-            input_instances,
+            all_input_instances,
             proof.hiding_comms
         );
 
@@ -707,7 +747,7 @@ where
         }
 
         let accumulator_instance = Self::compute_combined_hp_commitments(
-            input_instances.as_slice(),
+            all_input_instances.as_slice(),
             proof,
             mu_challenges.as_slice(),
             nu_challenges.as_slice(),
