@@ -177,11 +177,9 @@ where
         end_timer!(commit_time);
 
         let mut r = None;
-        let (mut comm_r_a, mut comm_r_b, mut comm_r_c) = (None, None, None);
-        let (mut comm_1, mut comm_2) = (None, None);
         let (mut r_a_blinder, mut r_b_blinder, mut r_c_blinder) = (None, None, None);
         let (mut blinder_1, mut blinder_2) = (None, None);
-        if make_zk {
+        let first_round_randomness = if make_zk {
             // Sample r.
             let randomizer_time = start_timer!(|| "Sampling randomizer r");
             let rng = rng.as_mut().unwrap();
@@ -209,9 +207,9 @@ where
 
             // Commit to r_a, r_b, r_c.
             let commit_time = start_timer!(|| "Committing to r_A, r_B, r_C");
-            comm_r_a = Some(PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder));
-            comm_r_b = Some(PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder));
-            comm_r_c = Some(PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder));
+            let comm_r_a = PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder);
+            let comm_r_b = PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder);
+            let comm_r_c = PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder);
             end_timer!(commit_time);
 
             // Commit to z_a ○ r_b + z_b ○ r_a.
@@ -225,11 +223,7 @@ where
             end_timer!(cross_prod_time);
             blinder_1 = Some(G::ScalarField::rand(rng));
             let commit_time = start_timer!(|| "Committing to cross product");
-            comm_1 = Some(PedersenCommitment::commit(
-                &ipk.ck,
-                &cross_product,
-                blinder_1,
-            ));
+            let comm_1 = PedersenCommitment::commit(&ipk.ck, &cross_product, blinder_1);
             end_timer!(commit_time);
 
             // Commit to r_a ○ r_b.
@@ -239,22 +233,25 @@ where
                 .map(|(r_a, r_b)| r_b * r_a)
                 .collect();
             blinder_2 = Some(G::ScalarField::rand(rng));
-            comm_2 = Some(PedersenCommitment::commit(
-                &ipk.ck,
-                &r_a_r_b_product,
-                blinder_2,
-            ));
+            let comm_2 = PedersenCommitment::commit(&ipk.ck, &r_a_r_b_product, blinder_2);
             end_timer!(commit_time);
-        }
+
+            Some(FirstRoundMessageRandomness {
+                comm_r_a,
+                comm_r_b,
+                comm_r_c,
+                comm_1,
+                comm_2,
+            })
+        } else {
+            None
+        };
+
         let first_msg = FirstRoundMessage {
             comm_a,
             comm_b,
             comm_c,
-            comm_r_a,
-            comm_r_b,
-            comm_r_c,
-            comm_1,
-            comm_2,
+            randomness: first_round_randomness,
         };
 
         let gamma = Self::compute_challenge(
@@ -265,26 +262,30 @@ where
         );
 
         let mut blinded_witness = witness;
-        let (mut sigma_a, mut sigma_b, mut sigma_c) = (None, None, None);
-        let mut sigma_o = None;
-        if make_zk {
+        let second_round_randomness = if make_zk {
             ark_std::cfg_iter_mut!(blinded_witness)
                 .zip(r.unwrap())
                 .for_each(|(s, r)| *s += gamma * r);
-            sigma_a = a_blinder.map(|a_blinder| a_blinder + gamma * r_a_blinder.unwrap());
-            sigma_b = b_blinder.map(|b_blinder| b_blinder + gamma * r_b_blinder.unwrap());
-            sigma_c = c_blinder.map(|c_blinder| c_blinder + gamma * r_c_blinder.unwrap());
-            sigma_o = c_blinder.map(|c_blinder| {
-                c_blinder + gamma * blinder_1.unwrap() + gamma.square() * blinder_2.unwrap()
-            });
-        }
+            let sigma_a = a_blinder.unwrap() + gamma * r_a_blinder.unwrap();
+            let sigma_b = b_blinder.unwrap() + gamma * r_b_blinder.unwrap();
+            let sigma_c = c_blinder.unwrap() + gamma * r_c_blinder.unwrap();
+            let sigma_o = c_blinder.unwrap()
+                + gamma * blinder_1.unwrap()
+                + gamma.square() * blinder_2.unwrap();
+
+            Some(SecondRoundMessageRandomness {
+                sigma_a,
+                sigma_b,
+                sigma_c,
+                sigma_o,
+            })
+        } else {
+            None
+        };
 
         let second_msg = SecondRoundMessage {
             blinded_witness,
-            sigma_a,
-            sigma_b,
-            sigma_c,
-            sigma_o,
+            randomness: second_round_randomness,
         };
 
         let proof = Proof {
@@ -292,6 +293,7 @@ where
             second_msg,
             make_zk,
         };
+
         end_timer!(init_time);
         Ok(proof)
     }
@@ -305,6 +307,11 @@ where
     ) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
         let make_zk = proof.make_zk;
+        if make_zk
+            && (proof.first_msg.randomness.is_none() || proof.second_msg.randomness.is_none())
+        {
+            return false;
+        }
 
         // format the input appropriately.
         let input = {
@@ -328,22 +335,32 @@ where
         let c_times_blinded_witness =
             matrix_vec_mul(&ivk.c, &input, &proof.second_msg.blinded_witness);
         end_timer!(mat_vec_mul_time);
+
         let mut comm_a = proof.first_msg.comm_a.into_projective();
         let mut comm_b = proof.first_msg.comm_b.into_projective();
         let mut comm_c = proof.first_msg.comm_c.into_projective();
-        if make_zk {
-            comm_a += proof.first_msg.comm_r_a.unwrap().mul(gamma);
-            comm_b += proof.first_msg.comm_r_b.unwrap().mul(gamma);
-            comm_c += proof.first_msg.comm_r_c.unwrap().mul(gamma);
+        if let Some(first_msg_randomness) = proof.first_msg.randomness.as_ref() {
+            comm_a += first_msg_randomness.comm_r_a.mul(gamma);
+            comm_b += first_msg_randomness.comm_r_b.mul(gamma);
+            comm_c += first_msg_randomness.comm_r_c.mul(gamma);
         }
 
         let commit_time = start_timer!(|| "Reconstructing c_A, c_B, c_C commitments");
-        let reconstructed_comm_a =
-            PedersenCommitment::commit(&ivk.ck, &a_times_blinded_witness, proof.second_msg.sigma_a);
-        let reconstructed_comm_b =
-            PedersenCommitment::commit(&ivk.ck, &b_times_blinded_witness, proof.second_msg.sigma_b);
-        let reconstructed_comm_c =
-            PedersenCommitment::commit(&ivk.ck, &c_times_blinded_witness, proof.second_msg.sigma_c);
+        let reconstructed_comm_a = PedersenCommitment::commit(
+            &ivk.ck,
+            &a_times_blinded_witness,
+            proof.second_msg.randomness.as_ref().map(|r| r.sigma_a),
+        );
+        let reconstructed_comm_b = PedersenCommitment::commit(
+            &ivk.ck,
+            &b_times_blinded_witness,
+            proof.second_msg.randomness.as_ref().map(|r| r.sigma_b),
+        );
+        let reconstructed_comm_c = PedersenCommitment::commit(
+            &ivk.ck,
+            &c_times_blinded_witness,
+            proof.second_msg.randomness.as_ref().map(|r| r.sigma_c),
+        );
 
         let a_equal = comm_a == reconstructed_comm_a.into_projective();
         let b_equal = comm_b == reconstructed_comm_b.into_projective();
@@ -356,14 +373,17 @@ where
             .zip(b_times_blinded_witness)
             .map(|(a, b)| a * b)
             .collect();
-        let reconstructed_had_prod_comm =
-            PedersenCommitment::commit(&ivk.ck, &had_prod, proof.second_msg.sigma_o);
+        let reconstructed_had_prod_comm = PedersenCommitment::commit(
+            &ivk.ck,
+            &had_prod,
+            proof.second_msg.randomness.as_ref().map(|r| r.sigma_o),
+        );
         end_timer!(had_prod_time);
 
         let mut had_prod_comm = proof.first_msg.comm_c.into_projective();
-        if make_zk {
-            had_prod_comm += proof.first_msg.comm_1.unwrap().mul(gamma);
-            had_prod_comm += proof.first_msg.comm_2.unwrap().mul(gamma.square());
+        if let Some(first_msg_randomness) = proof.first_msg.randomness.as_ref() {
+            had_prod_comm += first_msg_randomness.comm_1.mul(gamma);
+            had_prod_comm += first_msg_randomness.comm_2.mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
         end_timer!(init_time);

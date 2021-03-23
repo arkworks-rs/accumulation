@@ -145,33 +145,33 @@ where
             let mut comm_prod = first_round_message.comm_c.clone();
 
             if instance.make_zk {
+                assert!(first_round_message.randomness.is_some());
+                let first_msg_randomness = first_round_message.randomness.as_ref().unwrap();
+
                 let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
                     &instance.r1cs_input.as_slice(),
                     &instance.first_round_message,
                     nark_sponge.clone(),
                 )?;
 
-                if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
-                    comm_a += &comm_r_a.scalar_mul_le(gamma_challenge_bits.iter())?;
-                }
+                comm_a += &first_msg_randomness
+                    .comm_r_a
+                    .scalar_mul_le(gamma_challenge_bits.iter())?;
 
-                if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
-                    comm_b += &comm_r_b.scalar_mul_le(gamma_challenge_bits.iter())?;
-                }
+                comm_b += &first_msg_randomness
+                    .comm_r_b
+                    .scalar_mul_le(gamma_challenge_bits.iter())?;
 
-                if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
-                    comm_c += &comm_r_c.scalar_mul_le(gamma_challenge_bits.iter())?;
-                }
+                comm_c += &first_msg_randomness
+                    .comm_r_c
+                    .scalar_mul_le(gamma_challenge_bits.iter())?;
 
-                if let Some(comm_1) = first_round_message.comm_1.as_ref() {
-                    comm_prod += &comm_1.scalar_mul_le(gamma_challenge_bits.iter())?;
-                }
-
-                if let Some(comm_2) = first_round_message.comm_2.as_ref() {
-                    comm_prod += &comm_2.scalar_mul_le(
+                comm_prod += &(first_msg_randomness
+                    .comm_1
+                    .scalar_mul_le(gamma_challenge_bits.iter())?
+                    + &first_msg_randomness.comm_2.scalar_mul_le(
                         gamma_challenge_fe.square_in_place()?.to_bits_le()?.iter(),
-                    )?;
-                }
+                    )?);
             }
 
             all_blinded_comm_a.push(comm_a);

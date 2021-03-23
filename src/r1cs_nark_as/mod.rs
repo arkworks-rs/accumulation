@@ -81,6 +81,9 @@ where
             let mut comm_prod = first_round_message.comm_c;
 
             if instance.make_zk {
+                assert!(first_round_message.randomness.is_some());
+                let first_msg_randomness = first_round_message.randomness.as_ref().unwrap();
+
                 let gamma_challenge = R1CSNark::<G>::compute_challenge(
                     index_info,
                     instance.r1cs_input.as_slice(),
@@ -88,30 +91,20 @@ where
                     nark_sponge.clone(),
                 );
 
-                let mut comm_a_proj = comm_a.into_projective();
-                let mut comm_b_proj = comm_b.into_projective();
-                let mut comm_c_proj = comm_c.into_projective();
-                let mut comm_prod_proj = comm_prod.into_projective();
+                let comm_a_proj =
+                    comm_a.into_projective() + &first_msg_randomness.comm_r_a.mul(gamma_challenge);
 
-                if let Some(comm_r_a) = first_round_message.comm_r_a.as_ref() {
-                    comm_a_proj += &comm_r_a.mul(gamma_challenge);
-                }
+                let comm_b_proj =
+                    comm_b.into_projective() + &first_msg_randomness.comm_r_b.mul(gamma_challenge);
 
-                if let Some(comm_r_b) = first_round_message.comm_r_b.as_ref() {
-                    comm_b_proj += &comm_r_b.mul(gamma_challenge);
-                }
+                let comm_c_proj =
+                    comm_c.into_projective() + &first_msg_randomness.comm_r_c.mul(gamma_challenge);
 
-                if let Some(comm_r_c) = first_round_message.comm_r_c.as_ref() {
-                    comm_c_proj += &comm_r_c.mul(gamma_challenge);
-                }
-
-                if let Some(comm_1) = first_round_message.comm_1.as_ref() {
-                    comm_prod_proj += &comm_1.mul(gamma_challenge);
-                }
-
-                if let Some(comm_2) = first_round_message.comm_2.as_ref() {
-                    comm_prod_proj += &comm_2.mul(gamma_challenge * &gamma_challenge);
-                }
+                let comm_prod_proj = comm_prod.into_projective()
+                    + &first_msg_randomness.comm_1.mul(gamma_challenge)
+                    + &first_msg_randomness
+                        .comm_2
+                        .mul(gamma_challenge * &gamma_challenge);
 
                 let mut comms = G::Projective::batch_normalization_into_affine(&[
                     comm_prod_proj,
@@ -192,15 +185,12 @@ where
                 );
 
                 let randomness = if witness.make_zk {
-                    let rand_1 = second_round_message
-                        .sigma_a
-                        .unwrap_or(G::ScalarField::zero());
-                    let rand_2 = second_round_message
-                        .sigma_b
-                        .unwrap_or(G::ScalarField::zero());
-                    let rand_3 = second_round_message
-                        .sigma_o
-                        .unwrap_or(G::ScalarField::zero());
+                    assert!(second_round_message.randomness.is_some());
+                    let second_msg_randomness = second_round_message.randomness.as_ref().unwrap();
+
+                    let rand_1 = second_msg_randomness.sigma_a;
+                    let rand_2 = second_msg_randomness.sigma_b;
+                    let rand_3 = second_msg_randomness.sigma_o;
 
                     Some(HPInputWitnessRandomness::<G::ScalarField> {
                         rand_1,
@@ -426,29 +416,35 @@ where
         let all_sigma_a = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_a))
-            .chain(
-                input_witnesses
-                    .iter()
-                    .map(|witness| witness.second_round_message.sigma_a.as_ref()),
-            );
+            .chain(input_witnesses.iter().map(|witness| {
+                witness
+                    .second_round_message
+                    .randomness
+                    .as_ref()
+                    .map(|r| &r.sigma_a)
+            }));
 
         let all_sigma_b = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_b))
-            .chain(
-                input_witnesses
-                    .iter()
-                    .map(|witness| witness.second_round_message.sigma_b.as_ref()),
-            );
+            .chain(input_witnesses.iter().map(|witness| {
+                witness
+                    .second_round_message
+                    .randomness
+                    .as_ref()
+                    .map(|r| &r.sigma_b)
+            }));
 
         let all_sigma_c = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_c))
-            .chain(
-                input_witnesses
-                    .iter()
-                    .map(|witness| witness.second_round_message.sigma_c.as_ref()),
-            );
+            .chain(input_witnesses.iter().map(|witness| {
+                witness
+                    .second_round_message
+                    .randomness
+                    .as_ref()
+                    .map(|r| &r.sigma_c)
+            }));
 
         let (r1cs_blinded_witnesses, all_sigma_a, all_sigma_b, all_sigma_c) =
             if let Some((r1cs_r_witness, rand_1, rand_2, rand_3)) = prover_witness_randomness {
@@ -557,6 +553,9 @@ where
     where
         Self: 'a,
     {
+        // TODO: Check input instance
+        // TODO: Check input witness
+
         let mut sponge = sponge.unwrap_or_else(|| S::new());
 
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);

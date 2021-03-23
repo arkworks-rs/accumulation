@@ -62,20 +62,8 @@ pub struct FirstRoundMessage<G: AffineCurve> {
     /// Pedersen commitment to the `Cz` vector.
     pub(crate) comm_c: G,
 
-    /// Pedersen commitment to the vector that blinds the witness in `Az`.
-    pub(crate) comm_r_a: Option<G>,
-
-    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
-    pub(crate) comm_r_b: Option<G>,
-
-    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
-    pub(crate) comm_r_c: Option<G>,
-
-    /// Pedersen commitment to the first cross term randomness vector
-    pub(crate) comm_1: Option<G>,
-
-    /// Pedersen commitment to the second cross term randomness vector
-    pub(crate) comm_2: Option<G>,
+    /// The randomness used for the commitment.
+    pub(crate) randomness: Option<FirstRoundMessageRandomness<G>>,
 }
 
 impl<CF, G> Absorbable<CF> for FirstRoundMessage<G>
@@ -84,11 +72,41 @@ where
     G: AffineCurve + Absorbable<CF>,
 {
     fn to_sponge_bytes(&self) -> Vec<u8> {
+        collect_sponge_bytes!(CF, self.comm_a, self.comm_b, self.comm_c, self.randomness)
+    }
+
+    fn to_sponge_field_elements(&self) -> Vec<CF> {
+        collect_sponge_field_elements!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
+    }
+}
+
+/// The sigma protocol's prover commitment randomness.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct FirstRoundMessageRandomness<G: AffineCurve> {
+    /// Pedersen commitment to the vector that blinds the witness in `Az`.
+    pub(crate) comm_r_a: G,
+
+    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
+    pub(crate) comm_r_b: G,
+
+    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
+    pub(crate) comm_r_c: G,
+
+    /// Pedersen commitment to the first cross term randomness vector
+    pub(crate) comm_1: G,
+
+    /// Pedersen commitment to the second cross term randomness vector
+    pub(crate) comm_2: G,
+}
+
+impl<CF, G> Absorbable<CF> for FirstRoundMessageRandomness<G>
+where
+    CF: PrimeField,
+    G: AffineCurve + Absorbable<CF>,
+{
+    fn to_sponge_bytes(&self) -> Vec<u8> {
         collect_sponge_bytes!(
             CF,
-            self.comm_a,
-            self.comm_b,
-            self.comm_c,
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
@@ -99,9 +117,6 @@ where
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
         collect_sponge_field_elements!(
-            self.comm_a,
-            self.comm_b,
-            self.comm_c,
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
@@ -117,20 +132,27 @@ pub struct SecondRoundMessage<F: Field> {
     /// The R1CS witness with randomness applied if zero-knowledge is needed.
     pub(crate) blinded_witness: Vec<F>,
 
+    /// The randomness used for the response.
+    pub(crate) randomness: Option<SecondRoundMessageRandomness<F>>,
+}
+
+/// The sigma protocol's prover response randomness.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct SecondRoundMessageRandomness<F: Field> {
     /// The blinded randomness for the Pedersen commitment to the linear combination with the
     /// `A` matrix.
-    pub(crate) sigma_a: Option<F>,
+    pub(crate) sigma_a: F,
 
     /// The blinded randomness for the Pedersen commitment to the linear combination with the
     /// `B` matrix.
-    pub(crate) sigma_b: Option<F>,
+    pub(crate) sigma_b: F,
 
     /// The blinded randomness for the Pedersen commitment to the linear combination with the
     /// `C` matrix.
-    pub(crate) sigma_c: Option<F>,
+    pub(crate) sigma_c: F,
 
     /// The blinded randomness for the Pedersen commitment to the cross terms
-    pub(crate) sigma_o: Option<F>,
+    pub(crate) sigma_o: F,
 }
 
 /// The proof for our NARK.

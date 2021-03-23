@@ -3,7 +3,7 @@ use crate::hp_as::constraints::{InputInstanceVar as HPInputInstanceVar, ProofVar
 use crate::r1cs_nark_as::data_structures::{
     AccumulatorInstance, InputInstance, Proof, ProofRandomness, VerifierKey,
 };
-use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, IndexInfo};
+use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, FirstRoundMessageRandomness, IndexInfo};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -113,20 +113,8 @@ pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, Const
     /// Pedersen commitment to the `Cz` vector.
     pub(crate) comm_c: C,
 
-    /// Pedersen commitment to the vector that blinds the witness in `Az`.
-    pub(crate) comm_r_a: Option<C>,
-
-    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
-    pub(crate) comm_r_b: Option<C>,
-
-    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
-    pub(crate) comm_r_c: Option<C>,
-
-    /// Pedersen commitment to the first cross term randomness vector.
-    pub(crate) comm_1: Option<C>,
-
-    /// Pedersen commitment to the second cross term randomness vector.
-    pub(crate) comm_2: Option<C>,
+    /// The randomness used for the commitment.
+    pub(crate) randomness: Option<FirstRoundMessageRandomnessVar<G, C>>,
 
     #[doc(hidden)]
     pub(crate) _affine_phantom: PhantomData<G>,
@@ -138,16 +126,7 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
-        collect_sponge_field_elements_gadget!(
-            self.comm_a,
-            self.comm_b,
-            self.comm_c,
-            self.comm_r_a,
-            self.comm_r_b,
-            self.comm_r_c,
-            self.comm_1,
-            self.comm_2
-        )
+        collect_sponge_field_elements_gadget!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
     }
 }
 
@@ -164,44 +143,95 @@ where
         let ns = cs.into();
         f().and_then(|first_round_msg| {
             let first_round_msg = first_round_msg.borrow();
+
             let comm_a = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_a.clone()), mode)?;
             let comm_b = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_b.clone()), mode)?;
             let comm_c = C::new_variable(ns.clone(), || Ok(first_round_msg.comm_c.clone()), mode)?;
 
-            let comm_r_a = first_round_msg
-                .comm_r_a
-                .as_ref()
-                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
-                .transpose()?;
-
-            let comm_r_b = first_round_msg
-                .comm_r_b
-                .as_ref()
-                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
-                .transpose()?;
-
-            let comm_r_c = first_round_msg
-                .comm_r_c
-                .as_ref()
-                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
-                .transpose()?;
-
-            let comm_1 = first_round_msg
-                .comm_1
-                .as_ref()
-                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
-                .transpose()?;
-
-            let comm_2 = first_round_msg
-                .comm_2
-                .as_ref()
-                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
+            let randomness = first_round_msg
+                .randomness
+                .clone()
+                .map(|r| FirstRoundMessageRandomnessVar::new_variable(ns.clone(), || Ok(r), mode))
                 .transpose()?;
 
             Ok(Self {
                 comm_a,
                 comm_b,
                 comm_c,
+                randomness,
+                _affine_phantom: PhantomData,
+            })
+        })
+    }
+}
+
+/// The sigma protocol's prover commitment randomness.
+pub struct FirstRoundMessageRandomnessVar<
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+> {
+    /// Pedersen commitment to the vector that blinds the witness in `Az`.
+    pub(crate) comm_r_a: C,
+
+    /// Pedersen commitment to the vector that blinds the witness in `Bz`.
+    pub(crate) comm_r_b: C,
+
+    /// Pedersen commitment to the vector that blinds the witness in `Cz`.
+    pub(crate) comm_r_c: C,
+
+    /// Pedersen commitment to the first cross term randomness vector.
+    pub(crate) comm_1: C,
+
+    /// Pedersen commitment to the second cross term randomness vector.
+    pub(crate) comm_2: C,
+
+    #[doc(hidden)]
+    pub(crate) _affine_phantom: PhantomData<G>,
+}
+
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for FirstRoundMessageRandomnessVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+{
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(
+            self.comm_r_a,
+            self.comm_r_b,
+            self.comm_r_c,
+            self.comm_1,
+            self.comm_2
+        )
+    }
+}
+
+impl<G, C> AllocVar<FirstRoundMessageRandomness<G>, ConstraintF<G>>
+    for FirstRoundMessageRandomnessVar<G, C>
+where
+    G: AffineCurve,
+    C: CurveVar<G::Projective, ConstraintF<G>>,
+{
+    fn new_variable<T: Borrow<FirstRoundMessageRandomness<G>>>(
+        cs: impl Into<Namespace<ConstraintF<G>>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        f().and_then(|first_round_msg| {
+            let first_round_msg_randomness = first_round_msg.borrow();
+
+            let comm_r_a =
+                C::new_variable(ns.clone(), || Ok(first_round_msg_randomness.comm_r_a), mode)?;
+            let comm_r_b =
+                C::new_variable(ns.clone(), || Ok(first_round_msg_randomness.comm_r_b), mode)?;
+            let comm_r_c =
+                C::new_variable(ns.clone(), || Ok(first_round_msg_randomness.comm_r_c), mode)?;
+            let comm_1 =
+                C::new_variable(ns.clone(), || Ok(first_round_msg_randomness.comm_1), mode)?;
+            let comm_2 =
+                C::new_variable(ns.clone(), || Ok(first_round_msg_randomness.comm_2), mode)?;
+
+            Ok(Self {
                 comm_r_a,
                 comm_r_b,
                 comm_r_c,
