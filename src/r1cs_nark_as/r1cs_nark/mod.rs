@@ -291,7 +291,6 @@ where
         let proof = Proof {
             first_msg,
             second_msg,
-            make_zk,
         };
 
         end_timer!(init_time);
@@ -306,12 +305,11 @@ where
         sponge: Option<S>,
     ) -> bool {
         let init_time = start_timer!(|| "NARK::Verifier");
-        let make_zk = proof.make_zk;
-        if make_zk
-            && (proof.first_msg.randomness.is_none() || proof.second_msg.randomness.is_none())
-        {
+        if proof.first_msg.randomness.is_some() != proof.second_msg.randomness.is_some() {
             return false;
         }
+
+        let make_zk = proof.first_msg.randomness.is_some();
 
         // format the input appropriately.
         let input = {

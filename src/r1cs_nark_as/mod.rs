@@ -80,10 +80,7 @@ where
             let mut comm_c = first_round_message.comm_c;
             let mut comm_prod = first_round_message.comm_c;
 
-            if instance.make_zk {
-                assert!(first_round_message.randomness.is_some());
-                let first_msg_randomness = first_round_message.randomness.as_ref().unwrap();
-
+            if let Some(first_msg_randomness) = instance.first_round_message.randomness.as_ref() {
                 let gamma_challenge = R1CSNark::<G>::compute_challenge(
                     index_info,
                     instance.r1cs_input.as_slice(),
@@ -184,10 +181,7 @@ where
                     second_round_message.blinded_witness.as_slice(),
                 );
 
-                let randomness = if witness.make_zk {
-                    assert!(second_round_message.randomness.is_some());
-                    let second_msg_randomness = second_round_message.randomness.as_ref().unwrap();
-
+                let randomness = if let Some(second_msg_randomness) = second_round_message.randomness.as_ref() {
                     let rand_1 = second_msg_randomness.sigma_a;
                     let rand_2 = second_msg_randomness.sigma_b;
                     let rand_3 = second_msg_randomness.sigma_o;
@@ -585,7 +579,7 @@ where
             let instance = input.instance;
             let witness = input.witness;
 
-            make_zk_default = make_zk_default || instance.make_zk || witness.make_zk;
+            make_zk_default = make_zk_default || instance.first_round_message.randomness.is_some();
             input_instances.push(instance);
             input_witnesses.push(witness);
             all_inputs.push(input);
@@ -1027,12 +1021,10 @@ pub mod tests {
                 let instance = InputInstance {
                     r1cs_input: r1cs_input.clone(),
                     first_round_message: proof.first_msg.clone(),
-                    make_zk: proof.make_zk,
                 };
 
                 let witness = InputWitness {
                     second_round_message: proof.second_msg,
-                    make_zk: proof.make_zk,
                 };
 
                 inputs.push(Input::<_, ASForR1CSNark<G, DummyCircuit<G::ScalarField>>> {

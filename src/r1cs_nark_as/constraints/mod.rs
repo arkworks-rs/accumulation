@@ -144,10 +144,7 @@ where
             let mut comm_c = first_round_message.comm_c.clone();
             let mut comm_prod = first_round_message.comm_c.clone();
 
-            if instance.make_zk {
-                assert!(first_round_message.randomness.is_some());
-                let first_msg_randomness = first_round_message.randomness.as_ref().unwrap();
-
+            if let Some(first_msg_randomness) = first_round_message.randomness.as_ref() {
                 let (mut gamma_challenge_fe, gamma_challenge_bits) = Self::compute_gamma_challenge(
                     &instance.r1cs_input.as_slice(),
                     &instance.first_round_message,

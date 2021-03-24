@@ -163,7 +163,4 @@ pub struct Proof<G: AffineCurve> {
 
     /// The sigma protocol's prove response.
     pub(crate) second_msg: SecondRoundMessage<G::ScalarField>,
-
-    /// The zero-knowledge configuration.
-    pub(crate) make_zk: bool,
 }

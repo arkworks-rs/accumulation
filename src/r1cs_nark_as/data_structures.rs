@@ -69,9 +69,6 @@ pub struct InputInstance<G: AffineCurve> {
 
     /// The sigma protocol's prover commitment of the NARK.
     pub first_round_message: FirstRoundMessage<G>,
-
-    /// The zero-knowledge configuration.
-    pub make_zk: bool,
 }
 
 impl<CF, G> Absorbable<CF> for InputInstance<G>
@@ -83,16 +80,14 @@ where
         collect_sponge_bytes!(
             CF,
             to_bytes!(self.r1cs_input).unwrap(),
-            self.first_round_message,
-            self.make_zk
+            self.first_round_message
         )
     }
 
     fn to_sponge_field_elements(&self) -> Vec<CF> {
         collect_sponge_field_elements!(
             to_bytes!(self.r1cs_input).unwrap(),
-            self.first_round_message,
-            self.make_zk
+            self.first_round_message
         )
     }
 }
@@ -105,9 +100,6 @@ where
 pub struct InputWitness<F: Field> {
     /// The sigma protocol's prover commitment of the NARK.
     pub second_round_message: SecondRoundMessage<F>,
-
-    /// The zero-knowledge configuration.
-    pub make_zk: bool,
 }
 
 /// The [`AccumulatorInstance`][acc_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].

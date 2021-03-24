@@ -126,7 +126,12 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
-        collect_sponge_field_elements_gadget!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
+        collect_sponge_field_elements_gadget!(
+            self.comm_a,
+            self.comm_b,
+            self.comm_c,
+            self.randomness
+        )
     }
 }
 
@@ -254,9 +259,6 @@ pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Constrain
 
     /// The sigma protocol's prover commitment of the NARK.
     pub first_round_message: FirstRoundMessageVar<G, C>,
-
-    /// The zero-knowledge configuration.
-    pub make_zk: bool,
 }
 
 impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
@@ -272,8 +274,7 @@ where
 
         collect_sponge_field_elements_gadget!(
             r1cs_input_bytes,
-            self.first_round_message,
-            Boolean::constant(self.make_zk)
+            self.first_round_message
         )
     }
 }
@@ -307,7 +308,6 @@ where
             Ok(Self {
                 r1cs_input,
                 first_round_message,
-                make_zk: instance.make_zk,
             })
         })
     }
