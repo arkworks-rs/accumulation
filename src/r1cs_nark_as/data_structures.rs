@@ -151,22 +151,6 @@ where
     }
 }
 
-/// The randomness for the Pedersen commitments to the linear combinations.
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct AccumulatorWitnessRandomness<F: Field> {
-    /// The blinded randomness for the Pedersen commitment to the linear combination with the
-    /// `A` matrix.
-    pub(crate) sigma_a: F,
-
-    /// The blinded randomness for the Pedersen commitment to the linear combination with the
-    /// `B` matrix.
-    pub(crate) sigma_b: F,
-
-    /// The blinded randomness for the Pedersen commitment to the linear combination with the
-    /// `C` matrix.
-    pub(crate) sigma_c: F,
-}
-
 /// The [`AccumulatorWitness`][acc_witness] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [acc_witness]: crate::AccumulationScheme::AccumulatorWitness
@@ -181,6 +165,22 @@ pub struct AccumulatorWitness<F: Field> {
 
     /// Randomness for the Pedersen commitments to the linear combinations.
     pub(crate) randomness: Option<AccumulatorWitnessRandomness<F>>,
+}
+
+/// The randomness for the Pedersen commitments to the linear combinations.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub(crate) struct AccumulatorWitnessRandomness<F: Field> {
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `A` matrix.
+    pub(crate) sigma_a: F,
+
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `B` matrix.
+    pub(crate) sigma_b: F,
+
+    /// The blinded randomness for the Pedersen commitment to the linear combination with the
+    /// `C` matrix.
+    pub(crate) sigma_c: F,
 }
 
 /// The [`Proof`][proof] of the [`ASForR1CSNark`][as_for_r1cs_nark].

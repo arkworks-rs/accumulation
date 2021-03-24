@@ -272,10 +272,7 @@ where
             r1cs_input_bytes.append(&mut elem.to_bytes()?);
         }
 
-        collect_sponge_field_elements_gadget!(
-            r1cs_input_bytes,
-            self.first_round_message
-        )
+        collect_sponge_field_elements_gadget!(r1cs_input_bytes, self.first_round_message)
     }
 }
 

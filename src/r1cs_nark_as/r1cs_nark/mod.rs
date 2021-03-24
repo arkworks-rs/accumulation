@@ -309,8 +309,6 @@ where
             return false;
         }
 
-        let make_zk = proof.first_msg.randomness.is_some();
-
         // format the input appropriately.
         let input = {
             let mut tmp = vec![G::ScalarField::one()];

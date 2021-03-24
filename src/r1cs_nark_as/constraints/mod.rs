@@ -44,6 +44,20 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_input_instance_structure(
+        input_instance: &InputInstanceVar<G, C>,
+        r1cs_input_len: usize,
+    ) -> bool {
+        return input_instance.r1cs_input.len() == r1cs_input_len;
+    }
+
+    fn check_accumulator_instance_structure(
+        accumulator_instance: &AccumulatorInstanceVar<G, C>,
+        r1cs_input_len: usize,
+    ) -> bool {
+        return accumulator_instance.r1cs_input.len() == r1cs_input_len;
+    }
+
     #[tracing::instrument(target = "r1cs", skip(commitments, challenges))]
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
@@ -384,20 +398,38 @@ where
         let hp_sponge = sponge;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
-        let accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
+        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
 
-        if input_instances.len() + accumulator_instances.len() == 0 {
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
             return Ok(Boolean::FALSE);
         }
 
+        let r1cs_input_len = if old_accumulator_instances.is_empty() {
+            input_instances[0].r1cs_input.len()
+        } else {
+            old_accumulator_instances[0].r1cs_input.len()
+        };
+
+        for instance in &input_instances {
+            if !Self::check_input_instance_structure(instance, r1cs_input_len) {
+                return Ok(Boolean::FALSE);
+            }
+        }
+
+        for instance in &old_accumulator_instances {
+            if !Self::check_accumulator_instance_structure(instance, r1cs_input_len) {
+                return Ok(Boolean::FALSE);
+            }
+        }
+
         let num_addends = input_instances.len()
-            + accumulator_instances.len()
+            + old_accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
         let (beta_challenges_fe, beta_challenges_bits) = Self::compute_beta_challenges(
             num_addends,
             &verifier_key.as_matrices_hash,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &input_instances,
             proof.randomness.as_ref(),
             as_sponge,
@@ -416,7 +448,7 @@ where
             &all_blinded_comm_prod,
         );
 
-        let hp_accumulator_instances = accumulator_instances
+        let hp_accumulator_instances = old_accumulator_instances
             .iter()
             .map(|instance| &instance.hp_instance);
 
@@ -440,7 +472,7 @@ where
             &all_blinded_comm_a,
             &all_blinded_comm_b,
             &all_blinded_comm_c,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &beta_challenges_fe,
             &beta_challenges_bits,
             proof.randomness.as_ref(),

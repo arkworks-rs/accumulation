@@ -26,6 +26,7 @@ use r1cs_nark::{
 use rand_core::RngCore;
 
 mod data_structures;
+use crate::error::ASError::{MalformedAccumulator, MalformedInput};
 pub use data_structures::*;
 
 /// A simple non-interactive argument of knowledge for R1CS.
@@ -62,6 +63,87 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
+    fn check_input_instance_structure(
+        input_instance: &InputInstance<G>,
+        r1cs_input_len: usize,
+    ) -> Result<(), BoxedError> {
+        if input_instance.r1cs_input.len() != r1cs_input_len {
+            return Err(BoxedError::new(MalformedInput(
+                "All R1CS inputs must be of equal length.".to_string(),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn check_input_witness_structure(
+        input_witness: &InputWitness<G::ScalarField>,
+        r1cs_witness_len: usize,
+    ) -> Result<(), BoxedError> {
+        if input_witness.second_round_message.blinded_witness.len() != r1cs_witness_len {
+            return Err(BoxedError::new(MalformedInput(
+                "All R1CS witnesses must be of equal length.".to_string(),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn check_input_structure(
+        input: &InputRef<ConstraintF<G>, Self>,
+        r1cs_input_len: usize,
+        r1cs_witness_len: usize,
+    ) -> Result<(), BoxedError> {
+        Self::check_input_instance_structure(input.instance, r1cs_input_len)?;
+        Self::check_input_witness_structure(input.witness, r1cs_witness_len)?;
+
+        if input.instance.first_round_message.randomness.is_some()
+            != input.witness.second_round_message.randomness.is_some()
+        {
+            return Err(BoxedError::new(MalformedInput(
+                "The existence of the first round message randomness and the second round \
+                    message randomness must be equal."
+                    .to_string(),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn check_accumulator_instance_structure(
+        accumulator_instance: &AccumulatorInstance<G>,
+        r1cs_input_len: usize,
+    ) -> Result<(), BoxedError> {
+        if accumulator_instance.r1cs_input.len() != r1cs_input_len {
+            return Err(BoxedError::new(MalformedAccumulator(
+                "All R1CS inputs must be of equal length.".to_string(),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn check_accumulator_witness_structure(
+        accumulator_witness: &AccumulatorWitness<G::ScalarField>,
+        r1cs_witness_len: usize,
+    ) -> Result<(), BoxedError> {
+        if accumulator_witness.r1cs_blinded_witness.len() != r1cs_witness_len {
+            return Err(BoxedError::new(MalformedAccumulator(
+                "All R1CS witnesses must be of equal length.".to_string(),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn check_r1cs_lengths(
+        index_info: &IndexInfo,
+        r1cs_input_len: usize,
+        r1cs_witness_len: usize,
+    ) -> bool {
+        return index_info.num_variables == r1cs_input_len + r1cs_witness_len;
+    }
+
     fn compute_blinded_commitments(
         index_info: &IndexInfo,
         input_instances: &Vec<&InputInstance<G>>,
@@ -181,19 +263,20 @@ where
                     second_round_message.blinded_witness.as_slice(),
                 );
 
-                let randomness = if let Some(second_msg_randomness) = second_round_message.randomness.as_ref() {
-                    let rand_1 = second_msg_randomness.sigma_a;
-                    let rand_2 = second_msg_randomness.sigma_b;
-                    let rand_3 = second_msg_randomness.sigma_o;
+                let randomness =
+                    if let Some(second_msg_randomness) = second_round_message.randomness.as_ref() {
+                        let rand_1 = second_msg_randomness.sigma_a;
+                        let rand_2 = second_msg_randomness.sigma_b;
+                        let rand_3 = second_msg_randomness.sigma_o;
 
-                    Some(HPInputWitnessRandomness::<G::ScalarField> {
-                        rand_1,
-                        rand_2,
-                        rand_3,
-                    })
-                } else {
-                    None
-                };
+                        Some(HPInputWitnessRandomness::<G::ScalarField> {
+                            rand_1,
+                            rand_2,
+                            rand_3,
+                        })
+                    } else {
+                        None
+                    };
 
                 HPInputWitness {
                     a_vec,
@@ -547,9 +630,6 @@ where
     where
         Self: 'a,
     {
-        // TODO: Check input instance
-        // TODO: Check input witness
-
         let mut sponge = sponge.unwrap_or_else(|| S::new());
 
         let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
@@ -561,11 +641,32 @@ where
         // Collect all of the inputs and accumulators into vectors and extract additional information from them.
         let mut make_zk_default = false;
 
+        let mut r1cs_input_len: usize = 0;
+        let mut r1cs_witness_len: usize = 0;
+        let mut r1cs_len_set = false;
+
         let mut accumulator_instances = Vec::new();
         let mut accumulator_witnesses = Vec::new();
         for acc in old_accumulators {
             let instance = acc.instance;
             let witness = acc.witness;
+
+            if !r1cs_len_set {
+                r1cs_input_len = instance.r1cs_input.len();
+                r1cs_witness_len = witness.r1cs_blinded_witness.len();
+
+                if !Self::check_r1cs_lengths(&prover_key.nark_pk.index_info, r1cs_input_len, r1cs_witness_len) {
+                    return Err(BoxedError::new(MalformedAccumulator(
+                        "The number of variables exceeds that supported by the prover key."
+                            .to_string(),
+                    )));
+                }
+
+                r1cs_len_set = true;
+            }
+
+            Self::check_accumulator_instance_structure(instance, r1cs_input_len)?;
+            Self::check_accumulator_witness_structure(witness, r1cs_witness_len)?;
 
             make_zk_default = make_zk_default || witness.randomness.is_some();
             accumulator_instances.push(instance);
@@ -578,6 +679,22 @@ where
         for input in inputs {
             let instance = input.instance;
             let witness = input.witness;
+
+            if !r1cs_len_set {
+                r1cs_input_len = instance.r1cs_input.len();
+                r1cs_witness_len = witness.second_round_message.blinded_witness.len();
+
+                if !Self::check_r1cs_lengths(&prover_key.nark_pk.index_info, r1cs_input_len, r1cs_witness_len) {
+                    return Err(BoxedError::new(MalformedInput(
+                        "The number of variables exceeds that supported by the prover key."
+                            .to_string(),
+                    )));
+                }
+
+                r1cs_len_set = true;
+            }
+
+            Self::check_input_structure(&input, r1cs_input_len, r1cs_witness_len)?;
 
             make_zk_default = make_zk_default || instance.first_round_message.randomness.is_some();
             input_instances.push(instance);
@@ -698,6 +815,7 @@ where
             &beta_challenges,
             prover_witness_randomness.as_ref(),
         );
+
         let combined_acc_witness = AccumulatorWitness {
             r1cs_blinded_witness,
             hp_witness: hp_accumulator.witness,
@@ -737,20 +855,38 @@ where
         let hp_sponge = sponge;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
-        let accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
+        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
 
-        if input_instances.len() + accumulator_instances.len() == 0 {
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
             return Ok(false);
         }
 
+        let r1cs_input_len = if old_accumulator_instances.is_empty() {
+            input_instances[0].r1cs_input.len()
+        } else {
+            old_accumulator_instances[0].r1cs_input.len()
+        };
+
+        for instance in &input_instances {
+            if Self::check_input_instance_structure(instance, r1cs_input_len).is_err() {
+                return Ok(false);
+            }
+        }
+
+        for instance in &old_accumulator_instances {
+            if Self::check_accumulator_instance_structure(instance, r1cs_input_len).is_err() {
+                return Ok(false);
+            }
+        }
+
         let num_addends = input_instances.len()
-            + accumulator_instances.len()
+            + old_accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
 
         let beta_challenges = Self::compute_beta_challenges(
             num_addends,
             &verifier_key.as_matrices_hash,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &input_instances,
             &proof.randomness,
             as_sponge,
@@ -769,7 +905,7 @@ where
             &all_blinded_comm_prod,
         );
 
-        let hp_accumulator_instances = accumulator_instances
+        let hp_accumulator_instances = old_accumulator_instances
             .iter()
             .map(|instance| &instance.hp_instance);
 
@@ -787,7 +923,7 @@ where
             &all_blinded_comm_a,
             &all_blinded_comm_b,
             &all_blinded_comm_c,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &beta_challenges,
             proof.randomness.as_ref(),
         );
@@ -812,6 +948,10 @@ where
 
         let instance = accumulator.instance;
         let witness = accumulator.witness;
+
+        if !Self::check_r1cs_lengths(&decider_key.index_info, instance.r1cs_input.len(), witness.r1cs_blinded_witness.len()) {
+            return Ok(false);
+        }
 
         let a_times_blinded_witness = matrix_vec_mul(
             &decider_key.a,
