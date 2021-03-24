@@ -78,7 +78,8 @@ where
 
         if witness.a_vec.len() != witness.b_vec.len() || witness.a_vec.len() != vec_len {
             let message =
-                "All of the vectors of the Hadamard Product relation must have equal lengths"
+                "All of the vectors of the Hadamard Product relation that have or will be \
+                accumulated must have equal lengths"
                     .to_string();
             return Err(BoxedError::new(if is_accumulator {
                 MalformedAccumulator(message)
@@ -109,7 +110,7 @@ where
 
         true
     }
-    
+
     fn squeeze_mu_challenges(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
@@ -529,7 +530,7 @@ where
         let inputs = inputs.into_iter().collect::<Vec<_>>();
         let old_accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
 
-        if inputs.len() == 0 && old_accumulators.len() == 0 {
+        if inputs.len() + old_accumulators.len() == 0 {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
@@ -550,9 +551,16 @@ where
 
         let mut all_input_witnesses = inputs
             .iter()
-            .map(|input| Self::check_input_witness_structure(input.witness, prover_key, hp_vec_len, false))
+            .map(|input| {
+                Self::check_input_witness_structure(input.witness, prover_key, hp_vec_len, false)
+            })
             .chain(old_accumulators.iter().map(|accumulator| {
-                Self::check_input_witness_structure(accumulator.witness, prover_key, hp_vec_len, true)
+                Self::check_input_witness_structure(
+                    accumulator.witness,
+                    prover_key,
+                    hp_vec_len,
+                    true,
+                )
             }))
             .collect::<Result<Vec<&InputWitness<G::ScalarField>>, BoxedError>>()?;
 
