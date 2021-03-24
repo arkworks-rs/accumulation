@@ -1040,6 +1040,7 @@ pub mod tests {
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
     use ark_ff::PrimeField;
+    use ark_std::vec::Vec;
     use ark_relations::lc;
     use ark_relations::r1cs::{
         ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, OptimizationGoal,

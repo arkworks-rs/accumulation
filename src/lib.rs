@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 //! A crate that provides infrastructure to implement accumulation schemes.
 //! The interface for accumulation schemes were formalized in [BCMS20][bcms20] and
 //! [BCLMS20][bclms20].

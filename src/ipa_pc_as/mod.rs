@@ -701,6 +701,7 @@ pub mod tests {
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::poseidon::PoseidonSponge;
+    use ark_std::vec::Vec;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use ark_std::marker::PhantomData;
     use rand_core::RngCore;
