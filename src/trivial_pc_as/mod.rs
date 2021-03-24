@@ -115,6 +115,10 @@ where
         Ok(witness)
     }
 
+    fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
+        return proof.len() == num_inputs;
+    }
+
     fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
         ck: &trivial_pc::CommitterKey<G>,
         input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
@@ -300,11 +304,9 @@ where
         let input_instances = inputs
             .iter()
             .map(|input| Self::check_input_instance_structure(input.instance, false))
-            .chain(
-                accumulators
-                    .iter()
-                    .map(|accumulator| Self::check_input_instance_structure(accumulator.instance, true)),
-            )
+            .chain(accumulators.iter().map(|accumulator| {
+                Self::check_input_instance_structure(accumulator.instance, true)
+            }))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
         let input_witnesses = inputs
@@ -450,15 +452,18 @@ where
             return Ok(false);
         }
 
-        let new_accumulator_instance = Self::check_input_instance_structure(new_accumulator_instance, true);
+        let new_accumulator_instance =
+            Self::check_input_instance_structure(new_accumulator_instance, true);
         if new_accumulator_instance.is_err() {
             return Ok(false);
         }
 
         let new_accumulator_instance = new_accumulator_instance.unwrap();
+        if input_instances.len() == 0 {
+            return Ok(false);
+        }
 
-        // Run a basic check on the proof
-        if proof.len() != input_instances.len() || input_instances.len() == 0 {
+        if !Self::check_proof_structure(proof, input_instances.len()) {
             return Ok(false);
         }
 

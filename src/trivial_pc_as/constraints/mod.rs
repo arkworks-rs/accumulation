@@ -43,6 +43,10 @@ where
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
+        return proof.single_proofs.len() == num_inputs;
+    }
+
     #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
     fn combine_evaluation<'a>(
         evaluations: impl IntoIterator<Item = &'a NNFieldVar<G>>,
@@ -119,7 +123,11 @@ where
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if input_instances.len() != proof.single_proofs.len() || input_instances.len() == 0 {
+        if input_instances.len() == 0 {
+            return Ok(Boolean::FALSE);
+        }
+
+        if !Self::check_proof_structure(proof, input_instances.len()) {
             return Ok(Boolean::FALSE);
         }
 
