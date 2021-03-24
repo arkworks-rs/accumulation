@@ -80,9 +80,7 @@ where
         Ok(instance)
     }
 
-    fn check_proof_structure(
-        proof: &Option<Randomness<G>>,
-    ) -> bool {
+    fn check_proof_structure(proof: &Option<Randomness<G>>) -> bool {
         if let Some(randomness) = proof.as_ref() {
             return randomness.random_linear_polynomial.degree() <= 1;
         }
@@ -352,7 +350,6 @@ where
 
         Ok(accumulator)
     }
-
 }
 
 impl<G> AccumulationScheme<ConstraintF<G>> for AtomicASForInnerProductArgPC<G>

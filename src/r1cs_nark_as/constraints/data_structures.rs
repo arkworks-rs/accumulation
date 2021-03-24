@@ -9,7 +9,6 @@ use crate::ConstraintF;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;

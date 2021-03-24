@@ -10,8 +10,8 @@ use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
 
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::One;
 use ark_ff::UniformRand;
-use ark_ff::{One, Zero};
 use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
@@ -90,7 +90,7 @@ where
     }
 
     fn check_input_structure(
-        input: &InputRef<ConstraintF<G>, Self>,
+        input: &InputRef<'_, ConstraintF<G>, Self>,
         r1cs_input_len: usize,
         r1cs_witness_len: usize,
     ) -> Result<(), BoxedError> {
@@ -655,7 +655,11 @@ where
                 r1cs_input_len = instance.r1cs_input.len();
                 r1cs_witness_len = witness.r1cs_blinded_witness.len();
 
-                if !Self::check_r1cs_lengths(&prover_key.nark_pk.index_info, r1cs_input_len, r1cs_witness_len) {
+                if !Self::check_r1cs_lengths(
+                    &prover_key.nark_pk.index_info,
+                    r1cs_input_len,
+                    r1cs_witness_len,
+                ) {
                     return Err(BoxedError::new(MalformedAccumulator(
                         "The number of variables exceeds that supported by the prover key."
                             .to_string(),
@@ -684,7 +688,11 @@ where
                 r1cs_input_len = instance.r1cs_input.len();
                 r1cs_witness_len = witness.second_round_message.blinded_witness.len();
 
-                if !Self::check_r1cs_lengths(&prover_key.nark_pk.index_info, r1cs_input_len, r1cs_witness_len) {
+                if !Self::check_r1cs_lengths(
+                    &prover_key.nark_pk.index_info,
+                    r1cs_input_len,
+                    r1cs_witness_len,
+                ) {
                     return Err(BoxedError::new(MalformedInput(
                         "The number of variables exceeds that supported by the prover key."
                             .to_string(),
@@ -949,7 +957,11 @@ where
         let instance = accumulator.instance;
         let witness = accumulator.witness;
 
-        if !Self::check_r1cs_lengths(&decider_key.index_info, instance.r1cs_input.len(), witness.r1cs_blinded_witness.len()) {
+        if !Self::check_r1cs_lengths(
+            &decider_key.index_info,
+            instance.r1cs_input.len(),
+            witness.r1cs_blinded_witness.len(),
+        ) {
             return Ok(false);
         }
 
