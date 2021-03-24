@@ -60,6 +60,36 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    fn check_input_instance_structure(
+        instance: &InputInstance<G>,
+        is_accumulator: bool,
+    ) -> Result<&InputInstance<G>, BoxedError> {
+        let ipa_commitment = &instance.ipa_commitment;
+        if ipa_commitment.degree_bound().is_some() {
+            return Err(BoxedError::new(if is_accumulator {
+                ASError::MalformedAccumulator(
+                    "Explicit degree bounds not supported in accumulators.".to_string(),
+                )
+            } else {
+                ASError::MalformedInput(
+                    "Explicit degree bounds not supported in inputs.".to_string(),
+                )
+            }));
+        }
+
+        Ok(instance)
+    }
+
+    fn check_proof_structure(
+        proof: &Option<Randomness<G>>,
+    ) -> bool {
+        if let Some(randomness) = proof.as_ref() {
+            return randomness.random_linear_polynomial.degree() <= 1;
+        }
+
+        return true;
+    }
+
     fn deterministic_commit_to_linear_polynomial<S: CryptographicSponge<ConstraintF<G>>>(
         ck: &ipa_pc::CommitterKey<G>,
         linear_polynomial: DensePolynomial<G::ScalarField>,
@@ -323,25 +353,6 @@ where
         Ok(accumulator)
     }
 
-    fn check_input_instance(
-        instance: &InputInstance<G>,
-        is_accumulator: bool,
-    ) -> Result<&InputInstance<G>, BoxedError> {
-        let ipa_commitment = &instance.ipa_commitment;
-        if ipa_commitment.degree_bound().is_some() {
-            return Err(BoxedError::new(if is_accumulator {
-                ASError::MalformedAccumulator(
-                    "Explicit degree bounds not supported in accumulators.".to_string(),
-                )
-            } else {
-                ASError::MalformedInput(
-                    "Explicit degree bounds not supported in inputs.".to_string(),
-                )
-            }));
-        }
-
-        Ok(instance)
-    }
 }
 
 impl<G> AccumulationScheme<ConstraintF<G>> for AtomicASForInnerProductArgPC<G>
@@ -421,12 +432,12 @@ where
         let as_sponge = DomainSeparatedSponge::<ConstraintF<G>, S, ASForIpaPCDomain>::new();
 
         let input_instances: Vec<&InputInstance<G>> = InputRef::<'a, _, Self>::instances(inputs)
-            .map(|instance| Self::check_input_instance(instance, false))
+            .map(|instance| Self::check_input_instance_structure(instance, false))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
         let old_accumulator_instances: Vec<&InputInstance<G>> =
             AccumulatorRef::<'a, _, Self>::instances(old_accumulators)
-                .map(|instance| Self::check_input_instance(instance, true))
+                .map(|instance| Self::check_input_instance_structure(instance, true))
                 .collect::<Result<Vec<_>, BoxedError>>()?;
 
         if input_instances.is_empty() && old_accumulator_instances.is_empty() {
@@ -542,7 +553,7 @@ where
 
         let input_instances = input_instances
             .into_iter()
-            .map(|instance| Self::check_input_instance(instance, false))
+            .map(|instance| Self::check_input_instance_structure(instance, false))
             .collect::<Result<Vec<_>, BoxedError>>();
 
         if input_instances.is_err() {
@@ -553,7 +564,7 @@ where
 
         let old_accumulator_instances = old_accumulator_instances
             .into_iter()
-            .map(|instance| Self::check_input_instance(instance, true))
+            .map(|instance| Self::check_input_instance_structure(instance, true))
             .collect::<Result<Vec<_>, BoxedError>>();
 
         if old_accumulator_instances.is_err() {
@@ -568,11 +579,11 @@ where
             )));
         }
 
-        if let Some(randomness) = proof.as_ref() {
-            if randomness.random_linear_polynomial.degree() > 1 {
-                return Ok(false);
-            }
+        if !Self::check_proof_structure(&proof) {
+            return Ok(false);
+        }
 
+        if let Some(randomness) = proof.as_ref() {
             let linear_polynomial_commitment =
                 Self::deterministic_commit_to_linear_polynomial::<S>(
                     &verifier_key.ipa_ck_linear,
