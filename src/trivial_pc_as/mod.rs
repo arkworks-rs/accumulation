@@ -585,8 +585,8 @@ pub mod tests {
     };
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::Absorbable;
-    use ark_std::UniformRand;
     use ark_std::vec::Vec;
+    use ark_std::UniformRand;
     use rand_core::RngCore;
 
     pub struct ASForTrivialPCTestParams {
