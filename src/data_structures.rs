@@ -146,11 +146,11 @@ pub type InputRef<'a, CF, A> = InstanceWitnessPairRef<
 
 /// Specifies the zero-knowledge configuration for an accumulation.
 pub enum MakeZK<'a> {
-    /// Always enable zero-knowledge accumulation if available.
+    /// Enable zero-knowledge accumulation.
     Enabled(&'a mut dyn RngCore),
 
-    /// Enable zero-knowledge accumulation if any input or accumulator requires zero-knowledge.
-    Inherited(Option<&'a mut dyn RngCore>),
+    /// Disable zero-knowledge accumulation.
+    Disabled,
 }
 
 impl<'a> MakeZK<'a> {
@@ -161,7 +161,7 @@ impl<'a> MakeZK<'a> {
     ) -> (bool, Option<&'a mut dyn RngCore>) {
         match self {
             MakeZK::Enabled(rng) => (true, Some(rng)),
-            MakeZK::Inherited(rng) => (inherit_zk(), rng),
+            MakeZK::Disabled => (inherit_zk(), None),
         }
     }
 }

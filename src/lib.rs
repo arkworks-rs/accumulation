@@ -7,7 +7,7 @@
 //! [bcms20]: https://eprint.iacr.org/2020/499.pdf
 //! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 
-#![warn(
+#![deny(
     const_err,
     future_incompatible,
     missing_docs,
@@ -195,10 +195,14 @@ pub mod tests {
 
     pub const NUM_ITERATIONS: usize = 50;
 
+    pub trait TestParameters {
+        fn make_zk(&self) -> bool;
+    }
+
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
     pub trait ASTestInput<CF: PrimeField, A: AccumulationScheme<CF>> {
         /// Parameters for setting up the test
-        type TestParams;
+        type TestParams: TestParameters;
 
         /// Parameters for generating the inputs and accumulators
         type InputParams;
@@ -278,7 +282,7 @@ pub mod tests {
                         &pk,
                         Input::<CF, AS>::map_to_refs(inputs),
                         Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
-                        MakeZK::Inherited(Some(&mut rng)),
+                        if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                         None::<S>,
                     )?;
 

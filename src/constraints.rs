@@ -59,7 +59,7 @@ pub trait AtomicASVerifierGadget<CF: PrimeField, AS: AccumulationScheme<CF>>:
 #[cfg(test)]
 pub mod tests {
     use crate::constraints::ASVerifierGadget;
-    use crate::tests::ASTestInput;
+    use crate::tests::{ASTestInput, TestParameters};
     use crate::{AccumulationScheme, MakeZK};
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
@@ -111,7 +111,7 @@ pub mod tests {
                     &pk,
                     vec![input.as_ref()],
                     vec![],
-                    MakeZK::Inherited(Some(&mut rng)),
+                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                     None::<S>,
                 )
                 .unwrap();
@@ -163,7 +163,7 @@ pub mod tests {
                     &pk,
                     vec![old_input.as_ref()],
                     vec![],
-                    MakeZK::Inherited(Some(&mut rng)),
+                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                     None::<S>,
                 )
                 .unwrap();
@@ -172,7 +172,7 @@ pub mod tests {
                     &pk,
                     vec![new_input.as_ref()],
                     vec![old_accumulator.as_ref()],
-                    MakeZK::Inherited(Some(&mut rng)),
+                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                     None::<S>,
                 )
                 .unwrap();
@@ -231,7 +231,7 @@ pub mod tests {
                 &pk,
                 vec![old_input.as_ref()],
                 vec![],
-                MakeZK::Inherited(Some(&mut rng)),
+                if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                 None::<S>,
             )
             .unwrap();
@@ -240,7 +240,7 @@ pub mod tests {
                 &pk,
                 vec![new_input.as_ref()],
                 vec![old_accumulator.as_ref()],
-                MakeZK::Inherited(Some(&mut rng)),
+                if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
                 None::<S>,
             )
             .unwrap();

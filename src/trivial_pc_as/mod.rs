@@ -593,6 +593,12 @@ pub mod tests {
         pub(crate) degree: usize,
     }
 
+    impl TestParameters for ASForTrivialPCTestParams {
+        fn make_zk(&self) -> bool {
+            false
+        }
+    }
+
     pub struct ASForTrivialPCTestInput {}
 
     impl<G> ASTestInput<ConstraintF<G>, ASForTrivialPC<G>> for ASForTrivialPCTestInput

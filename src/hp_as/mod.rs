@@ -822,6 +822,12 @@ pub mod tests {
         pub(crate) make_zk: bool,
     }
 
+    impl TestParameters for ASForHPTestParams {
+        fn make_zk(&self) -> bool {
+            self.make_zk
+        }
+    }
+
     pub struct ASForHPTestInput {}
 
     impl<G> ASTestInput<ConstraintF<G>, ASForHadamardProducts<G>> for ASForHPTestInput

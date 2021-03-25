@@ -785,7 +785,7 @@ where
                 assert!(rng.is_some());
                 MakeZK::Enabled(rng.unwrap())
             } else {
-                MakeZK::Inherited(rng)
+                MakeZK::Disabled
             },
             Some(hp_sponge),
         )?;
@@ -1062,6 +1062,12 @@ pub mod tests {
         pub num_constraints: usize,
 
         pub make_zk: bool,
+    }
+
+    impl TestParameters for ASForR1CSNarkTestParams {
+        fn make_zk(&self) -> bool {
+            self.make_zk
+        }
     }
 
     #[derive(Clone)]

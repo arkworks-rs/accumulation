@@ -692,7 +692,7 @@ pub mod tests {
     use crate::error::BoxedError;
     use crate::ipa_pc_as::data_structures::{InputInstance, PredicateIndex};
     use crate::ipa_pc_as::{AtomicASForInnerProductArgPC, IpaPC};
-    use crate::tests::{ASTestInput, ASTests};
+    use crate::tests::{ASTestInput, ASTests, TestParameters};
     use crate::AccumulationScheme;
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
@@ -709,6 +709,12 @@ pub mod tests {
     pub struct AtomicASForIpaPCTestParams {
         pub(crate) degree: usize,
         pub(crate) make_zk: bool,
+    }
+
+    impl TestParameters for AtomicASForIpaPCTestParams {
+        fn make_zk(&self) -> bool {
+            self.make_zk
+        }
     }
 
     pub struct AtomicASForIpaPCTestInput<CF: PrimeField, S: CryptographicSponge<CF>> {

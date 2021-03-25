@@ -92,7 +92,7 @@ fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
             &pk,
             Input::<CF, AS>::map_to_refs(&inputs),
             Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
-            MakeZK::Inherited(Some(rng)),
+            MakeZK::Enabled(rng),
             None::<S>,
         )
         .unwrap();
@@ -106,7 +106,7 @@ fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
             &pk,
             Input::<CF, AS>::map_to_refs(&inputs),
             Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
-            MakeZK::Inherited(Some(rng)),
+            MakeZK::Enabled(rng),
             None::<S>,
         )
         .unwrap();
