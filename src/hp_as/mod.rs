@@ -564,16 +564,15 @@ where
             }))
             .collect::<Result<Vec<&InputWitness<G::ScalarField>>, BoxedError>>()?;
 
-        let (make_zk, rng) = make_zk.into_components(|| {
-            all_input_witnesses.iter().fold(false, |make_zk, witness| {
-                make_zk || witness.randomness.is_some()
-            })
-        });
-
-        if make_zk && rng.is_none() {
-            return Err(BoxedError::new(ASError::MissingRng(
-                "Accumulating inputs with hiding requires rng.".to_string(),
-            )));
+        let (make_zk_enabled, rng) = make_zk.into_components();
+        if !make_zk_enabled {
+            for witness in &all_input_witnesses {
+                if witness.randomness.is_some() {
+                    return Err(BoxedError::new(ASError::MissingRng(
+                        "Accumulating inputs with hiding requires rng.".to_string(),
+                    )));
+                }
+            }
         }
 
         let mut num_inputs = all_input_instances.len();
@@ -581,7 +580,7 @@ where
         let default_input_instance;
         let default_input_witness;
 
-        if make_zk && num_inputs == 1 {
+        if make_zk_enabled && num_inputs == 1 {
             default_input_instance = Some(InputInstance::default());
             default_input_witness = Some(InputWitness::default());
 
@@ -590,7 +589,7 @@ where
             all_input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
-        let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk {
+        let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk_enabled {
             assert!(rng.is_some());
             let rng = rng.unwrap();
 
@@ -648,7 +647,7 @@ where
         );
 
         let mu_challenges =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk_enabled);
 
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
             all_input_witnesses.as_slice(),

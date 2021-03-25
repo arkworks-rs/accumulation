@@ -639,7 +639,7 @@ where
         let hp_sponge = sponge;
 
         // Collect all of the inputs and accumulators into vectors and extract additional information from them.
-        let mut make_zk_default = false;
+        let mut inputs_zk_config = false;
 
         let mut r1cs_input_len: usize = 0;
         let mut r1cs_witness_len: usize = 0;
@@ -672,7 +672,7 @@ where
             Self::check_accumulator_instance_structure(instance, r1cs_input_len)?;
             Self::check_accumulator_witness_structure(witness, r1cs_witness_len)?;
 
-            make_zk_default = make_zk_default || witness.randomness.is_some();
+            inputs_zk_config = inputs_zk_config || witness.randomness.is_some();
             accumulator_instances.push(instance);
             accumulator_witnesses.push(witness);
         }
@@ -704,7 +704,7 @@ where
 
             Self::check_input_structure(&input, r1cs_input_len, r1cs_witness_len)?;
 
-            make_zk_default = make_zk_default || instance.first_round_message.randomness.is_some();
+            inputs_zk_config = inputs_zk_config || instance.first_round_message.randomness.is_some();
             input_instances.push(instance);
             input_witnesses.push(witness);
             all_inputs.push(input);
@@ -716,14 +716,14 @@ where
             )));
         }
 
-        let (make_zk, mut rng) = make_zk.into_components(|| make_zk_default);
-        if make_zk && rng.is_none() {
+        let (make_zk_enabled, mut rng) = make_zk.into_components();
+        if !make_zk_enabled && inputs_zk_config {
             return Err(BoxedError::new(ASError::MissingRng(
                 "Accumulating inputs with hiding requires rng.".to_string(),
             )));
         }
 
-        let (proof_randomness, prover_witness_randomness) = if make_zk {
+        let (proof_randomness, prover_witness_randomness) = if make_zk_enabled {
             assert!(rng.is_some());
             let rng_moved = rng.unwrap();
 
@@ -742,7 +742,7 @@ where
         };
 
         let num_addends =
-            input_instances.len() + accumulator_instances.len() + if make_zk { 1 } else { 0 };
+            input_instances.len() + accumulator_instances.len() + if make_zk_enabled { 1 } else { 0 };
 
         // Run HP AS
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
@@ -781,7 +781,7 @@ where
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
             hp_accumulators_iter,
-            if make_zk {
+            if make_zk_enabled {
                 assert!(rng.is_some());
                 MakeZK::Enabled(rng.unwrap())
             } else {

@@ -111,7 +111,11 @@ pub mod tests {
                     &pk,
                     vec![input.as_ref()],
                     vec![],
-                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                    if test_params.make_zk() {
+                        MakeZK::Enabled(&mut rng)
+                    } else {
+                        MakeZK::Disabled
+                    },
                     None::<S>,
                 )
                 .unwrap();
@@ -163,7 +167,11 @@ pub mod tests {
                     &pk,
                     vec![old_input.as_ref()],
                     vec![],
-                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                    if test_params.make_zk() {
+                        MakeZK::Enabled(&mut rng)
+                    } else {
+                        MakeZK::Disabled
+                    },
                     None::<S>,
                 )
                 .unwrap();
@@ -172,7 +180,11 @@ pub mod tests {
                     &pk,
                     vec![new_input.as_ref()],
                     vec![old_accumulator.as_ref()],
-                    if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                    if test_params.make_zk() {
+                        MakeZK::Enabled(&mut rng)
+                    } else {
+                        MakeZK::Disabled
+                    },
                     None::<S>,
                 )
                 .unwrap();
@@ -231,7 +243,11 @@ pub mod tests {
                 &pk,
                 vec![old_input.as_ref()],
                 vec![],
-                if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                if test_params.make_zk() {
+                    MakeZK::Enabled(&mut rng)
+                } else {
+                    MakeZK::Disabled
+                },
                 None::<S>,
             )
             .unwrap();
@@ -240,7 +256,11 @@ pub mod tests {
                 &pk,
                 vec![new_input.as_ref()],
                 vec![old_accumulator.as_ref()],
-                if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                if test_params.make_zk() {
+                    MakeZK::Enabled(&mut rng)
+                } else {
+                    MakeZK::Disabled
+                },
                 None::<S>,
             )
             .unwrap();

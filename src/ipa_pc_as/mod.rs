@@ -443,24 +443,18 @@ where
             )));
         }
 
-        let (make_zk, mut rng) = make_zk.into_components(|| {
-            input_instances
-                .iter()
-                .chain(&old_accumulator_instances)
-                .fold(false, |make_zk, input| {
-                    return make_zk
-                        || input.ipa_proof.hiding_comm.is_some()
-                        || input.ipa_proof.rand.is_some();
-                })
-        });
+        let (make_zk_enabled, mut rng) = make_zk.into_components();
+        if !make_zk_enabled {
+            for instance in input_instances.iter().chain(&old_accumulator_instances) {
+                if instance.ipa_proof.hiding_comm.is_some() || instance.ipa_proof.rand.is_some() {
+                    return Err(BoxedError::new(ASError::MissingRng(
+                        "Accumulating inputs with hiding requires rng.".to_string(),
+                    )));
+                }
+            }
+        };
 
-        if make_zk && rng.is_none() {
-            return Err(BoxedError::new(ASError::MissingRng(
-                "Accumulating inputs with hiding requires rng.".to_string(),
-            )));
-        }
-
-        let proof = if make_zk {
+        let proof = if make_zk_enabled {
             assert!(rng.is_some());
             let rng_moved = rng.unwrap();
 

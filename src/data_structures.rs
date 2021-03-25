@@ -155,13 +155,10 @@ pub enum MakeZK<'a> {
 
 impl<'a> MakeZK<'a> {
     #[cfg(feature = "impl")]
-    pub(crate) fn into_components<F: Fn() -> bool>(
-        self,
-        inherit_zk: F,
-    ) -> (bool, Option<&'a mut dyn RngCore>) {
+    pub(crate) fn into_components(self) -> (bool, Option<&'a mut dyn RngCore>) {
         match self {
             MakeZK::Enabled(rng) => (true, Some(rng)),
-            MakeZK::Disabled => (inherit_zk(), None),
+            MakeZK::Disabled => (false, None),
         }
     }
 }

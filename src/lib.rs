@@ -282,7 +282,11 @@ pub mod tests {
                         &pk,
                         Input::<CF, AS>::map_to_refs(inputs),
                         Accumulator::<CF, AS>::map_to_refs(&old_accumulators),
-                        if test_params.make_zk() { MakeZK::Enabled(&mut rng) } else { MakeZK::Disabled },
+                        if test_params.make_zk() {
+                            MakeZK::Enabled(&mut rng)
+                        } else {
+                            MakeZK::Disabled
+                        },
                         None::<S>,
                     )?;
 
