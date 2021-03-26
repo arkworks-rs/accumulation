@@ -389,13 +389,11 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let mut sponge = sponge.unwrap_or_else(|| SV::new(cs.clone()));
+        let sponge = sponge.unwrap_or_else(|| SV::new(cs.clone()));
 
-        let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME)?;
-        let as_sponge = sponge.new_fork(PROTOCOL_NAME)?;
-
-        sponge.fork(HP_AS_PROTOCOL_NAME)?;
-        let hp_sponge = sponge;
+        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME)?;
+        let as_sponge = sponge.fork(PROTOCOL_NAME)?;
+        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME)?;
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();

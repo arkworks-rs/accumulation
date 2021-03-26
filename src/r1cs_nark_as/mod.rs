@@ -630,13 +630,11 @@ where
     where
         Self: 'a,
     {
-        let mut sponge = sponge.unwrap_or_else(|| S::new());
+        let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.new_fork(PROTOCOL_NAME);
-
-        sponge.fork(HP_AS_PROTOCOL_NAME);
-        let hp_sponge = sponge;
+        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
+        let as_sponge = sponge.fork(PROTOCOL_NAME);
+        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
         // Collect all of the inputs and accumulators into vectors and extract additional information from them.
         let mut inputs_zk_config = false;
@@ -854,13 +852,11 @@ where
     where
         Self: 'a,
     {
-        let mut sponge = sponge.unwrap_or_else(|| S::new());
+        let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let nark_sponge = sponge.new_fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.new_fork(PROTOCOL_NAME);
-
-        sponge.fork(HP_AS_PROTOCOL_NAME);
-        let hp_sponge = sponge;
+        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
+        let as_sponge = sponge.fork(PROTOCOL_NAME);
+        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
@@ -951,8 +947,9 @@ where
     where
         Self: 'a,
     {
-        let mut hp_sponge = sponge.unwrap_or_else(|| S::new());
-        hp_sponge.fork(HP_AS_PROTOCOL_NAME);
+        let sponge = sponge.unwrap_or_else(|| S::new());
+
+        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
         let instance = accumulator.instance;
         let witness = accumulator.witness;
@@ -1156,8 +1153,7 @@ pub mod tests {
                     params: input_params.0.clone(),
                 };
 
-                let mut nark_sponge = S::new();
-                nark_sponge.fork(r1cs_nark::PROTOCOL_NAME);
+                let nark_sponge = S::new().fork(r1cs_nark::PROTOCOL_NAME);
 
                 let proof = R1CSNark::<G>::prove(
                     ipk,
