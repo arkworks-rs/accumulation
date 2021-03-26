@@ -702,7 +702,8 @@ where
 
             Self::check_input_structure(&input, r1cs_input_len, r1cs_witness_len)?;
 
-            inputs_zk_config = inputs_zk_config || instance.first_round_message.randomness.is_some();
+            inputs_zk_config =
+                inputs_zk_config || instance.first_round_message.randomness.is_some();
             input_instances.push(instance);
             input_witnesses.push(witness);
             all_inputs.push(input);
@@ -739,8 +740,9 @@ where
             (None, None)
         };
 
-        let num_addends =
-            input_instances.len() + accumulator_instances.len() + if make_zk_enabled { 1 } else { 0 };
+        let num_addends = input_instances.len()
+            + accumulator_instances.len()
+            + if make_zk_enabled { 1 } else { 0 };
 
         // Run HP AS
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
