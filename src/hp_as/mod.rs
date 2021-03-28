@@ -52,6 +52,7 @@ where
         vec_len: usize,
         is_accumulator: bool,
     ) -> Result<&'a InputWitness<G::ScalarField>, BoxedError> {
+        // The a and b vectors of the relation must not be empty.
         if witness.a_vec.len() == 0 || witness.b_vec.len() == 0 {
             let message =
                 "A vector of the Hadamard Product relation with a length of 0 is unsupported."
@@ -63,6 +64,7 @@ where
             }));
         }
 
+        // The number of elements of the a and b vectors must be supported by the prover key.
         if witness.a_vec.len() > prover_key.supported_num_elems()
             || witness.b_vec.len() > prover_key.supported_num_elems()
         {
@@ -77,6 +79,7 @@ where
             }));
         }
 
+        // All a and b vectors of the witnesses to be accumulated must have equal lengths.
         if witness.a_vec.len() != witness.b_vec.len() || witness.a_vec.len() != vec_len {
             let message =
                 "All of the vectors of the Hadamard Product relation that have or will be \
@@ -95,6 +98,8 @@ where
     fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
         assert!(num_inputs > 0);
 
+        // The number of commitments to the low and high coefficients must be equal, given how
+        // they were computed.
         if proof.t_comms.low.len() != proof.t_comms.high.len() {
             return false;
         }
@@ -105,6 +110,8 @@ where
             0
         };
 
+        // The number of commitments can be derived from the number of inputs and the hiding
+        // requirements. Ensure that they match.
         if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
             return false;
         }

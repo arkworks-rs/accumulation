@@ -68,6 +68,8 @@ where
         input_instance: &InputInstance<G>,
         r1cs_input_len: usize,
     ) -> Result<(), BoxedError> {
+        // The length of the R1CS input must be equal to those of the other R1CS inputs being
+        // accumulated.
         if input_instance.r1cs_input.len() != r1cs_input_len {
             return Err(BoxedError::new(MalformedInput(
                 "All R1CS inputs must be of equal length.".to_string(),
@@ -81,6 +83,8 @@ where
         input_witness: &InputWitness<G::ScalarField>,
         r1cs_witness_len: usize,
     ) -> Result<(), BoxedError> {
+        // The length of the R1CS witness must be equal to those of the other R1CS witnesses being
+        // accumulated.
         if input_witness.second_round_message.blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedInput(
                 "All R1CS witnesses must be of equal length.".to_string(),
@@ -98,6 +102,8 @@ where
         Self::check_input_instance_structure(input.instance, r1cs_input_len)?;
         Self::check_input_witness_structure(input.witness, r1cs_witness_len)?;
 
+        // The randomness requirements of the first round message and the second round messages
+        // must match.
         if input.instance.first_round_message.randomness.is_some()
             != input.witness.second_round_message.randomness.is_some()
         {
@@ -115,6 +121,8 @@ where
         accumulator_instance: &AccumulatorInstance<G>,
         r1cs_input_len: usize,
     ) -> Result<(), BoxedError> {
+        // The length of the R1CS input must be equal to those of the other R1CS inputs being
+        // accumulated.
         if accumulator_instance.r1cs_input.len() != r1cs_input_len {
             return Err(BoxedError::new(MalformedAccumulator(
                 "All R1CS inputs must be of equal length.".to_string(),
@@ -128,6 +136,8 @@ where
         accumulator_witness: &AccumulatorWitness<G::ScalarField>,
         r1cs_witness_len: usize,
     ) -> Result<(), BoxedError> {
+        // The length of the R1CS witness must be equal to those of the other R1CS witnesses being
+        // accumulated.
         if accumulator_witness.r1cs_blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedAccumulator(
                 "All R1CS witnesses must be of equal length.".to_string(),
@@ -142,6 +152,8 @@ where
         r1cs_input_len: usize,
         r1cs_witness_len: usize,
     ) -> bool {
+        // The lengths of the R1CS inputs and witnesses to be accumulated must be supported by the
+        // index key.
         return index_info.num_variables == r1cs_input_len + r1cs_witness_len;
     }
 

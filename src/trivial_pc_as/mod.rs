@@ -54,6 +54,7 @@ where
         instance: &InputInstance<G>,
         is_accumulator: bool,
     ) -> Result<&InputInstance<G>, BoxedError> {
+        // Accumulating commitments with degree bounds are unsupported.
         if instance.commitment.degree_bound().is_some() {
             if is_accumulator {
                 return Err(BoxedError::new(ASError::MalformedAccumulator(
@@ -75,6 +76,7 @@ where
         is_accumulator: bool,
     ) -> Result<&'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>, BoxedError>
     {
+        // Accumulating polynomials with degree bounds are unsupported.
         if witness.degree_bound().is_some() {
             if is_accumulator {
                 return Err(BoxedError::new(ASError::MalformedAccumulator(
@@ -87,6 +89,7 @@ where
             )));
         }
 
+        // Accumulating polynomials with hiding bounds are unsupported.
         if witness.hiding_bound().is_some() {
             if is_accumulator {
                 return Err(BoxedError::new(ASError::MalformedAccumulator(
@@ -99,6 +102,7 @@ where
             )));
         }
 
+        // The polynomial to be accumulated must have a degree that is supported by the prover key.
         if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
             if is_accumulator {
                 return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
@@ -117,6 +121,7 @@ where
     }
 
     fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
+        // Each proof must correspond to an input.
         return proof.len() == num_inputs;
     }
 

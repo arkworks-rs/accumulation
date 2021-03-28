@@ -42,6 +42,8 @@ where
     fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
         assert!(num_inputs > 0);
 
+        // The number of commitments to the low and high coefficients must be equal, given how
+        // they were computed.
         if proof.t_comms.low.len() != proof.t_comms.high.len() {
             return false;
         }
@@ -52,6 +54,8 @@ where
             0
         };
 
+        // The number of commitments can be derived from the number of inputs and the hiding
+        // requirements. Ensure that they match.
         if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
             return false;
         }

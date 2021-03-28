@@ -67,6 +67,8 @@ where
         is_accumulator: bool,
     ) -> Result<&InputInstance<G>, BoxedError> {
         let ipa_commitment = &instance.ipa_commitment;
+
+        // Accumulating commitments with degree bounds are unsupported.
         if ipa_commitment.degree_bound().is_some() {
             return Err(BoxedError::new(if is_accumulator {
                 ASError::MalformedAccumulator(
@@ -83,6 +85,7 @@ where
     }
 
     fn check_proof_structure(proof: &Option<Randomness<G>>) -> bool {
+        // The random polynomial in the proof must be linear.
         if let Some(randomness) = proof.as_ref() {
             return randomness.random_linear_polynomial.degree() <= 1;
         }

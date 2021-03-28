@@ -48,6 +48,8 @@ where
         input_instance: &InputInstanceVar<G, C>,
         r1cs_input_len: usize,
     ) -> bool {
+        // The lengths of the R1CS inputs and witnesses to be accumulated must be supported by the
+        // index key.
         return input_instance.r1cs_input.len() == r1cs_input_len;
     }
 
@@ -55,6 +57,8 @@ where
         accumulator_instance: &AccumulatorInstanceVar<G, C>,
         r1cs_input_len: usize,
     ) -> bool {
+        // The length of the R1CS input must be equal to those of the other R1CS inputs being
+        // accumulated.
         return accumulator_instance.r1cs_input.len() == r1cs_input_len;
     }
 

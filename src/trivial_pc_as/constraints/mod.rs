@@ -44,6 +44,7 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
     fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
+        // Each proof must correspond to an input.
         return proof.single_proofs.len() == num_inputs;
     }
 
