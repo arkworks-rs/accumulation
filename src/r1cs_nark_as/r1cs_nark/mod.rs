@@ -127,6 +127,7 @@ where
     ) -> R1CSResult<Proof<G>> {
         let init_time = start_timer!(|| "NARK::Prover");
 
+        // Step 1 of the scheme's prover, as detailed in BCLMS20.
         let constraint_time = start_timer!(|| "Generating constraints and witnesses");
         let pcs = ConstraintSystem::new_ref();
         pcs.set_optimization_goal(OptimizationGoal::Weight);
@@ -153,12 +154,48 @@ where
         assert_eq!(ipk.index_info.num_variables, num_variables);
         assert_eq!(ipk.index_info.num_constraints, num_constraints);
 
+        // Step 2 of the scheme's prover, as detailed in BCLMS20.
+        let mut r = if make_zk {
+            // Sample r
+            let randomizer_time = start_timer!(|| "Sampling randomizer r");
+
+            let rng = rng.as_mut().unwrap();
+            let mut r = Vec::with_capacity(num_witness_variables);
+            for _ in 0..num_witness_variables {
+                r.push(G::ScalarField::rand(rng))
+            }
+
+            end_timer!(randomizer_time);
+
+            Some(r)
+        } else {
+            None
+        };
+
+        // Step 3 of the scheme's prover, as detailed in BCLMS20.
         let eval_z_m_time = start_timer!(|| "Evaluating z_M");
         let z_a = matrix_vec_mul(&ipk.a, &input, &witness);
         let z_b = matrix_vec_mul(&ipk.b, &input, &witness);
         let z_c = matrix_vec_mul(&ipk.c, &input, &witness);
         end_timer!(eval_z_m_time);
 
+        let (r_a, r_b, r_c) = if make_zk {
+            let r_ref = r.as_ref().unwrap();
+            let zeros = vec![G::ScalarField::zero(); num_input_variables];
+
+            // Compute r_a, r_b, r_c.
+            let eval_r_m_time = start_timer!(|| "Evaluating r_M");
+            let r_a = matrix_vec_mul(&ipk.a, &zeros, r_ref);
+            let r_b = matrix_vec_mul(&ipk.b, &zeros, r_ref);
+            let r_c = matrix_vec_mul(&ipk.c, &zeros, r_ref);
+            end_timer!(eval_r_m_time);
+
+            (Some(r_a), Some(r_b), Some(r_c))
+        } else {
+            (None, None, None)
+        };
+
+        // Step 4 of the scheme's prover, as detailed in BCLMS20.
         // Sample blinders for z_a, z_b, z_c.
         let (mut a_blinder, mut b_blinder, mut c_blinder) = (None, None, None);
         if make_zk {
@@ -176,29 +213,10 @@ where
 
         end_timer!(commit_time);
 
-        let mut r = None;
         let (mut r_a_blinder, mut r_b_blinder, mut r_c_blinder) = (None, None, None);
         let (mut blinder_1, mut blinder_2) = (None, None);
         let first_round_randomness = if make_zk {
-            // Sample r.
-            let randomizer_time = start_timer!(|| "Sampling randomizer r");
             let rng = rng.as_mut().unwrap();
-            r = Some(Vec::with_capacity(num_witness_variables));
-            r.as_mut().map(|v| {
-                for _ in 0..num_witness_variables {
-                    v.push(G::ScalarField::rand(rng))
-                }
-            });
-            end_timer!(randomizer_time);
-            let r_ref = r.as_ref().unwrap();
-            let zeros = vec![G::ScalarField::zero(); num_input_variables];
-
-            // Compute r_a, r_b, r_c.
-            let eval_r_m_time = start_timer!(|| "Evaluating r_M");
-            let r_a = matrix_vec_mul(&ipk.a, &zeros, r_ref);
-            let r_b = matrix_vec_mul(&ipk.b, &zeros, r_ref);
-            let r_c = matrix_vec_mul(&ipk.c, &zeros, r_ref);
-            end_timer!(eval_r_m_time);
 
             // Sample blinders for r_a, r_b, r_c.
             r_a_blinder = Some(G::ScalarField::rand(rng));
@@ -207,15 +225,16 @@ where
 
             // Commit to r_a, r_b, r_c.
             let commit_time = start_timer!(|| "Committing to r_A, r_B, r_C");
-            let comm_r_a = PedersenCommitment::commit(&ipk.ck, &r_a, r_a_blinder);
-            let comm_r_b = PedersenCommitment::commit(&ipk.ck, &r_b, r_b_blinder);
-            let comm_r_c = PedersenCommitment::commit(&ipk.ck, &r_c, r_c_blinder);
+            let comm_r_a = PedersenCommitment::commit(&ipk.ck, r_a.as_ref().unwrap(), r_a_blinder);
+            let comm_r_b = PedersenCommitment::commit(&ipk.ck, r_b.as_ref().unwrap(), r_b_blinder);
+            let comm_r_c = PedersenCommitment::commit(&ipk.ck, r_c.as_ref().unwrap(), r_c_blinder);
             end_timer!(commit_time);
 
+            // Step 5 of the scheme's prover, as detailed in BCLMS20.
             // Commit to z_a ○ r_b + z_b ○ r_a.
             let cross_prod_time = start_timer!(|| "Computing cross product z_a ○ r_b + z_b ○ r_a");
-            let z_a_times_r_b = cfg_iter!(z_a).zip(&r_b);
-            let z_b_times_r_a = cfg_iter!(z_b).zip(&r_a);
+            let z_a_times_r_b = cfg_iter!(z_a).zip(r_b.as_ref().unwrap());
+            let z_b_times_r_a = cfg_iter!(z_b).zip(r_a.as_ref().unwrap());
             let cross_product: Vec<_> = z_a_times_r_b
                 .zip(z_b_times_r_a)
                 .map(|((z_a, r_b), (z_b, r_a))| *z_a * r_b + *z_b * r_a)
@@ -228,8 +247,8 @@ where
 
             // Commit to r_a ○ r_b.
             let commit_time = start_timer!(|| "Committing to r_a ○ r_b");
-            let r_a_r_b_product: Vec<_> = cfg_iter!(r_a)
-                .zip(r_b)
+            let r_a_r_b_product: Vec<_> = cfg_iter!(r_a.as_ref().unwrap())
+                .zip(r_b.unwrap())
                 .map(|(r_a, r_b)| r_b * r_a)
                 .collect();
             blinder_2 = Some(G::ScalarField::rand(rng));
@@ -247,6 +266,7 @@ where
             None
         };
 
+        // Step 6 of the scheme's prover, as detailed in BCLMS20.
         let first_msg = FirstRoundMessage {
             comm_a,
             comm_b,
@@ -254,6 +274,7 @@ where
             randomness: first_round_randomness,
         };
 
+        // Step 7 of the scheme's prover, as detailed in BCLMS20.
         let gamma = Self::compute_challenge(
             &ipk.index_info,
             &input,
@@ -263,12 +284,17 @@ where
 
         let mut blinded_witness = witness;
         let second_round_randomness = if make_zk {
+            // Step 8 of the scheme's prover, as detailed in BCLMS20.
             ark_std::cfg_iter_mut!(blinded_witness)
                 .zip(r.unwrap())
                 .for_each(|(s, r)| *s += gamma * r);
+
+            // Step 9 of the scheme's prover, as detailed in BCLMS20.
             let sigma_a = a_blinder.unwrap() + gamma * r_a_blinder.unwrap();
             let sigma_b = b_blinder.unwrap() + gamma * r_b_blinder.unwrap();
             let sigma_c = c_blinder.unwrap() + gamma * r_c_blinder.unwrap();
+
+            // Step 10 of the scheme's prover, as detailed in BCLMS20.
             let sigma_o = c_blinder.unwrap()
                 + gamma * blinder_1.unwrap()
                 + gamma.square() * blinder_2.unwrap();
@@ -283,11 +309,13 @@ where
             None
         };
 
+        // Step 11 of the scheme's prover, as detailed in BCLMS20.
         let second_msg = SecondRoundMessage {
             blinded_witness,
             randomness: second_round_randomness,
         };
 
+        // Step 12 of the scheme's prover, as detailed in BCLMS20.
         let proof = Proof {
             first_msg,
             second_msg,
@@ -316,6 +344,7 @@ where
             tmp
         };
 
+        // Step 2 of the scheme's verifier, as detailed in BCLMS20.
         let gamma = Self::compute_challenge(
             &ivk.index_info,
             &input,
@@ -323,6 +352,7 @@ where
             sponge.unwrap_or_else(|| S::new()),
         );
 
+        // Step 3 of the scheme's verifier, as detailed in BCLMS20.
         let mat_vec_mul_time = start_timer!(|| "Computing M * blinded_witness");
         let a_times_blinded_witness =
             matrix_vec_mul(&ivk.a, &input, &proof.second_msg.blinded_witness);
@@ -332,6 +362,7 @@ where
             matrix_vec_mul(&ivk.c, &input, &proof.second_msg.blinded_witness);
         end_timer!(mat_vec_mul_time);
 
+        // Step 4 of the scheme's verifier, as detailed in BCLMS20.
         let mut comm_a = proof.first_msg.comm_a.into_projective();
         let mut comm_b = proof.first_msg.comm_b.into_projective();
         let mut comm_c = proof.first_msg.comm_c.into_projective();
@@ -364,6 +395,7 @@ where
         drop(c_times_blinded_witness);
         end_timer!(commit_time);
 
+        // Step 5 of the scheme's verifier, as detailed in BCLMS20.
         let had_prod_time = start_timer!(|| "Computing Hadamard product and commitment to it");
         let had_prod: Vec<_> = cfg_into_iter!(a_times_blinded_witness)
             .zip(b_times_blinded_witness)
