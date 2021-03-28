@@ -655,9 +655,13 @@ where
         let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk_enabled {
             // If make_zk, then rng should exist here.
             assert!(rng.is_some());
-            
-            let (hiding_vecs, hiding_rands, hiding_comms) =
-                Self::generate_prover_randomness(prover_key, hp_vec_len, &all_input_witnesses, rng.unwrap());
+
+            let (hiding_vecs, hiding_rands, hiding_comms) = Self::generate_prover_randomness(
+                prover_key,
+                hp_vec_len,
+                &all_input_witnesses,
+                rng.unwrap(),
+            );
             (Some(hiding_vecs), Some(hiding_rands), Some(hiding_comms))
         } else {
             (None, None, None)
