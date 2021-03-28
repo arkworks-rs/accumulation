@@ -7,7 +7,7 @@
 //! [bcms20]: https://eprint.iacr.org/2020/499.pdf
 //! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 
-#![deny(
+#![warn(
     const_err,
     future_incompatible,
     missing_docs,
@@ -47,6 +47,7 @@ pub mod error;
 pub mod constraints;
 
 /// An accumulation scheme for the Hadamard product relation.
+///
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf

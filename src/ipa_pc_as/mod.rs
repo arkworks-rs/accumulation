@@ -110,6 +110,30 @@ where
             .comm)
     }
 
+    fn generate_prover_randomness<S: CryptographicSponge<ConstraintF<G>>>(
+        prover_key: &ProverKey<G>,
+        rng: &mut dyn RngCore,
+    ) -> Result<Randomness<G>, BoxedError> {
+        let random_linear_polynomial = DensePolynomial::from_coefficients_slice(&[
+            G::ScalarField::rand(rng),
+            G::ScalarField::rand(rng),
+        ]);
+
+        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial::<S>(
+            &prover_key.verifier_key.ipa_ck_linear,
+            random_linear_polynomial.clone(),
+        )
+        .map_err(|e| BoxedError::new(e))?;
+
+        let commitment_randomness = G::ScalarField::rand(rng);
+
+        Ok(Randomness {
+            random_linear_polynomial,
+            random_linear_polynomial_commitment: linear_polynomial_commitment,
+            commitment_randomness,
+        })
+    }
+
     fn succinct_check_inputs<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         inputs: &Vec<&InputInstance<G>>,
@@ -459,30 +483,10 @@ where
             }
         };
 
-        let proof = if make_zk_enabled {
-            assert!(rng.is_some());
-            let rng_moved = rng.unwrap();
-
-            let random_linear_polynomial = DensePolynomial::from_coefficients_slice(&[
-                G::ScalarField::rand(rng_moved),
-                G::ScalarField::rand(rng_moved),
-            ]);
-
-            let linear_polynomial_commitment =
-                Self::deterministic_commit_to_linear_polynomial::<S>(
-                    &prover_key.verifier_key.ipa_ck_linear,
-                    random_linear_polynomial.clone(),
-                )
-                .map_err(|e| BoxedError::new(e))?;
-
-            let commitment_randomness = G::ScalarField::rand(rng_moved);
-
+        let proof = if let Some(rng_moved) = rng {
+            let proof = Self::generate_prover_randomness::<S>(prover_key, rng_moved)?;
             rng = Some(rng_moved);
-            Some(Randomness {
-                random_linear_polynomial,
-                random_linear_polynomial_commitment: linear_polynomial_commitment,
-                commitment_randomness,
-            })
+            Some(proof)
         } else {
             None
         };
