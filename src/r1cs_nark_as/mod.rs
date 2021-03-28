@@ -300,11 +300,11 @@ where
             .collect::<Vec<_>>()
     }
 
-    fn compute_prover_randomness(
+    fn generate_prover_randomness(
         prover_key: &ProverKey<G>,
-        rng: &mut dyn RngCore,
         r1cs_input_len: usize,
         r1cs_witness_len: usize,
+        rng: &mut dyn RngCore,
     ) -> Result<
         (
             ProofRandomness<G>,
@@ -740,11 +740,11 @@ where
             let rng_moved = rng.unwrap();
 
             let index_info = &prover_key.nark_pk.index_info;
-            let (proof_randomness, prover_witness_randomness) = Self::compute_prover_randomness(
+            let (proof_randomness, prover_witness_randomness) = Self::generate_prover_randomness(
                 prover_key,
-                rng_moved,
                 index_info.num_instance_variables,
                 index_info.num_variables - index_info.num_instance_variables,
+                rng_moved,
             )?;
 
             rng = Some(rng_moved);
