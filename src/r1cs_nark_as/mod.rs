@@ -1045,7 +1045,7 @@ where
 
         Ok(comm_check
             // Step 7 of the scheme's accumulation decider, as detailed in BCLMS20.
-            && ASForHadamardProducts::<G>::decide(
+            && ASForHadamardProducts::<G>::decide::<S>(
                 &decider_key.ck,
                 AccumulatorRef::<_, ASForHadamardProducts<G>> {
                     instance: &instance.hp_instance,
