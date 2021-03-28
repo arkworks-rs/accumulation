@@ -306,6 +306,7 @@ where
             all_input_instances.push(default_input_instance.as_ref().unwrap());
         };
 
+        // Step 1 of the scheme's accumulation verifier as detailed in BCLMS20.
         let mut challenges_sponge = sponge;
         absorb_gadget!(
             &mut challenges_sponge,
@@ -321,6 +322,7 @@ where
 
         let nu_challenges_bits = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
 
+        // Steps 2-4 of the scheme's accumulation verifier as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(
             all_input_instances.as_slice(),
             proof,
