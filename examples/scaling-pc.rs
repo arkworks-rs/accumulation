@@ -7,15 +7,6 @@ use ark_ff::PrimeField;
 use ark_pallas::{Affine as G1Affine, Fq, Fr};
 use rand::Rng;
 use std::time::Instant;
-
-// struct ProfileData {
-//     size: Vec<usize>,
-//     index_setup_times: Vec<f64>,
-//     prover_times: Vec<f64>,
-//     verifier_times: Vec<f64>,
-//     decider_times: Vec<f64>,
-// }
-
 use crate::ipa_pc_as::IpaPCDomain;
 use ark_accumulation::ipa_pc_as;
 use ark_poly::univariate::DensePolynomial;
