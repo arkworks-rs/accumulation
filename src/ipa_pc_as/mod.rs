@@ -483,8 +483,13 @@ where
             }
         };
 
-        let proof = if let Some(rng_moved) = rng {
+        let proof = if make_zk_enabled {
+            // If make_zk, then rng should exist here.
+            assert!(rng.is_some());
+
+            let rng_moved = rng.unwrap();
             let proof = Self::generate_prover_randomness::<S>(prover_key, rng_moved)?;
+
             rng = Some(rng_moved);
             Some(proof)
         } else {
