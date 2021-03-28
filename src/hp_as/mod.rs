@@ -119,6 +119,59 @@ where
         true
     }
 
+    fn generate_prover_randomness(
+        prover_key: &PedersenCommitmentCK<G>,
+        hp_vec_len: usize,
+        all_input_witnesses: &Vec<&InputWitness<G::ScalarField>>,
+        rng: &mut dyn RngCore,
+    ) -> (
+        (Vec<G::ScalarField>, Vec<G::ScalarField>),
+        InputWitnessRandomness<G::ScalarField>,
+        ProofHidingCommitments<G>,
+    ) {
+        let a = vec![G::ScalarField::rand(rng); hp_vec_len];
+        let b = vec![G::ScalarField::rand(rng); hp_vec_len];
+
+        let rand_1 = G::ScalarField::rand(rng);
+        let rand_2 = G::ScalarField::rand(rng);
+        let rand_3 = G::ScalarField::rand(rng);
+
+        let comm_1 = PedersenCommitment::commit(prover_key, a.as_slice(), Some(rand_1));
+        let comm_2 = PedersenCommitment::commit(prover_key, b.as_slice(), Some(rand_2));
+
+        let comm_3 = {
+            let rand_prod_1 =
+                Self::compute_hp(a.as_slice(), all_input_witnesses[0].b_vec.as_slice());
+
+            let rand_prod_2 = Self::compute_hp(
+                all_input_witnesses.last().unwrap().a_vec.as_slice(),
+                b.as_slice(),
+            );
+
+            let rand_prods_sum = Self::combine_vectors(
+                vec![&rand_prod_1, &rand_prod_2],
+                &[G::ScalarField::one(), G::ScalarField::one()],
+                None,
+            );
+
+            PedersenCommitment::commit(prover_key, rand_prods_sum.as_slice(), Some(rand_3))
+        };
+
+        let rands = InputWitnessRandomness {
+            rand_1,
+            rand_2,
+            rand_3,
+        };
+
+        let comms = ProofHidingCommitments {
+            comm_1,
+            comm_2,
+            comm_3,
+        };
+
+        ((a, b), rands, comms)
+    }
+
     fn squeeze_mu_challenges(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
@@ -597,51 +650,10 @@ where
             all_input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
-        let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk_enabled {
-            assert!(rng.is_some());
-            let rng = rng.unwrap();
-
-            let a = vec![G::ScalarField::rand(rng); hp_vec_len];
-            let b = vec![G::ScalarField::rand(rng); hp_vec_len];
-
-            let rand_1 = G::ScalarField::rand(rng);
-            let rand_2 = G::ScalarField::rand(rng);
-            let rand_3 = G::ScalarField::rand(rng);
-
-            let comm_1 = PedersenCommitment::commit(prover_key, a.as_slice(), Some(rand_1));
-            let comm_2 = PedersenCommitment::commit(prover_key, b.as_slice(), Some(rand_2));
-
-            let comm_3 = {
-                let rand_prod_1 =
-                    Self::compute_hp(a.as_slice(), all_input_witnesses[0].b_vec.as_slice());
-
-                let rand_prod_2 = Self::compute_hp(
-                    all_input_witnesses.last().unwrap().a_vec.as_slice(),
-                    b.as_slice(),
-                );
-
-                let rand_prods_sum = Self::combine_vectors(
-                    vec![&rand_prod_1, &rand_prod_2],
-                    &[G::ScalarField::one(), G::ScalarField::one()],
-                    None,
-                );
-
-                PedersenCommitment::commit(prover_key, rand_prods_sum.as_slice(), Some(rand_3))
-            };
-
-            let rands = InputWitnessRandomness {
-                rand_1,
-                rand_2,
-                rand_3,
-            };
-
-            let comms = ProofHidingCommitments {
-                comm_1,
-                comm_2,
-                comm_3,
-            };
-
-            (Some((a, b)), Some(rands), Some(comms))
+        let (hiding_vecs, hiding_rands, hiding_comms) = if let Some(rng) = rng {
+            let (hiding_vecs, hiding_rands, hiding_comms) =
+                Self::generate_prover_randomness(prover_key, hp_vec_len, &all_input_witnesses, rng);
+            (Some(hiding_vecs), Some(hiding_rands), Some(hiding_comms))
         } else {
             (None, None, None)
         };
