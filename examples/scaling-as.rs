@@ -3,26 +3,26 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
-use ark_ff::{One, PrimeField};
-use ark_pallas::{Affine as G1Affine, Fq, Fr};
-use ark_serialize::CanonicalSerialize;
-use ark_std::UniformRand;
-use rand::Rng;
-use std::time::Instant;
 use ark_accumulation::ipa_pc_as::IpaPCDomain;
 use ark_accumulation::{ipa_pc_as, ipa_pc_as::AtomicASForInnerProductArgPC};
 use ark_accumulation::{trivial_pc_as, trivial_pc_as::ASForTrivialPC};
 use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
+use ark_ff::{One, PrimeField};
+use ark_pallas::{Affine as G1Affine, Fq, Fr};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
 use ark_poly_commit::trivial_pc::TrivialPC;
 use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial};
+use ark_serialize::CanonicalSerialize;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
 use ark_sponge::CryptographicSponge;
 use ark_std::vec::Vec;
+use ark_std::UniformRand;
 use blake2::Blake2s;
+use rand::Rng;
 use rand_core::RngCore;
+use std::time::Instant;
 
 type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;
 type ASForTrivPC = ASForTrivialPC<G1Affine>;

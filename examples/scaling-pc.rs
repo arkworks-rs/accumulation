@@ -3,12 +3,10 @@
 // PS: thread_rng is *insecure*
 
 // For benchmarking
-use ark_ff::PrimeField;
-use ark_pallas::{Affine as G1Affine, Fq, Fr};
-use rand::Rng;
-use std::time::Instant;
 use crate::ipa_pc_as::IpaPCDomain;
 use ark_accumulation::ipa_pc_as;
+use ark_ff::PrimeField;
+use ark_pallas::{Affine as G1Affine, Fq, Fr};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::ipa_pc::InnerProductArgPC;
 use ark_poly_commit::trivial_pc::TrivialPC;
@@ -18,6 +16,8 @@ use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
 use ark_std::vec::Vec;
 use blake2::Blake2s;
+use rand::Rng;
+use std::time::Instant;
 
 type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;
 
