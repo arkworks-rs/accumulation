@@ -424,6 +424,7 @@ where
             }
         }
 
+        // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let num_addends = input_instances.len()
             + old_accumulator_instances.len()
             + if proof.randomness.is_some() { 1 } else { 0 };
@@ -437,6 +438,7 @@ where
             as_sponge,
         )?;
 
+        // Step 2 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
                 &verifier_key.nark_index,
@@ -450,10 +452,12 @@ where
             &all_blinded_comm_prod,
         );
 
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let hp_accumulator_instances = old_accumulator_instances
             .iter()
             .map(|instance| &instance.hp_instance);
 
+        // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let hp_vk = HPVerifierKeyVar::<ConstraintF<G>>::new_constant(
             cs.clone(),
             verifier_key.nark_index.num_constraints,
@@ -469,6 +473,7 @@ where
             Some(hp_sponge),
         )?;
 
+        // Steps 5-6 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
             &all_blinded_comm_a,
