@@ -45,6 +45,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
+/// See Remark 10.1 in [BCLMS20][bclms20] for more details.
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct ASForR1CSNark<G, CS>
