@@ -651,7 +651,7 @@ where
             all_input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
-        // Step 3 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (hiding_vecs, hiding_rands, hiding_comms) = if let Some(rng) = rng {
             let (hiding_vecs, hiding_rands, hiding_comms) =
                 Self::generate_prover_randomness(prover_key, hp_vec_len, &all_input_witnesses, rng);
@@ -660,7 +660,7 @@ where
             (None, None, None)
         };
 
-        // Step 4 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 4 of the scheme's accumulation prover, as detailed in BCLMS20.
         let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
@@ -672,7 +672,7 @@ where
         let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk_enabled);
 
-        // Steps 5-7 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Steps 5-7 of the scheme's accumulation prover, as detailed in BCLMS20.
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
             all_input_witnesses.as_slice(),
             mu_challenges.as_slice(),
@@ -680,14 +680,14 @@ where
             hiding_vecs.as_ref(),
         );
 
-        // Step 8 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 8 of the scheme's accumulation prover, as detailed in BCLMS20.
         let t_comms = Self::compute_t_comms(prover_key, &t_vecs)?;
         let proof = Proof {
             t_comms,
             hiding_comms,
         };
 
-        // Step 9 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 9 of the scheme's accumulation prover, as detailed in BCLMS20.
         challenges_sponge.absorb(&proof.t_comms);
         let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs);
 
@@ -696,7 +696,7 @@ where
             combined_challenges.push(mu.clone().mul(nu));
         }
 
-        // Steps 10-12 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Steps 10-12 of the scheme's accumulation prover, as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(
             all_input_instances.as_slice(),
             &proof,
@@ -705,7 +705,7 @@ where
             combined_challenges.as_slice(),
         );
 
-        // Steps 13-15 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Steps 13-15 of the scheme's accumulation prover, as detailed in BCLMS20.
         let accumulator_witness = Self::compute_combined_hp_openings(
             all_input_witnesses.as_slice(),
             mu_challenges.as_slice(),
@@ -715,7 +715,7 @@ where
             hiding_rands.as_ref(),
         );
 
-        // Steps 16-18 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Steps 16-18 of the scheme's accumulation prover, as detailed in BCLMS20.
         let accumulator = Accumulator::<_, Self> {
             instance: accumulator_instance,
             witness: accumulator_witness,
@@ -761,7 +761,7 @@ where
             all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
-        // Step 1 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenges_sponge = sponge;
         absorb!(
             &mut challenges_sponge,
@@ -782,7 +782,7 @@ where
             combined_challenges.push(mu.clone().mul(nu));
         }
 
-        // Steps 2-4 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Steps 2-4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(
             all_input_instances.as_slice(),
             proof,

@@ -329,7 +329,7 @@ where
             )));
         }
 
-        // Steps 1c-1d of the scheme's accumulation prover as detailed in BCLMS20.
+        // Steps 1c-1d of the scheme's accumulation prover, as detailed in BCLMS20.
         let (witness_polynomials, witness_commitments) =
             Self::compute_witness_polynomials_and_commitments(
                 &prover_key,
@@ -341,7 +341,7 @@ where
         assert_eq!(input_witnesses.len(), witness_polynomials.len());
         assert_eq!(input_witnesses.len(), witness_commitments.len());
 
-        // Step 2 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 2 of the scheme's accumulation prover, as detailed in BCLMS20.
         let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(&prover_key.supported_degree());
 
@@ -369,11 +369,11 @@ where
             .zip(&witness_polynomials)
             .zip(&witness_commitments)
         {
-            // Step 3 of the scheme's accumulation prover as detailed in BCLMS20.
+            // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
             let input_witness_eval = input_witness.evaluate(&challenge_point);
             let witness_eval = witness_polynomial.evaluate(&challenge_point);
 
-            // Step 4 of the scheme's accumulation prover as detailed in BCLMS20.
+            // Step 4 of the scheme's accumulation prover, as detailed in BCLMS20.
             absorb![
                 &mut linear_combination_challenges_sponge,
                 &to_bytes!(&input_witness_eval).unwrap(),
@@ -389,13 +389,13 @@ where
             proof.push(single_proof);
         }
 
-        // Step 4 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 4 of the scheme's accumulation prover, as detailed in BCLMS20.
         let linear_combination_challenges = linear_combination_challenges_sponge
             .squeeze_nonnative_field_elements_with_sizes(
                 vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
             );
 
-        // Step 5 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 5 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_polynomial = Self::combine_polynomials(
             input_witnesses.into_iter().chain(&witness_polynomials),
             linear_combination_challenges.as_slice(),
@@ -404,10 +404,10 @@ where
         let combined_polynomial =
             LabeledPolynomial::new(PolynomialLabel::new(), combined_polynomial, None, None);
 
-        // Step 6 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 6 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_eval = combined_polynomial.evaluate(&challenge_point);
 
-        // Step 7 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_commitment = Self::combine_commitments(
             input_instances
                 .into_iter()
@@ -419,7 +419,7 @@ where
         let combined_commitment =
             LabeledCommitment::new(PolynomialLabel::new(), combined_commitment, None);
 
-        // Step 8-10 of the scheme's accumulation prover as detailed in BCLMS20.
+        // Step 8-10 of the scheme's accumulation prover, as detailed in BCLMS20.
         let new_accumulator_instance = InputInstance {
             commitment: combined_commitment,
             point: challenge_point,
@@ -482,20 +482,20 @@ where
             return Ok(false);
         }
 
-        // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
         for (input_instance, p) in input_instances.into_iter().zip(proof) {
-            // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+            // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
             absorb![
                 &mut challenge_point_sponge,
                 input_instance,
                 p.witness_commitment.commitment().elem
             ];
 
-            // Step 4 of the scheme's accumulation verifier as detailed in BCLMS20.
+            // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
             let eval_check_lhs = p.eval - &input_instance.eval;
             let eval_check_rhs = p
                 .witness_eval
@@ -508,7 +508,7 @@ where
             commitments.push(&input_instance.commitment);
         }
 
-        // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let challenge_point: G::ScalarField = challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
             .pop()
@@ -518,7 +518,7 @@ where
             return Ok(false);
         }
 
-        // Step 5 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 5 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut linear_combination_challenges_sponge = sponge;
         let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
         challenge_point_bytes.resize_with(23, || 0u8);
@@ -537,7 +537,7 @@ where
                 vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
             );
 
-        // Step 6 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let combined_eval = Self::combine_evaluations(
             proof
                 .into_iter()
@@ -550,7 +550,7 @@ where
             return Ok(false);
         }
 
-        // Step 7 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 7 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let combined_commitment = Self::combine_commitments(
             commitments
                 .into_iter()

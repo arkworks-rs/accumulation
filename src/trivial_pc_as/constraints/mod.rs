@@ -134,21 +134,21 @@ where
 
         let mut verify_result = Boolean::TRUE;
 
-        // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(&verifier_key.0)?;
 
         let mut commitment = Vec::new();
         for (input_instance, single_proof) in input_instances.into_iter().zip(&proof.single_proofs)
         {
-            // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+            // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
             absorb_gadget!(
                 &mut challenge_point_sponge,
                 input_instance,
                 single_proof.witness_commitment
             );
 
-            // Step 4 of the scheme's accumulation verifier as detailed in BCLMS20.
+            // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
             let eval_check_lhs: NNFieldVar<G> = &single_proof.eval - &input_instance.eval;
             let eval_check_rhs: NNFieldVar<G> = (&single_proof.witness_eval)
                 .mul(&(&new_accumulator_instance.point - &input_instance.point));
@@ -159,7 +159,7 @@ where
             commitment.push(&input_instance.commitment);
         }
 
-        // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenge_point_sponge_field_element_and_bits = challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?;
 
@@ -176,13 +176,13 @@ where
         verify_result =
             verify_result.and(&challenge_point.is_eq(&new_accumulator_instance.point)?)?;
 
-        // Step 5 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 5 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut linear_combination_challenge_sponge = sponge;
         let challenge_point_bytes = challenge_point_bits
             .chunks(8)
             .map(UInt8::<ConstraintF<G>>::from_bits_le)
             .collect::<Vec<_>>();
-        // Step 3 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         linear_combination_challenge_sponge.absorb(&challenge_point_bytes)?;
 
         for single_proof in &proof.single_proofs {
@@ -198,7 +198,7 @@ where
                 vec![FieldElementSize::Truncated(128); proof.single_proofs.len() * 2].as_slice(),
             )?;
 
-        // Step 6 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let combined_eval = Self::combine_evaluation(
             proof
                 .single_proofs
@@ -210,7 +210,7 @@ where
 
         verify_result = verify_result.and(&combined_eval.is_eq(&new_accumulator_instance.eval)?)?;
 
-        // Step 7 of the scheme's accumulation verifier as detailed in BCLMS20.
+        // Step 7 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let combined_commitment = Self::combine_commitment(
             commitment
                 .into_iter()
