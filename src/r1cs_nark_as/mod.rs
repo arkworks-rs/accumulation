@@ -1,4 +1,5 @@
 use crate::data_structures::{Accumulator, AccumulatorRef, InputRef};
+use crate::error::ASError::{MalformedAccumulator, MalformedInput};
 use crate::error::{ASError, BoxedError};
 use crate::hp_as::ASForHadamardProducts;
 use crate::hp_as::{
@@ -26,7 +27,6 @@ use r1cs_nark::{
 use rand_core::RngCore;
 
 mod data_structures;
-use crate::error::ASError::{MalformedAccumulator, MalformedInput};
 pub use data_structures::*;
 
 /// A simple non-interactive argument of knowledge for R1CS.
