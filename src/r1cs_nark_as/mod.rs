@@ -41,7 +41,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 
 /// An accumulation scheme for a NARK for R1CS.
 /// This implementation is specialized for [`r1cs_nark`].
-/// The construction is described in detail in [BCLMS20][bclms20].
+/// The construction is described in detail in Section 9 of [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.

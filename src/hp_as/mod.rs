@@ -26,7 +26,7 @@ pub use data_structures::*;
 pub mod constraints;
 
 /// An accumulation scheme for the Hadamard product relation.
-/// The construction is described in detail in [BCLMS20][bclms20].
+/// The construction is described in detail in Section 8 of [BCLMS20][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.

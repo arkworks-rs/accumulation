@@ -40,7 +40,7 @@ type IpaPC<G, S> = InnerProductArgPC<
 
 /// An accumulation scheme for a polynomial commitment scheme based on inner product arguments.
 /// This implementation is specialized for [`InnerProductArgPC`][ipa-pc].
-/// The construction is described in detail in [BCMS20][bcms20].
+/// The construction is described in detail in Section 7 of [BCMS20][bcms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
