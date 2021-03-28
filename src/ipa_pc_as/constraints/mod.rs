@@ -357,6 +357,7 @@ where
             )?;
         }
 
+        // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
         let succinct_check_result = Self::succinct_check_inputs::<_, S, SV>(
             ns!(cs, "succinct_check_results").cs(),
             &verifier_key.ipa_svk,
@@ -367,6 +368,7 @@ where
             return Ok(Boolean::FALSE);
         }
 
+        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
         let (
             combined_succinct_check_result,
             combined_commitment,

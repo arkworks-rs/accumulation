@@ -496,6 +496,7 @@ where
             None
         };
 
+        // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
         let succinct_checks = Self::succinct_check_inputs_and_accumulators::<S>(
             &prover_key.verifier_key.ipa_svk,
             &input_instances,
@@ -503,6 +504,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
+        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
         let (combined_commitment, combined_check_polynomial_addends, challenge) =
             Self::combine_succinct_checks_and_proof(
                 &prover_key.verifier_key.ipa_svk,
@@ -519,6 +521,8 @@ where
             combined_check_polynomial += &randomness.random_linear_polynomial;
         }
 
+        // Steps after the common subroutine of the scheme's accumulation prover, as detailed in
+        // BCLMS20.
         let accumulator = Self::compute_new_accumulator::<S>(
             &prover_key.ipa_ck,
             combined_check_polynomial,
@@ -601,6 +605,7 @@ where
             }
         }
 
+        // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators::<S>(
             &verifier_key.ipa_svk,
             &input_instances,
@@ -617,6 +622,7 @@ where
             return Ok(false);
         }
 
+        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
         let combine_result = Self::combine_succinct_checks_and_proof(
             &verifier_key.ipa_svk,
             &succinct_checks,
