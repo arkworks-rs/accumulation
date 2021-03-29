@@ -33,6 +33,40 @@ pub mod constraints;
 /// See Remark 10.1 in [BCLMS20][bclms20] for more details.
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+///
+/// # Example Input
+/// ```
+///
+/// use ark_accumulation::hp_as::{InputWitnessRandomness, InputInstance, InputWitness, ASForHadamardProducts};
+/// use ark_accumulation::Input;
+///
+/// // An accumulation input for this scheme is formed from:
+/// // 1. Two equal length vectors:                                 `a, b`
+/// // 2. Pedersen commitments to `a`, `b`, and `a ◦ b`:            `comm_1, comm_2, comm_3`
+/// // 3. The optional randomness used in the Pedersen commitments: `rand_1, rand_2, rand_3`
+///
+/// let hp_as_input = {
+///     let instance = InputInstance {
+///         comm_1,
+///         comm_2,
+///         comm_3,
+///     };
+///
+///     let randomness = InputWitnessRandomness {
+///         rand_1,
+///         rand_2,
+///         rand_3,
+///     };
+///
+///     let witness = InputWitness {
+///         a_vec: a,
+///         b_vec: b,
+///         randomness: Some(randomness),
+///     };
+///
+///     Input::<_, ASForHadamardProducts<G>> { instance, witness }
+/// };
+/// ```
 pub struct ASForHadamardProducts<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -221,7 +255,7 @@ where
     }
 
     /// Computes the Hadamard product of two vectors.
-    fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
+    pub fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
         let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
         for (a, b) in a_vec.iter().zip(b_vec.iter()) {
             product.push(a.clone() * b);
