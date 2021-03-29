@@ -43,11 +43,13 @@ where
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the proof is properly structured.
     fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
         // Each proof must correspond to an input.
         return proof.single_proofs.len() == num_inputs;
     }
 
+    /// Compute the linear combination of evaluations.
     #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
     fn combine_evaluation<'a>(
         evaluations: impl IntoIterator<Item = &'a NNFieldVar<G>>,
@@ -62,6 +64,7 @@ where
         Ok(combined_evaluation.reduce()?)
     }
 
+    /// Compute the linear combination of commitments.
     #[tracing::instrument(target = "r1cs", skip(commitment, challenge_bytes))]
     fn combine_commitment<'a>(
         commitment: impl IntoIterator<Item = &'a C>,

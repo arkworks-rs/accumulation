@@ -50,6 +50,7 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         instance: &InputInstance<G>,
         is_accumulator: bool,
@@ -70,6 +71,7 @@ where
         Ok(instance)
     }
 
+    /// Check that the input witness is properly structured.
     fn check_input_witness_structure<'a>(
         witness: &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
         prover_key: &trivial_pc::CommitterKey<G>,
@@ -120,30 +122,32 @@ where
         Ok(witness)
     }
 
+    /// Check that the proof is properly structured.
     fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
         // Each proof must correspond to an input.
         return proof.len() == num_inputs;
     }
 
-    fn compute_witness_polynomials_and_witnesses_from_inputs<'a>(
+    /// Compute the witness polynomials and witness commitments from the inputs.
+    fn compute_witness_polynomials_and_commitments<'a>(
         ck: &trivial_pc::CommitterKey<G>,
-        input_instances: impl IntoIterator<Item = &'a InputInstance<G>>,
-        input_witnesses: impl IntoIterator<
-            Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
-        >,
+        inputs: impl IntoIterator<Item = &'a InputRef<'a, ConstraintF<G>, Self>>,
+    )-> Result<
+        (
+            Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
+            Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
+        ),
+        PCError,
+    > {
+        let mut witness_polynomials = Vec::new();
+        let mut witness_commitments = Vec::new();
 
-        // Outputs
-        witness_polynomials_output: &mut Vec<
-            LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
-        >,
-        witness_commitments_output: &mut Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
-    ) -> Result<(), PCError> {
-        for (instance, witness) in input_instances.into_iter().zip(input_witnesses) {
-            let point = instance.point;
-            let eval = instance.eval;
+        for input in inputs.into_iter() {
+            let point = input.instance.point;
+            let eval = input.instance.eval;
 
             let numerator =
-                (&DensePolynomial::from_coefficients_vec(vec![-eval])).add(witness.polynomial());
+                (&DensePolynomial::from_coefficients_vec(vec![-eval])).add(input.witness.polynomial());
             let denominator =
                 DensePolynomial::from_coefficients_vec(vec![-point, G::ScalarField::one()]);
             let witness_polynomial = (&numerator).div(&denominator);
@@ -160,56 +164,14 @@ where
 
             let witness_commitment = witness_commitments.pop().unwrap();
 
-            witness_polynomials_output.push(labeled_witness_polynomial);
-            witness_commitments_output.push(witness_commitment);
+            witness_polynomials.push(labeled_witness_polynomial);
+            witness_commitments.push(witness_commitment);
         }
-
-        Ok(())
-    }
-
-    fn compute_witness_polynomials_and_commitments<'a>(
-        ck: &trivial_pc::CommitterKey<G>,
-        inputs: &[InputRef<'a, ConstraintF<G>, Self>],
-        accumulators: &[AccumulatorRef<'a, ConstraintF<G>, Self>],
-    ) -> Result<
-        (
-            Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
-            Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
-        ),
-        PCError,
-    > {
-        let mut witness_polynomials = Vec::new();
-        let mut witness_commitments = Vec::new();
-
-        let input_instances = inputs.into_iter().map(|i| i.instance);
-        let input_witnesses = inputs.into_iter().map(|i| i.witness);
-
-        Self::compute_witness_polynomials_and_witnesses_from_inputs(
-            ck,
-            input_instances,
-            input_witnesses,
-            &mut witness_polynomials,
-            &mut witness_commitments,
-        )?;
-
-        assert_eq!(witness_polynomials.len(), witness_commitments.len());
-
-        let accumulator_instances = accumulators.into_iter().map(|a| a.instance);
-        let accumulator_witnesses = accumulators.into_iter().map(|a| a.witness);
-
-        Self::compute_witness_polynomials_and_witnesses_from_inputs(
-            ck,
-            accumulator_instances,
-            accumulator_witnesses,
-            &mut witness_polynomials,
-            &mut witness_commitments,
-        )?;
-
-        assert_eq!(witness_polynomials.len(), witness_commitments.len());
 
         Ok((witness_polynomials, witness_commitments))
     }
 
+    /// Compute the linear combination of polynomials.
     fn combine_polynomials<'a>(
         labeled_polynomials: impl IntoIterator<
             Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -224,6 +186,7 @@ where
         combined_polynomial
     }
 
+    /// Compute the linear combination of evaluations.
     fn combine_evaluations<'a>(
         evaluations: impl IntoIterator<Item = &'a G::ScalarField>,
         challenges: &[G::ScalarField],
@@ -236,6 +199,7 @@ where
         combined_eval
     }
 
+    /// Compute the linear combination of commitments.
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a LabeledCommitment<trivial_pc::Commitment<G>>>,
         challenges: &[G::ScalarField],
@@ -333,8 +297,7 @@ where
         let (witness_polynomials, witness_commitments) =
             Self::compute_witness_polynomials_and_commitments(
                 &prover_key,
-                inputs.as_slice(),
-                accumulators.as_slice(),
+                inputs.iter().chain(&accumulators)
             )
             .map_err(|e| BoxedError::new(e))?;
 
