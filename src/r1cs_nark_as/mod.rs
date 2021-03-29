@@ -152,7 +152,7 @@ where
         Ok(())
     }
 
-    /// Check that the number of variables in the provided inputs are supported by the index key.
+    /// Check that the number of variables are supported by the index key.
     fn check_r1cs_lengths(
         index_info: &IndexInfo,
         r1cs_input_len: usize,
@@ -163,7 +163,7 @@ where
         return index_info.num_variables == r1cs_input_len + r1cs_witness_len;
     }
 
-    /// Blinds the commitments from the first round messages if necessary.
+    /// Blinds the commitments from the first round messages.
     fn compute_blinded_commitments(
         index_info: &IndexInfo,
         input_instances: &Vec<&InputInstance<G>>,
@@ -232,7 +232,7 @@ where
         )
     }
 
-    /// Compute the input instances for the HP_AS using the blinded commitments.
+    /// Compute the input instances for HP_AS using the blinded commitments.
     fn compute_hp_input_instances(
         all_blinded_comm_a: &Vec<G>,
         all_blinded_comm_b: &Vec<G>,
@@ -259,8 +259,7 @@ where
         input_instances
     }
 
-    /// Compute the input instances for the accumulation scheme for Hadamard products using the
-    /// inputs.
+    /// Compute the input witnesses for HP_AS using the accumulation inputs.
     fn compute_hp_input_witnesses<'a>(
         prover_key: &ProverKey<G>,
         inputs: &Vec<InputRef<'_, ConstraintF<G>, Self>>,

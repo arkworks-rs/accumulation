@@ -146,7 +146,7 @@ where
         Ok((outputs_fe, outputs_bits))
     }
 
-    /// Blinds the commitments from the first round messages if necessary.
+    /// Blinds the commitments from the first round messages.
     #[tracing::instrument(target = "r1cs", skip(index_info, input_instances, nark_sponge))]
     fn compute_blinded_commitments<S: CryptographicSponge<ConstraintF<G>>>(
         index_info: &IndexInfoVar<ConstraintF<G>>,
@@ -209,7 +209,7 @@ where
         ))
     }
 
-    /// Compute the input instances for the HP_AS using the blinded commitments.
+    /// Compute the input instances for HP_AS using the blinded commitments.
     #[tracing::instrument(
         target = "r1cs",
         skip(all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_prod)
