@@ -158,7 +158,7 @@ where
         assert_eq!(ipk.index_info.num_constraints, num_constraints);
 
         // Step 2 of the scheme's prover, as detailed in BCLMS20.
-        let mut r = if make_zk {
+        let r = if make_zk {
             // Sample r
             let randomizer_time = start_timer!(|| "Sampling randomizer r");
 

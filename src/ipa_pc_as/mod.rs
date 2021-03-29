@@ -596,7 +596,7 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        let mut combined_check_polynomial = Self::combine_succinct_check_polynomials(
+        let combined_check_polynomial = Self::combine_succinct_check_polynomials(
             &combined_check_polynomial_addends,
             proof.as_ref().map(|p| p.random_linear_polynomial.clone()),
         );
@@ -749,7 +749,7 @@ where
 
         // Steps outside of the common subroutine in the scheme's accumulation verifier, as detailed
         // in BCMS20.
-        let mut eval = Self::evaluate_combined_succinct_check_polynomials(
+        let eval = Self::evaluate_combined_succinct_check_polynomials(
             combined_check_polynomial_addends,
             challenge,
             proof.as_ref().map(|r| &r.random_linear_polynomial),

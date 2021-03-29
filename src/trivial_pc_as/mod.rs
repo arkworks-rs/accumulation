@@ -180,7 +180,7 @@ where
         PCError,
     > {
         let mut witness_polynomials = Vec::new();
-        let mut witness_commitments = Vec::new();
+        let witness_commitments = Vec::new();
 
         for input in inputs.into_iter() {
             let point = input.instance.point;

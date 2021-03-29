@@ -7,7 +7,7 @@
 //! [bcms20]: https://eprint.iacr.org/2020/499.pdf
 //! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 
-#![warn(
+#![deny(
     const_err,
     future_incompatible,
     missing_docs,

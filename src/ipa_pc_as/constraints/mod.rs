@@ -266,7 +266,7 @@ where
                     Ok(bytes)
                 })
                 .transpose()?,
-        );
+        )?;
 
         for ((_, linear_combination_challenge_bits), check_polynomial) in
             combined_check_polynomial_addends
@@ -430,7 +430,7 @@ where
 
         // Steps outside of the common subroutine in the scheme's accumulation verifier, as detailed
         // in BCMS20.
-        let mut eval = Self::evaluate_combined_check_polynomials(
+        let eval = Self::evaluate_combined_check_polynomials(
             &combined_check_poly_addends,
             &challenge,
             proof
