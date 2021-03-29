@@ -27,6 +27,8 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"R1CS-NARK-2020";
 
 /// A simple non-interactive argument of knowledge for R1CS.
 /// The construction is described in detail in Section 9 of [BCLMS20][bclms20].
+///
+/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
 pub struct R1CSNark<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,

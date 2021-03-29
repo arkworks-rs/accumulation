@@ -48,6 +48,31 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 /// See Remark 10.1 in [BCLMS20][bclms20] for more details.
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+///
+/// # Example Input
+/// ```
+///
+/// use ark_accumulation::r1cs_nark_as::{InputInstance, InputWitness, ASForR1CSNark};
+/// use ark_accumulation::Input;
+///
+/// // An accumulation input for this scheme is formed from:
+/// // 1. The R1CS input for an indexed relation:                          `input`
+/// // 2. The NARK prover's first round message for the indexed relation:  `first_msg`
+/// // 3. The NARK prover's second round message for the indexed relation: `second_msg`
+///
+/// let r1cs_nark_as_input = {
+///     let instance = InputInstance {
+///         r1cs_input: input,
+///         first_round_message: first_msg,
+///     };
+///
+///     let witness = InputWitness {
+///         second_round_message: second_msg,
+///     };
+///
+///     Input::<_, ASForR1CSNark<G, CS>> { instance, witness }
+/// };
+/// ```
 pub struct ASForR1CSNark<G, CS>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
