@@ -62,6 +62,7 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         instance: &InputInstance<G>,
         is_accumulator: bool,
@@ -84,6 +85,7 @@ where
         Ok(instance)
     }
 
+    /// Check that the proof is properly structured.
     fn check_proof_structure(proof: &Option<Randomness<G>>) -> bool {
         // The random polynomial in the proof must be linear.
         if let Some(randomness) = proof.as_ref() {
@@ -93,7 +95,8 @@ where
         return true;
     }
 
-    fn deterministic_commit_to_linear_polynomial<S: CryptographicSponge<ConstraintF<G>>>(
+    /// Computes a deterministic IpaPC commitment to a polynomial.
+    fn deterministic_ipa_pc_commit<S: CryptographicSponge<ConstraintF<G>>>(
         ck: &ipa_pc::CommitterKey<G>,
         linear_polynomial: DensePolynomial<G::ScalarField>,
     ) -> Result<FinalCommKey<G>, PCError> {
@@ -110,6 +113,7 @@ where
             .comm)
     }
 
+    /// Generates the randomness used by the prover.
     fn generate_prover_randomness<S: CryptographicSponge<ConstraintF<G>>>(
         prover_key: &ProverKey<G>,
         rng: &mut dyn RngCore,
@@ -119,7 +123,7 @@ where
             G::ScalarField::rand(rng),
         ]);
 
-        let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial::<S>(
+        let linear_polynomial_commitment = Self::deterministic_ipa_pc_commit::<S>(
             &prover_key.verifier_key.ipa_ck_linear,
             random_linear_polynomial.clone(),
         )
@@ -134,6 +138,7 @@ where
         })
     }
 
+    /// Computes succinct check on each input and returns an error on failure.
     fn succinct_check_inputs<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         inputs: &Vec<&InputInstance<G>>,
@@ -167,6 +172,8 @@ where
         Ok(())
     }
 
+    /// Computes succinct checks on both inputs and accumulators.
+    /// They are separated to allow for more granular error handling.
     fn succinct_check_inputs_and_accumulators<'a, S: CryptographicSponge<ConstraintF<G>>>(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         inputs: &Vec<&InputInstance<G>>,
@@ -181,7 +188,8 @@ where
         Ok(output)
     }
 
-    fn absorb_check_polynomial_into_sponge(
+    /// Absorbs an IpaPC succinct check polynomial into a sponge.
+    fn absorb_succinct_check_polynomial_into_sponge(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
     ) {
@@ -193,20 +201,25 @@ where
         sponge.absorb(&bytes_input);
     }
 
-    fn combine_succinct_checks_and_proof<'a, S: CryptographicSponge<ConstraintF<G>>>(
+    /// Combines succinct check polynomials and final commitment keys from the succinct check
+    /// outputs. Randomizes the combined commitment if the proof exists.
+    fn combine_succinct_check_polynomials_and_commitments<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+    >(
         ipa_svk: &ipa_pc::SuccinctVerifierKey<G>,
         succinct_checks: &'a Vec<(SuccinctCheckPolynomial<G::ScalarField>, FinalCommKey<G>)>,
         proof: Option<&Randomness<G>>,
         as_sponge: DomainSeparatedSponge<ConstraintF<G>, S, ASForIpaPCDomain>,
     ) -> Result<
         (
-            LabeledCommitment<ipa_pc::Commitment<G>>, // Combined commitment
+            G,                                                                  // Combined commitment
+            LabeledCommitment<ipa_pc::Commitment<G>>, // Randomized and wrapped combined commitment
             Vec<(G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>)>, // Addends to compute combined check polynomial
-            G::ScalarField, // New challenge point
         ),
         ASError,
     > {
-        let mut linear_combination_challenge_sponge = as_sponge.clone();
+        let mut linear_combination_challenge_sponge = as_sponge;
         if let Some(randomness) = proof.as_ref() {
             let random_coeffs = randomness.random_linear_polynomial.coeffs();
             for i in 0..=1 {
@@ -224,7 +237,7 @@ where
         }
 
         for (check_polynomial, commitment) in succinct_checks {
-            Self::absorb_check_polynomial_into_sponge(
+            Self::absorb_succinct_check_polynomial_into_sponge(
                 &mut linear_combination_challenge_sponge,
                 check_polynomial,
             );
@@ -260,9 +273,11 @@ where
         };
 
         let mut commitments = G::Projective::batch_normalization_into_affine(&[
-            combined_commitment,
             randomized_combined_commitment,
+            combined_commitment,
         ]);
+
+        let combined_commitment = commitments.pop().unwrap();
 
         let randomized_combined_commitment = commitments.pop().unwrap();
         let randomized_combined_ipa_commitment = LabeledCommitment::new(
@@ -274,62 +289,86 @@ where
             None,
         );
 
+        Ok((
+            combined_commitment,
+            randomized_combined_ipa_commitment,
+            combined_check_polynomial_addends,
+        ))
+    }
+
+    /// Compute the new opening point for the accumulator instance.
+    fn compute_new_challenge<'a, S: CryptographicSponge<ConstraintF<G>>>(
+        as_sponge: DomainSeparatedSponge<ConstraintF<G>, S, ASForIpaPCDomain>,
+        combined_commitment: &G,
+        combined_check_polynomial_addends: &Vec<(
+            G::ScalarField,
+            &'a SuccinctCheckPolynomial<G::ScalarField>,
+        )>,
+        random_linear_polynomial: Option<&DensePolynomial<G::ScalarField>>,
+    ) -> G::ScalarField {
         let mut challenge_point_sponge = as_sponge;
+        challenge_point_sponge.absorb(combined_commitment);
+        challenge_point_sponge.absorb(&random_linear_polynomial.map(|p| {
+            assert!(p.degree() <= 1);
+            let mut coeffs = p.coeffs.clone();
+            if coeffs.len() < 2 {
+                coeffs.resize_with(2, || G::ScalarField::zero());
+            }
+            to_bytes!(coeffs[0], coeffs[1]).unwrap()
+        }));
 
-        let combined_commitment = commitments.pop().unwrap();
-        challenge_point_sponge.absorb(&combined_commitment);
-
-        for (linear_combination_challenge, check_polynomial) in &combined_check_polynomial_addends {
+        for (linear_combination_challenge, check_polynomial) in combined_check_polynomial_addends {
             let mut linear_combination_challenge_bytes =
                 to_bytes!(linear_combination_challenge).unwrap();
             linear_combination_challenge_bytes.resize_with(16, || 0);
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
 
-            Self::absorb_check_polynomial_into_sponge(
+            Self::absorb_succinct_check_polynomial_into_sponge(
                 &mut challenge_point_sponge,
                 check_polynomial,
             );
         }
 
-        let challenge_point = challenge_point_sponge
+        challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
             .pop()
-            .unwrap();
-
-        Ok((
-            randomized_combined_ipa_commitment,
-            combined_check_polynomial_addends,
-            challenge_point,
-        ))
+            .unwrap()
     }
 
-    fn combine_check_polynomials<'a>(
+    /// Takes the linear combination of succinct check polynomials.
+    fn combine_succinct_check_polynomials<'a>(
         combined_check_polynomial_addends: impl IntoIterator<
-            Item = (G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>),
+            Item = &'a (G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>),
         >,
+        random_polynomial: Option<DensePolynomial<G::ScalarField>>,
     ) -> DensePolynomial<G::ScalarField> {
-        let mut combined = DensePolynomial::zero();
+        let mut combined = random_polynomial.unwrap_or_else(|| DensePolynomial::zero());
         for (scalar, check_polynomial) in combined_check_polynomial_addends {
             let polynomial =
                 DensePolynomial::from_coefficients_vec(check_polynomial.compute_coeffs());
-            combined += (scalar, &polynomial);
+            combined += (*scalar, &polynomial);
         }
         combined
     }
 
-    fn evaluate_combined_check_polynomials<'a>(
+    /// Evaluates the linear combination of succinct check polynomials at a point.
+    fn evaluate_combined_succinct_check_polynomials<'a>(
         combined_check_polynomial_addends: impl IntoIterator<
             Item = (G::ScalarField, &'a SuccinctCheckPolynomial<G::ScalarField>),
         >,
         point: G::ScalarField,
+        random_polynomial: Option<&DensePolynomial<G::ScalarField>>,
     ) -> G::ScalarField {
-        let mut eval = G::ScalarField::zero();
+        let mut eval = random_polynomial
+            .map(|p| p.evaluate(&point))
+            .unwrap_or_else(|| G::ScalarField::zero());
         for (scalar, polynomial) in combined_check_polynomial_addends {
             eval += &polynomial.evaluate(point).mul(&scalar);
         }
         eval
     }
 
+    /// Computes a new accumulator from the combined values.
     fn compute_new_accumulator<S: CryptographicSponge<ConstraintF<G>>>(
         ipa_ck: &ipa_pc::CommitterKey<G>,
         combined_check_polynomial: DensePolynomial<G::ScalarField>,
@@ -504,29 +543,38 @@ where
         )
         .map_err(|e| BoxedError::new(e))?;
 
-        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
-        let (combined_commitment, combined_check_polynomial_addends, challenge) =
-            Self::combine_succinct_checks_and_proof(
-                &prover_key.verifier_key.ipa_svk,
-                &succinct_checks,
-                proof.as_ref(),
-                as_sponge,
-            )
-            .map_err(|e| BoxedError::new(e))?;
+        // Steps 6-8 and 10 of the scheme's common subroutine, as detailed in BCMS20.
+        let (
+            combined_commitment,
+            randomized_combined_commitment,
+            combined_check_polynomial_addends,
+        ) = Self::combine_succinct_check_polynomials_and_commitments(
+            &prover_key.verifier_key.ipa_svk,
+            &succinct_checks,
+            proof.as_ref(),
+            as_sponge.clone(),
+        )
+        .map_err(|e| BoxedError::new(e))?;
 
-        let mut combined_check_polynomial =
-            Self::combine_check_polynomials(combined_check_polynomial_addends);
+        let mut combined_check_polynomial = Self::combine_succinct_check_polynomials(
+            &combined_check_polynomial_addends,
+            proof.as_ref().map(|p| p.random_linear_polynomial.clone()),
+        );
 
-        if let Some(randomness) = proof.as_ref() {
-            combined_check_polynomial += &randomness.random_linear_polynomial;
-        }
+        // Steps 9 of the scheme's common subroutine, as detailed in BCMS20.
+        let challenge = Self::compute_new_challenge(
+            as_sponge,
+            &combined_commitment,
+            &combined_check_polynomial_addends,
+            proof.as_ref().map(|p| &p.random_linear_polynomial),
+        );
 
-        // Steps after the common subroutine of the scheme's accumulation prover, as detailed in
-        // BCLMS20.
+        // Steps outside of the common subroutine in the scheme's accumulation prover, as detailed
+        // in BCMS20.
         let accumulator = Self::compute_new_accumulator::<S>(
             &prover_key.ipa_ck,
             combined_check_polynomial,
-            combined_commitment,
+            randomized_combined_commitment,
             challenge,
             proof.as_ref(),
             rng,
@@ -592,19 +640,6 @@ where
             return Ok(false);
         }
 
-        if let Some(randomness) = proof.as_ref() {
-            let linear_polynomial_commitment =
-                Self::deterministic_commit_to_linear_polynomial::<S>(
-                    &verifier_key.ipa_ck_linear,
-                    randomness.random_linear_polynomial.clone(),
-                )
-                .map_err(|e| BoxedError::new(e))?;
-
-            if !linear_polynomial_commitment.eq(&randomness.random_linear_polynomial_commitment) {
-                return Ok(false);
-            }
-        }
-
         // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
         let succinct_check_result = Self::succinct_check_inputs_and_accumulators::<S>(
             &verifier_key.ipa_svk,
@@ -622,38 +657,63 @@ where
             return Ok(false);
         }
 
-        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
-        let combine_result = Self::combine_succinct_checks_and_proof(
+        // Steps 4-5 of the scheme's common subroutine, as detailed in BCMS20.
+        if let Some(randomness) = proof.as_ref() {
+            let linear_polynomial_commitment = Self::deterministic_ipa_pc_commit::<S>(
+                &verifier_key.ipa_ck_linear,
+                randomness.random_linear_polynomial.clone(),
+            )
+            .map_err(|e| BoxedError::new(e))?;
+
+            if !linear_polynomial_commitment.eq(&randomness.random_linear_polynomial_commitment) {
+                return Ok(false);
+            }
+        }
+
+        // Steps 6-8 and 10 of the scheme's common subroutine, as detailed in BCMS20.
+        let combine_result = Self::combine_succinct_check_polynomials_and_commitments(
             &verifier_key.ipa_svk,
             &succinct_checks,
             proof.as_ref(),
-            as_sponge,
+            as_sponge.clone(),
         );
 
         if combine_result.is_err() {
             return Ok(false);
         }
 
-        let (combined_commitment, combined_check_polynomial_addends, challenge) =
-            combine_result.ok().unwrap();
+        let (
+            combined_commitment,
+            randomized_combined_commitment,
+            combined_check_polynomial_addends,
+        ) = combine_result.ok().unwrap();
 
-        if !combined_commitment
+        if !randomized_combined_commitment
             .commitment()
             .eq(&new_accumulator_instance.ipa_commitment.commitment())
         {
             return Ok(false);
         }
 
+        // Steps 9 of the scheme's common subroutine, as detailed in BCMS20.
+        let challenge = Self::compute_new_challenge(
+            as_sponge,
+            &combined_commitment,
+            &combined_check_polynomial_addends,
+            proof.as_ref().map(|p| &p.random_linear_polynomial),
+        );
+
         if !challenge.eq(&new_accumulator_instance.point) {
             return Ok(false);
         }
 
-        let mut eval =
-            Self::evaluate_combined_check_polynomials(combined_check_polynomial_addends, challenge);
-
-        if let Some(randomness) = proof.as_ref() {
-            eval += &randomness.random_linear_polynomial.evaluate(&challenge);
-        }
+        // Steps outside of the common subroutine in the scheme's accumulation verifier, as detailed
+        // in BCMS20.
+        let mut eval = Self::evaluate_combined_succinct_check_polynomials(
+            combined_check_polynomial_addends,
+            challenge,
+            proof.as_ref().map(|r| &r.random_linear_polynomial),
+        );
 
         if !eval.eq(&new_accumulator_instance.evaluation) {
             return Ok(false);

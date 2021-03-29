@@ -50,6 +50,7 @@ where
         + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Computes a deterministic IpaPC commitment to a linear polynomial.
     #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::constraints::VerifierKeyVar<G, C>,
@@ -66,6 +67,7 @@ where
         )
     }
 
+    /// Evaluates a linear polynomial at a point.
     #[tracing::instrument(target = "r1cs", skip(linear_polynomial, point))]
     fn evaluate_linear_polynomial(
         linear_polynomial: &[NNFieldVar<G>; 2],
@@ -74,6 +76,7 @@ where
         (&linear_polynomial[1]).mul(point) + &linear_polynomial[0]
     }
 
+    /// Computes succinct check on each input.
     #[tracing::instrument(target = "r1cs", skip(cs, ipa_vk, inputs))]
     fn succinct_check_inputs<
         'a,
@@ -120,8 +123,9 @@ where
             .collect::<Result<Vec<_>, SynthesisError>>()
     }
 
+    /// Absorbs an IpaPC succinct check polynomial into a sponge.
     #[tracing::instrument(target = "r1cs", skip(sponge, check_polynomial))]
-    fn absorb_check_polynomial_into_sponge<S: CryptographicSponge<ConstraintF<G>>>(
+    fn absorb_succinct_check_polynomial_into_sponge<S: CryptographicSponge<ConstraintF<G>>>(
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
         check_polynomial: &SuccinctCheckPolynomialVar<G>,
     ) -> Result<(), SynthesisError> {
@@ -134,8 +138,10 @@ where
         Ok(())
     }
 
+    /// Combines succinct check polynomials and final commitment keys from the succinct check
+    /// outputs. Randomizes the combined commitment if the proof exists.
     #[tracing::instrument(target = "r1cs", skip(ipa_vk, succinct_checks, proof, as_sponge))]
-    fn combine_succinct_checks_and_proof<
+    fn combine_succinct_check_polynomials_and_commitments<
         'a,
         S: CryptographicSponge<ConstraintF<G>>,
         SV: CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -152,8 +158,11 @@ where
         (
             Boolean<ConstraintF<G>>, // Combined succinct check results
             C,                       // Combined commitment
-            Vec<(NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>)>, // Addends to compute combined check polynomial
-            NNFieldVar<G>,                                           // New challenge point
+            C,                       // Randomized combined commitment
+            Vec<(
+                (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), // Coefficient and its bits
+                &'a SuccinctCheckPolynomialVar<G>,
+            )>, // Addends to compute combined check polynomial
         ),
         SynthesisError,
     > {
@@ -179,7 +188,7 @@ where
                 continue;
             }
 
-            Self::absorb_check_polynomial_into_sponge(
+            Self::absorb_succinct_check_polynomial_into_sponge(
                 &mut linear_combination_challenge_sponge,
                 check_polynomial,
             )?;
@@ -187,7 +196,7 @@ where
             linear_combination_challenge_sponge.absorb(&commitment)?;
         }
 
-        let (linear_combination_challenges, linear_combination_challenge_bitss) =
+        let (linear_combination_challenges, linear_combination_challenge_bits) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
                 vec![FieldElementSize::Truncated(128); succinct_checks.len()].as_slice(),
             )?;
@@ -198,25 +207,21 @@ where
             C::zero()
         };
 
-        let mut combined_check_polynomial_and_addends = Vec::with_capacity(succinct_checks.len());
-        let mut addend_bits = Vec::with_capacity(succinct_checks.len());
-
+        let mut combined_check_polynomial_addends = Vec::with_capacity(succinct_checks.len());
         for (
             ((succinct_check_result, check_polynomial, commitment), cur_challenge),
             cur_challenge_bits,
         ) in succinct_checks
             .into_iter()
-            .zip(&linear_combination_challenges)
-            .zip(&linear_combination_challenge_bitss)
+            .zip(linear_combination_challenges)
+            .zip(linear_combination_challenge_bits)
         {
             combined_succinct_check_result =
                 combined_succinct_check_result.and(&succinct_check_result)?;
 
             combined_commitment += &(commitment.scalar_mul_le(cur_challenge_bits.iter())?);
-
-            combined_check_polynomial_and_addends.push((cur_challenge.clone(), check_polynomial));
-
-            addend_bits.push(cur_challenge_bits);
+            combined_check_polynomial_addends
+                .push(((cur_challenge, cur_challenge_bits), check_polynomial));
         }
 
         let randomized_combined_commitment = if let Some(randomness) = proof.randomness.as_ref() {
@@ -228,19 +233,44 @@ where
             combined_commitment.clone()
         };
 
+        Ok((
+            combined_succinct_check_result,
+            combined_commitment,
+            randomized_combined_commitment,
+            combined_check_polynomial_addends,
+        ))
+    }
+
+    /// Compute the new opening point for the accumulator instance.
+    fn compute_new_challenge<
+        'a,
+        S: CryptographicSponge<ConstraintF<G>>,
+        SV: CryptographicSpongeVar<ConstraintF<G>, S>,
+    >(
+        as_sponge: DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, ASForIpaPCDomain>,
+        combined_commitment: &C,
+        combined_check_polynomial_addends: &Vec<(
+            (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>),
+            &'a SuccinctCheckPolynomialVar<G>,
+        )>,
+        random_linear_polynomial: Option<&[NNFieldVar<G>; 2]>,
+    ) -> Result<NNFieldVar<G>, SynthesisError> {
         let mut challenge_point_sponge = as_sponge;
         challenge_point_sponge.absorb(&combined_commitment)?;
 
-        for ((_, check_polynomial), linear_combination_challenge_bits) in
-            combined_check_polynomial_and_addends
-                .iter()
-                .zip(&addend_bits)
-        {
-            if log_supported_degree > (*check_polynomial).0.len() {
-                combined_succinct_check_result = Boolean::FALSE;
-                continue;
-            }
+        challenge_point_sponge.absorb(
+            &random_linear_polynomial
+                .map(|p| {
+                    let mut bytes = p[0].to_bytes()?;
+                    bytes.append(&mut p[1].to_bytes()?);
+                    Ok(bytes)
+                })
+                .transpose()?,
+        );
 
+        for ((_, linear_combination_challenge_bits), check_polynomial) in
+            combined_check_polynomial_addends
+        {
             let linear_combination_challenge_bytes = linear_combination_challenge_bits
                 .chunks(8)
                 .map(UInt8::<ConstraintF<G>>::from_bits_le)
@@ -248,36 +278,35 @@ where
 
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes)?;
 
-            Self::absorb_check_polynomial_into_sponge(
+            Self::absorb_succinct_check_polynomial_into_sponge(
                 &mut challenge_point_sponge,
                 *check_polynomial,
             )?;
         }
 
-        let challenge_point = challenge_point_sponge
+        Ok(challenge_point_sponge
             .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?
             .0
             .pop()
-            .unwrap();
-
-        Ok((
-            combined_succinct_check_result,
-            randomized_combined_commitment,
-            combined_check_polynomial_and_addends,
-            challenge_point,
-        ))
+            .unwrap())
     }
 
+    /// Evaluates the linear combination of succinct check polynomials at a point.
     #[tracing::instrument(target = "r1cs", skip(combined_check_polynomial_addends, point))]
     fn evaluate_combined_check_polynomials<'a>(
-        combined_check_polynomial_addends: impl IntoIterator<
-            Item = (NNFieldVar<G>, &'a SuccinctCheckPolynomialVar<G>),
-        >,
+        combined_check_polynomial_addends: &Vec<(
+            (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>),
+            &'a SuccinctCheckPolynomialVar<G>,
+        )>,
         point: &NNFieldVar<G>,
+        random_linear_polynomial: Option<&[NNFieldVar<G>; 2]>,
     ) -> Result<NNFieldVar<G>, SynthesisError> {
-        let mut eval = NNFieldVar::<G>::zero();
-        for (scalar, polynomial) in combined_check_polynomial_addends {
-            eval += &polynomial.evaluate(point)?.mul(&scalar);
+        let mut eval = random_linear_polynomial
+            .map(|p| Self::evaluate_linear_polynomial(p, point))
+            .unwrap_or_else(|| NNFieldVar::<G>::zero());
+
+        for ((scalar, _), polynomial) in combined_check_polynomial_addends {
+            eval += &polynomial.evaluate(point)?.mul(scalar);
         }
 
         Ok(eval)
@@ -368,35 +397,47 @@ where
             return Ok(Boolean::FALSE);
         }
 
-        // Steps 4-11 of the scheme's common subroutine, as detailed in BCMS20.
+        // Steps 6-8 and 10 of the scheme's common subroutine, as detailed in BCMS20.
         let (
             combined_succinct_check_result,
             combined_commitment,
+            randomized_combined_commitment,
             combined_check_poly_addends,
-            challenge,
-        ) = Self::combine_succinct_checks_and_proof(
+        ) = Self::combine_succinct_check_polynomials_and_commitments(
             &verifier_key.ipa_svk,
             &succinct_check_result,
             proof,
-            as_sponge,
+            as_sponge.clone(),
         )?;
 
         verify_result = verify_result.and(&combined_succinct_check_result)?;
 
-        verify_result = verify_result
-            .and(&combined_commitment.is_eq(&new_accumulator_instance.ipa_commitment.comm)?)?;
+        verify_result = verify_result.and(
+            &randomized_combined_commitment.is_eq(&new_accumulator_instance.ipa_commitment.comm)?,
+        )?;
 
+        // Steps 9 of the scheme's common subroutine, as detailed in BCMS20.
+        let challenge = Self::compute_new_challenge(
+            as_sponge,
+            &combined_commitment,
+            &combined_check_poly_addends,
+            proof
+                .randomness
+                .as_ref()
+                .map(|r| &r.random_linear_polynomial_coeffs),
+        )?;
         verify_result = verify_result.and(&challenge.is_eq(&new_accumulator_instance.point)?)?;
 
-        let mut eval =
-            Self::evaluate_combined_check_polynomials(combined_check_poly_addends, &challenge)?;
-
-        if let Some(randomness) = proof.randomness.as_ref() {
-            eval += Self::evaluate_linear_polynomial(
-                &randomness.random_linear_polynomial_coeffs,
-                &challenge,
-            );
-        };
+        // Steps outside of the common subroutine in the scheme's accumulation verifier, as detailed
+        // in BCMS20.
+        let mut eval = Self::evaluate_combined_check_polynomials(
+            &combined_check_poly_addends,
+            &challenge,
+            proof
+                .randomness
+                .as_ref()
+                .map(|r| &r.random_linear_polynomial_coeffs),
+        )?;
 
         verify_result = verify_result.and(&eval.is_eq(&new_accumulator_instance.evaluation)?)?;
 
