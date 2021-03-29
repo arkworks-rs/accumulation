@@ -61,7 +61,7 @@ std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-
 impl = []
 hp-as = [ "impl" ]
 ipa-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
-r1cs-nark-as = [ "impl", "hp-as", "r1cs", "digest" ]
+r1cs-nark-as = [ "impl", "blake2", "hp-as", "r1cs", "digest" ]
 trivial-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
 
 [[example]]

@@ -88,52 +88,70 @@ pub mod trivial_pc_as;
 ///
 /// # Example
 /// ```
-/// // This example uses non-existent variables and structs and only serves to demonstrate the
-/// // general flow of the trait.
+/// // This example only serves to demonstrate the general flow of the trait.
 ///
-/// use ark_accumulation::{MakeZK, Input, Accumulator};
+/// use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
+/// use ark_ff::PrimeField;
+/// use ark_sponge::CryptographicSponge;
+/// use rand_core::RngCore;
 ///
-/// let pp = ASForExample::setup(&mut rng)?;
-/// let (prover_key, verifier_key, decider_key) = ASForExample::index(
-///     &pp,
-///     &predicate_params,
-///     &predicate_index
-/// )?;
+/// // Basic setup to get the parameters and keys of an accumulation scheme.
+/// fn initialize<CF: PrimeField, AS: AccumulationScheme<CF>, R: RngCore>(
+///     predicate_params: &AS::PredicateParams,
+///     predicate_index: &AS::PredicateIndex,
+///     rng: &mut R,
+/// ) -> Result<(), AS::Error> {
+///     let pp = AS::setup(rng)?;
+///     let (prover_key, verifier_key, decider_key) =
+///         AS::index(&pp, predicate_params, predicate_index)?;
 ///
-/// let mut old_accumulators = Vec::new();
+///     unimplemented!()
+/// }
 ///
-/// // When inputs come in:
+/// // What happens if there is a new set of inputs?
+/// fn step<CF: PrimeField, AS: AccumulationScheme<CF>, S: CryptographicSponge<CF>, R: RngCore>(
+///     prover_key: AS::ProverKey,
+///     verifier_key: AS::VerifierKey,
+///     decider_key: AS::DeciderKey,
 ///
-/// // The prover runs:
-/// let (accumulator, proof) = ASForExample::prove(
-///     &prover_key,
-///     Input::<CF, ASForExample>::map_to_refs(inputs),
-///     Accumulator::<CF, ASForExample>::map_to_refs(&old_accumulators),
-///     MakeZK::Enabled(&mut rng),
-///     Some(custom_sponge),
-/// )?;
+///     new_inputs: &Vec<Input<CF, AS>>,
+///     old_accumulators: &mut Vec<Accumulator::<CF, AS>>,
+///     rng: &mut R,
+/// ) -> Result<(), AS::Error> {
+///     // If there is a new input, then...
 ///
-/// // The verifier runs:
-/// let verify_result = ASForExample::verify(
-///     &verifier_key,
-///     Input::<CF, ASForExample>::instances(inputs),
-///     Accumulator::<CF, ASForExample>::instances(&old_accumulators),
-///     &accumulator.instance,
-///     &proof,
-///     Some(custom_sponge),
-/// )?;
+///     // The prover may run:
+///     let (accumulator, proof) = AS::prove(
+///         &prover_key,
+///         Input::<CF, AS>::map_to_refs(new_inputs),
+///         Accumulator::<CF, AS>::map_to_refs(&*old_accumulators),
+///         MakeZK::Enabled(rng),
+///         None::<S>
+///     )?;
 ///
-/// // The accumulator is added to the list of old accumulator.
-/// old_accumulators.push(accumulator);
+///     // After the accumulation, the verifier may run:
+///     let verify_result = AS::verify(
+///         &verifier_key,
+///         Input::<CF, AS>::instances(new_inputs),
+///         Accumulator::<CF, AS>::instances(&*old_accumulators),
+///         &accumulator.instance,
+///         &proof,
+///         None::<S>,
+///     )?;
 ///
-/// // As new inputs are streamed in, the prover and verifier run the above functions.
+///     // After the accumulator has been verified, the newly computed accumulator can be added to
+///     // the list of existing accumulators.
+///     old_accumulators.push(accumulator);
 ///
-/// // At any point, the decider can run:
-/// let decide_result = ASForExample::decide(
-///     &decider_key,
-///     &accumulator,
-///     Some(custom_sponge.clone()),
-/// )?;
+///     // At any point, the decider may run:
+///     let decide_result = AS::decide(
+///         &decider_key,
+///         old_accumulators.last().unwrap().as_ref(),
+///         None::<S>,
+///     )?;
+///
+///     unimplemented!()
+/// }
 ///
 /// ```
 pub trait AccumulationScheme<CF: PrimeField>: Sized {

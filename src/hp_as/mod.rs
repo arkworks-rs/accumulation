@@ -37,15 +37,34 @@ pub mod constraints;
 /// # Example Input
 /// ```
 ///
-/// use ark_accumulation::hp_as::{InputWitnessRandomness, InputInstance, InputWitness, ASForHadamardProducts};
+/// use ark_accumulation::hp_as::{ASForHadamardProducts, InputInstance, InputWitness, InputWitnessRandomness};
 /// use ark_accumulation::Input;
+/// use ark_ec::AffineCurve;
+/// use ark_ff::Field;
+/// use ark_sponge::Absorbable;
+///
+/// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
 /// // An accumulation input for this scheme is formed from:
 /// // 1. Two equal length vectors:                                 `a, b`
 /// // 2. Pedersen commitments to `a`, `b`, and `a ◦ b`:            `comm_1, comm_2, comm_3`
 /// // 3. The optional randomness used in the Pedersen commitments: `rand_1, rand_2, rand_3`
+/// fn new_accumulation_input<G>(
+///     a: Vec<G::ScalarField>,
+///     b: Vec<G::ScalarField>,
 ///
-/// let hp_as_input = {
+///     comm_1: G,
+///     comm_2: G,
+///     comm_3: G,
+///
+///     rand_1: G::ScalarField,
+///     rand_2: G::ScalarField,
+///     rand_3: G::ScalarField,
+/// ) -> Input<ConstraintF<G>, ASForHadamardProducts<G>>
+///     where
+///         G: AffineCurve + Absorbable<ConstraintF<G>>,
+///         ConstraintF<G>: Absorbable<ConstraintF<G>>
+/// {
 ///     let instance = InputInstance {
 ///         comm_1,
 ///         comm_2,
@@ -65,7 +84,7 @@ pub mod constraints;
 ///     };
 ///
 ///     Input::<_, ASForHadamardProducts<G>> { instance, witness }
-/// };
+/// }
 /// ```
 pub struct ASForHadamardProducts<G>
 where

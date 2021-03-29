@@ -40,26 +40,42 @@ pub mod constraints;
 ///
 /// # Example Input
 /// ```
-/// use ark_accumulation::trivial_pc_as::{InputInstance, ASForTrivialPC};
+///
+/// use ark_accumulation::trivial_pc_as::{ASForTrivialPC, InputInstance};
 /// use ark_accumulation::Input;
+/// use ark_ec::AffineCurve;
+/// use ark_ff::Field;
+/// use ark_poly::univariate::DensePolynomial;
+/// use ark_poly_commit::{trivial_pc, LabeledCommitment, LabeledPolynomial};
+/// use ark_sponge::Absorbable;
+///
+/// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
 /// // An accumulation input for this scheme is formed from:
 /// // 1. A TrivialPC commitment to a polynomial:                 `comm`
 /// // 2. A point where the polynomial will be evaluated at:      `point`
 /// // 3. The evaluation of the polynomial at the point:          `eval`
 /// // 4. The TrivialPC opening, which is the labeled polynomial: `poly`
-///
-/// let trivial_pc_as_input = {
+/// fn new_accumulation_input<G>(
+///     comm: LabeledCommitment<trivial_pc::Commitment<G>>,
+///     point: G::ScalarField,
+///     eval: G::ScalarField,
+///     poly: LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+/// ) -> Input<ConstraintF<G>, ASForTrivialPC<G>>
+///     where
+///         G: AffineCurve + Absorbable<ConstraintF<G>>,
+///         ConstraintF<G>: Absorbable<ConstraintF<G>>
+/// {
 ///     let instance = InputInstance {
 ///         commitment: comm,
 ///         point,
-///         eval
+///         eval,
 ///     };
 ///
 ///     let witness = poly;
 ///
 ///     Input::<_, ASForTrivialPC<G>> { instance, witness }
-/// };
+/// }
 /// ```
 pub struct ASForTrivialPC<G>
 where

@@ -54,15 +54,29 @@ type IpaPC<G, S> = InnerProductArgPC<
 /// ```
 ///
 /// use ark_accumulation::Input;
-/// use ark_accumulation::ipa_pc_as::{InputInstance, AtomicASForInnerProductArgPC};
+/// use ark_accumulation::ipa_pc_as::{AtomicASForInnerProductArgPC, InputInstance};
+/// use ark_ec::AffineCurve;
+/// use ark_ff::Field;
+/// use ark_poly_commit::{LabeledCommitment, ipa_pc};
+/// use ark_sponge::Absorbable;
+///
+/// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
 /// // An accumulation input for this scheme is formed from:
 /// // 1. An IpaPC commitment to a polynomial:               `comm`
 /// // 2. A point where the polynomial will be evaluated at: `point`
 /// // 3. The evaluation of the polynomial at the point:     `eval`
 /// // 4. The IpaPC opening at the point:                    `proof`
-///
-/// let ipa_pc_as_input = {
+/// fn new_accumulation_input<G>(
+///     comm: LabeledCommitment<ipa_pc::Commitment<G>>,
+///     point: G::ScalarField,
+///     eval: G::ScalarField,
+///     proof: ipa_pc::Proof<G>,
+/// ) -> Input<ConstraintF<G>, AtomicASForInnerProductArgPC<G>>
+///     where
+///         G: AffineCurve + Absorbable<ConstraintF<G>>,
+///         ConstraintF<G>: Absorbable<ConstraintF<G>>
+/// {
 ///     let instance = InputInstance {
 ///         ipa_commitment: comm,
 ///         point,
@@ -73,7 +87,7 @@ type IpaPC<G, S> = InnerProductArgPC<
 ///     let witness = ();
 ///
 ///     Input::<_, AtomicASForInnerProductArgPC<G>> { instance, witness }
-/// };
+/// }
 /// ```
 pub struct AtomicASForInnerProductArgPC<G>
 where

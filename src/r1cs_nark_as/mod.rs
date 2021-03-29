@@ -52,15 +52,30 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 /// # Example Input
 /// ```
 ///
-/// use ark_accumulation::r1cs_nark_as::{InputInstance, InputWitness, ASForR1CSNark};
+/// use ark_accumulation::r1cs_nark_as::{ASForR1CSNark, InputInstance, InputWitness};
+/// use ark_accumulation::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, SecondRoundMessage};
 /// use ark_accumulation::Input;
+/// use ark_ec::AffineCurve;
+/// use ark_ff::Field;
+/// use ark_relations::r1cs::ConstraintSynthesizer;
+/// use ark_sponge::Absorbable;
+///
+/// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
 /// // An accumulation input for this scheme is formed from:
 /// // 1. The R1CS input for an indexed relation:                          `input`
 /// // 2. The NARK prover's first round message for the indexed relation:  `first_msg`
 /// // 3. The NARK prover's second round message for the indexed relation: `second_msg`
-///
-/// let r1cs_nark_as_input = {
+/// fn new_accumulation_input<G, CS>(
+///     input: Vec<G::ScalarField>,
+///     first_msg: FirstRoundMessage<G>,
+///     second_msg: SecondRoundMessage<G::ScalarField>,
+/// ) -> Input<ConstraintF<G>, ASForR1CSNark<G, CS>>
+///     where
+///         G: AffineCurve + Absorbable<ConstraintF<G>>,
+///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
+///         CS: ConstraintSynthesizer<G::ScalarField> + Clone,
+/// {
 ///     let instance = InputInstance {
 ///         r1cs_input: input,
 ///         first_round_message: first_msg,
@@ -71,7 +86,7 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 ///     };
 ///
 ///     Input::<_, ASForR1CSNark<G, CS>> { instance, witness }
-/// };
+/// }
 /// ```
 pub struct ASForR1CSNark<G, CS>
 where
