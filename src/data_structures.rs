@@ -154,8 +154,8 @@ pub enum MakeZK<'a> {
 }
 
 impl<'a> MakeZK<'a> {
-    #[cfg(feature = "impl")]
-    pub(crate) fn into_components(self) -> (bool, Option<&'a mut dyn RngCore>) {
+    /// Converts the MakeZK parameter to a (make_zk_enabled, rng)
+    pub fn into_components(self) -> (bool, Option<&'a mut dyn RngCore>) {
         match self {
             MakeZK::Enabled(rng) => (true, Some(rng)),
             MakeZK::Disabled => (false, None),
