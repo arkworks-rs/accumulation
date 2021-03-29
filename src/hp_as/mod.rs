@@ -46,6 +46,7 @@ where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the input witness is properly structured.
     fn check_input_witness_structure<'a>(
         witness: &'a InputWitness<G::ScalarField>,
         prover_key: &'a PedersenCommitmentCK<G>,
@@ -95,6 +96,7 @@ where
         Ok(witness)
     }
 
+    /// Check that the proof is properly structured.
     fn check_proof_structure(proof: &Proof<G>, num_inputs: usize) -> bool {
         assert!(num_inputs > 0);
 
@@ -119,6 +121,7 @@ where
         true
     }
 
+    /// Generate the randomness used by the accumulation prover.
     fn generate_prover_randomness(
         prover_key: &PedersenCommitmentCK<G>,
         hp_vec_len: usize,
@@ -172,6 +175,7 @@ where
         ((a, b), rands, comms)
     }
 
+    /// Compute the mu challenges from a provided sponge.
     fn squeeze_mu_challenges(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
@@ -194,6 +198,7 @@ where
         mu_challenges
     }
 
+    /// Compute the nu challenges from a provided sponge.
     fn squeeze_nu_challenges(
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
@@ -215,6 +220,7 @@ where
         nu_challenges
     }
 
+    /// Computes the Hadamard product of two vectors.
     fn compute_hp(a_vec: &[G::ScalarField], b_vec: &[G::ScalarField]) -> Vec<G::ScalarField> {
         let mut product = Vec::with_capacity(a_vec.len().min(b_vec.len()));
         for (a, b) in a_vec.iter().zip(b_vec.iter()) {
@@ -224,7 +230,7 @@ where
         product
     }
 
-    // Assumes the length of a_vec and b_vec is hp_vec_len or below.
+    /// Computes the coefficient vectors of the product polynomial `a(X, µ) ◦ b(X)`.
     fn compute_t_vecs(
         input_witnesses: &[&InputWitness<G::ScalarField>],
         mu_challenges: &[G::ScalarField],
@@ -327,6 +333,7 @@ where
         Ok(t_comms)
     }
 
+    /// Computes the linear combination of Pedersen commitments.
     pub(crate) fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a G>,
         challenges: &[G::ScalarField],
@@ -344,6 +351,7 @@ where
         combined_commitment
     }
 
+    /// Combines the accumulation input instances into a single input instance.
     fn compute_combined_hp_commitments(
         input_instances: &[&InputInstance<G>],
         proof: &Proof<G>,
@@ -416,6 +424,7 @@ where
         }
     }
 
+    /// Multiplies a vector by a coefficient.
     fn scale_vector(vector: &Vec<G::ScalarField>, coeff: &G::ScalarField) -> Vec<G::ScalarField> {
         let mut output = Vec::with_capacity(vector.len());
         for f in vector {
@@ -425,6 +434,7 @@ where
         output
     }
 
+    /// Computes the linear combination of vectors.
     pub(crate) fn combine_vectors<'a>(
         vectors: impl IntoIterator<Item = &'a Vec<G::ScalarField>>,
         challenges: &[G::ScalarField],
@@ -447,6 +457,7 @@ where
         output
     }
 
+    /// Computes the linear combination of randomness.
     pub(crate) fn combine_randomness<'a>(
         randomness: impl IntoIterator<Item = Option<&'a G::ScalarField>>,
         challenges: &[G::ScalarField],
@@ -466,6 +477,7 @@ where
         combined_randomness
     }
 
+    /// Combines the accumulation input witnesses into a single input witness.
     fn compute_combined_hp_openings(
         input_witnesses: &[&InputWitness<G::ScalarField>],
         mu_challenges: &[G::ScalarField],

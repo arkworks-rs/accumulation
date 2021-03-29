@@ -39,6 +39,7 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the input witness is properly structured.
     fn check_proof_structure(proof: &ProofVar<G, C>, num_inputs: usize) -> bool {
         assert!(num_inputs > 0);
 
@@ -63,6 +64,7 @@ where
         true
     }
 
+    /// Compute the mu challenges from a provided sponge.
     #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs, make_zk))]
     fn squeeze_mu_challenges<S: CryptographicSponge<ConstraintF<G>>>(
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -97,6 +99,7 @@ where
         Ok(mu_challenges_bits)
     }
 
+    /// Compute the nu challenges from a provided sponge.
     #[tracing::instrument(target = "r1cs", skip(sponge, num_inputs))]
     fn squeeze_nu_challenges<S: CryptographicSponge<ConstraintF<G>>>(
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
@@ -122,6 +125,7 @@ where
         Ok(nu_challenges_bits)
     }
 
+    /// Computes the linear combination of Pedersen commitments.
     #[tracing::instrument(
         target = "r1cs",
         skip(commitments, challenges, extra_challenges, hiding_comms)
@@ -153,6 +157,7 @@ where
         Ok(combined_commitment)
     }
 
+    /// Combines the accumulation input instances into a single input instance.
     #[tracing::instrument(
         target = "r1cs",
         skip(input_instances, proof, mu_challenges, nu_challenges)
