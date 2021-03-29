@@ -44,6 +44,7 @@ where
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
 {
+    /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         input_instance: &InputInstanceVar<G, C>,
         r1cs_input_len: usize,
@@ -53,6 +54,7 @@ where
         return input_instance.r1cs_input.len() == r1cs_input_len;
     }
 
+    /// Check that the accumulator instance is properly structured.
     fn check_accumulator_instance_structure(
         accumulator_instance: &AccumulatorInstanceVar<G, C>,
         r1cs_input_len: usize,
@@ -62,6 +64,7 @@ where
         return accumulator_instance.r1cs_input.len() == r1cs_input_len;
     }
 
+    /// Computes the linear combination of commitments.
     #[tracing::instrument(target = "r1cs", skip(commitments, challenges))]
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a C>,
@@ -79,6 +82,7 @@ where
         Ok(combined_commitment)
     }
 
+    /// Computes the gamma challenges using the provided sponge.
     #[tracing::instrument(target = "r1cs", skip(input, msg, nark_sponge))]
     fn compute_gamma_challenge<S: CryptographicSponge<ConstraintF<G>>>(
         input: &[NNFieldVar<G>],
@@ -98,6 +102,7 @@ where
         Ok((squeezed.0.pop().unwrap(), squeezed.1.pop().unwrap()))
     }
 
+    /// Computes the beta challenges using the provided sponge.
     #[tracing::instrument(
         target = "r1cs",
         skip(
@@ -141,6 +146,7 @@ where
         Ok((outputs_fe, outputs_bits))
     }
 
+    /// Blinds the commitments from the first round messages if necessary.
     #[tracing::instrument(target = "r1cs", skip(index_info, input_instances, nark_sponge))]
     fn compute_blinded_commitments<S: CryptographicSponge<ConstraintF<G>>>(
         index_info: &IndexInfoVar<ConstraintF<G>>,
@@ -203,6 +209,7 @@ where
         ))
     }
 
+    /// Compute the input instances for the HP_AS using the blinded commitments.
     #[tracing::instrument(
         target = "r1cs",
         skip(all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_prod)
@@ -234,6 +241,7 @@ where
         input_instances
     }
 
+    /// Computes the linear combination of vectors.
     #[tracing::instrument(target = "r1cs", skip(vectors, challenges))]
     fn combine_vectors<'a>(
         vectors: impl IntoIterator<Item = &'a Vec<NNFieldVar<G>>>,
@@ -259,6 +267,8 @@ where
         Ok(reduced_output)
     }
 
+    /// Computes a part of a new accumulator instance. Does not compute the HP_AS input instance, so
+    /// an accumulator instance is not yet fully constructed.
     #[tracing::instrument(
         target = "r1cs",
         skip(
@@ -281,7 +291,15 @@ where
         beta_challenges_fe: &Vec<NNFieldVar<G>>,
         beta_challenges_bits: &Vec<Vec<Boolean<ConstraintF<G>>>>,
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
-    ) -> Result<(Vec<NNFieldVar<G>>, C, C, C), SynthesisError> {
+    ) -> Result<
+        (
+            Vec<NNFieldVar<G>>, // Combined R1CS input
+            C,                  // Combined comm_a
+            C,                  // Combined comm_b
+            C,                  // Combined comm_c
+        ),
+        SynthesisError,
+    > {
         assert!(
             input_instances.len() == all_blinded_comm_a.len()
                 && all_blinded_comm_a.len() == all_blinded_comm_b.len()

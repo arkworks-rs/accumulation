@@ -64,6 +64,7 @@ where
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 {
+    /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         input_instance: &InputInstance<G>,
         r1cs_input_len: usize,
@@ -79,6 +80,7 @@ where
         Ok(())
     }
 
+    /// Check that the input witness is properly structured.
     fn check_input_witness_structure(
         input_witness: &InputWitness<G::ScalarField>,
         r1cs_witness_len: usize,
@@ -94,6 +96,7 @@ where
         Ok(())
     }
 
+    /// Check that the input is properly structured.
     fn check_input_structure(
         input: &InputRef<'_, ConstraintF<G>, Self>,
         r1cs_input_len: usize,
@@ -117,6 +120,7 @@ where
         Ok(())
     }
 
+    /// Check that the accumulator instance is properly structured.
     fn check_accumulator_instance_structure(
         accumulator_instance: &AccumulatorInstance<G>,
         r1cs_input_len: usize,
@@ -132,6 +136,7 @@ where
         Ok(())
     }
 
+    /// Check that the accumulator witness is properly structured.
     fn check_accumulator_witness_structure(
         accumulator_witness: &AccumulatorWitness<G::ScalarField>,
         r1cs_witness_len: usize,
@@ -147,6 +152,7 @@ where
         Ok(())
     }
 
+    /// Check that the number of variables in the provided inputs are supported by the index key.
     fn check_r1cs_lengths(
         index_info: &IndexInfo,
         r1cs_input_len: usize,
@@ -157,6 +163,7 @@ where
         return index_info.num_variables == r1cs_input_len + r1cs_witness_len;
     }
 
+    /// Blinds the commitments from the first round messages if necessary.
     fn compute_blinded_commitments(
         index_info: &IndexInfo,
         input_instances: &Vec<&InputInstance<G>>,
@@ -225,6 +232,7 @@ where
         )
     }
 
+    /// Compute the input instances for the HP_AS using the blinded commitments.
     fn compute_hp_input_instances(
         all_blinded_comm_a: &Vec<G>,
         all_blinded_comm_b: &Vec<G>,
@@ -251,6 +259,8 @@ where
         input_instances
     }
 
+    /// Compute the input instances for the accumulation scheme for Hadamard products using the
+    /// inputs.
     fn compute_hp_input_witnesses<'a>(
         prover_key: &ProverKey<G>,
         inputs: &Vec<InputRef<'_, ConstraintF<G>, Self>>,
@@ -300,6 +310,7 @@ where
             .collect::<Vec<_>>()
     }
 
+    /// Generate the randomness used by the accumulation prover.
     fn generate_prover_randomness(
         prover_key: &ProverKey<G>,
         r1cs_input_len: usize,
@@ -356,6 +367,7 @@ where
         Ok((proof_randomness, (r1cs_r_witness, rand_1, rand_2, rand_3)))
     }
 
+    /// Computes the beta challenges using the provided sponge.
     fn compute_beta_challenges(
         num_challenges: usize,
         as_matrices_hash: &[u8; 32],
@@ -383,6 +395,8 @@ where
         outputs
     }
 
+    /// Computes a part of a new accumulator instance. Does not compute the HP_AS input instance, so
+    /// an accumulator instance is not yet fully constructed.
     fn compute_accumulator_instance_components(
         input_instances: &Vec<&InputInstance<G>>,
         all_blinded_comm_a: &Vec<G>,
@@ -391,7 +405,12 @@ where
         accumulator_instances: &Vec<&AccumulatorInstance<G>>,
         beta_challenges: &Vec<G::ScalarField>,
         proof_randomness: Option<&ProofRandomness<G>>,
-    ) -> (Vec<G::ScalarField>, G, G, G) {
+    ) -> (
+        Vec<G::ScalarField>, // Combined R1CS input
+        G,                   // Combined comm_a
+        G,                   // Combined comm_b
+        G,                   // Combined comm_c
+    ) {
         assert!(
             input_instances.len() == all_blinded_comm_a.len()
                 && all_blinded_comm_a.len() == all_blinded_comm_b.len()
@@ -470,6 +489,8 @@ where
         )
     }
 
+    /// Computes a part of a new accumulator witness. Does not compute the HP_AS input witness, so
+    /// an accumulator witness is not yet fully constructed.
     fn compute_accumulator_witness_components(
         input_witnesses: &Vec<&InputWitness<G::ScalarField>>,
         accumulator_witnesses: &Vec<&AccumulatorWitness<G::ScalarField>>,
