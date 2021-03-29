@@ -47,7 +47,6 @@ pub mod error;
 pub mod constraints;
 
 /// An accumulation scheme for the Hadamard product relation.
-///
 /// The construction is described in detail in [BCLMS20][bclms20].
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
@@ -86,6 +85,57 @@ pub mod trivial_pc_as;
 /// [acc]: Accumulator
 /// [pf]: AccumulationScheme::Proof
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+///
+/// # Example
+/// ```
+/// // This example uses non-existent variables and structs and only serves to demonstrate the
+/// // general flow of the trait.
+///
+/// use ark_accumulation::{MakeZK, Input, Accumulator};
+///
+/// let pp = ASForExample::setup(&mut rng)?;
+/// let (prover_key, verifier_key, decider_key) = ASForExample::index(
+///     &pp,
+///     &predicate_params,
+///     &predicate_index
+/// )?;
+///
+/// let mut old_accumulators = Vec::new();
+///
+/// // When inputs come in:
+///
+/// // The prover runs:
+/// let (accumulator, proof) = ASForExample::prove(
+///     &prover_key,
+///     Input::<CF, ASForExample>::map_to_refs(inputs),
+///     Accumulator::<CF, ASForExample>::map_to_refs(&old_accumulators),
+///     MakeZK::Enabled(&mut rng),
+///     Some(custom_sponge),
+/// )?;
+///
+/// // The verifier runs:
+/// let verify_result = ASForExample::verify(
+///     &verifier_key,
+///     Input::<CF, ASForExample>::instances(inputs),
+///     Accumulator::<CF, ASForExample>::instances(&old_accumulators),
+///     &accumulator.instance,
+///     &proof,
+///     Some(custom_sponge),
+/// )?;
+///
+/// // The accumulator is added to the list of old accumulator.
+/// old_accumulators.push(accumulator);
+///
+/// // As new inputs are streamed in, the prover and verifier run the above functions.
+///
+/// // At any point, the decider can run:
+/// let decide_result = ASForExample::decide(
+///     &decider_key,
+///     &accumulator,
+///     Some(custom_sponge.clone()),
+/// )?;
+///
+/// ```
 pub trait AccumulationScheme<CF: PrimeField>: Sized {
     /// The public parameters for the accumulation scheme.
     type PublicParameters: Clone;
