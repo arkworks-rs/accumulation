@@ -52,15 +52,15 @@ pub mod constraints;
 /// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
 /// // An accumulation input for this scheme is formed from:
-/// // 1. A TrivialPC commitment to a polynomial:                 `comm`
-/// // 2. A point where the polynomial will be evaluated at:      `point`
-/// // 3. The evaluation of the polynomial at the point:          `eval`
-/// // 4. The TrivialPC opening, which is the labeled polynomial: `poly`
+/// // 1. A TrivialPC commitment to a polynomial:            `comm`
+/// // 2. A point where the polynomial will be evaluated at: `point`
+/// // 3. The evaluation of the polynomial at the point:     `eval`
+/// // 4. The TrivialPC opening proof:                       `proof`
 /// fn new_accumulation_input<G>(
 ///     comm: LabeledCommitment<trivial_pc::Commitment<G>>,
 ///     point: G::ScalarField,
 ///     eval: G::ScalarField,
-///     poly: LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
+///     proof: trivial_pc::Proof<G::ScalarField, DensePolynomial<G::ScalarField>>,
 /// ) -> Input<ConstraintF<G>, ASForTrivialPC<G>>
 ///     where
 ///         G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -72,7 +72,7 @@ pub mod constraints;
 ///         eval,
 ///     };
 ///
-///     let witness = poly;
+///     let witness = proof.polynomial;
 ///
 ///     Input::<_, ASForTrivialPC<G>> { instance, witness }
 /// }
