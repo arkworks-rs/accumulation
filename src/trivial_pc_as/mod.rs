@@ -132,7 +132,7 @@ where
     fn compute_witness_polynomials_and_commitments<'a>(
         ck: &trivial_pc::CommitterKey<G>,
         inputs: impl IntoIterator<Item = &'a InputRef<'a, ConstraintF<G>, Self>>,
-    )-> Result<
+    ) -> Result<
         (
             Vec<LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>>,
             Vec<LabeledCommitment<trivial_pc::Commitment<G>>>,
@@ -146,8 +146,8 @@ where
             let point = input.instance.point;
             let eval = input.instance.eval;
 
-            let numerator =
-                (&DensePolynomial::from_coefficients_vec(vec![-eval])).add(input.witness.polynomial());
+            let numerator = (&DensePolynomial::from_coefficients_vec(vec![-eval]))
+                .add(input.witness.polynomial());
             let denominator =
                 DensePolynomial::from_coefficients_vec(vec![-point, G::ScalarField::one()]);
             let witness_polynomial = (&numerator).div(&denominator);
@@ -297,7 +297,7 @@ where
         let (witness_polynomials, witness_commitments) =
             Self::compute_witness_polynomials_and_commitments(
                 &prover_key,
-                inputs.iter().chain(&accumulators)
+                inputs.iter().chain(&accumulators),
             )
             .map_err(|e| BoxedError::new(e))?;
 
