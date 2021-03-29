@@ -49,6 +49,32 @@ type IpaPC<G, S> = InnerProductArgPC<
 /// [ipa-pc]: ark_poly_commit::ipa_pc::InnerProductArgPC
 /// [bcms20]: https://eprint.iacr.org/2020/499
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+///
+/// # Example Input
+/// ```
+///
+/// use ark_accumulation::Input;
+/// use ark_accumulation::ipa_pc_as::{InputInstance, AtomicASForInnerProductArgPC};
+///
+/// // An accumulation input for this scheme is formed from:
+/// // 1. An IpaPC commitment to a polynomial:               `comm`
+/// // 2. A point where the polynomial will be evaluated at: `point`
+/// // 3. The evaluation of the polynomial at the point:     `eval`
+/// // 4. The IpaPC opening at the point:                    `proof`
+///
+/// let ipa_pc_as_input = {
+///     let instance = InputInstance {
+///         ipa_commitment: comm,
+///         point,
+///         evaluation: eval,
+///         ipa_proof: proof,
+///     };
+///
+///     let witness = ();
+///
+///     Input::<_, AtomicASForInnerProductArgPC<G>> { instance, witness }
+/// };
+/// ```
 pub struct AtomicASForInnerProductArgPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
