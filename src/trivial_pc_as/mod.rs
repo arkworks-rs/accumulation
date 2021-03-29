@@ -37,6 +37,30 @@ pub mod constraints;
 ///
 /// [trivial-pc]: ark_poly_commit::trivial_pc::TrivialPC
 /// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+///
+/// # Example Input
+/// ```
+/// use ark_accumulation::trivial_pc_as::{InputInstance, ASForTrivialPC};
+/// use ark_accumulation::Input;
+///
+/// // An accumulation input for this scheme is formed from:
+/// // 1. A TrivialPC commitment to a polynomial:                 `comm`
+/// // 2. A point where the polynomial will be evaluated at:      `point`
+/// // 3. The evaluation of the polynomial at the point:          `eval`
+/// // 4. The TrivialPC opening, which is the labeled polynomial: `poly`
+///
+/// let trivial_pc_as_input = {
+///     let instance = InputInstance {
+///         commitment: comm,
+///         point,
+///         eval
+///     };
+///
+///     let witness = poly;
+///
+///     Input::<_, ASForTrivialPC<G>> { instance, witness }
+/// };
+/// ```
 pub struct ASForTrivialPC<G>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
