@@ -40,15 +40,15 @@ type IpaPC<G, S> = InnerProductArgPC<
 
 /// An accumulation scheme for a polynomial commitment scheme based on inner product arguments.
 /// This implementation is specialized for [`InnerProductArgPC`][ipa-pc].
-/// The construction is described in detail in Section 7 of [BCMS20][bcms20].
+/// The construction is described in detail in Section 7 of [\[BCMS20\]][\[BCMS20\]].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [BCLMS20][bclms20] for more details.
+/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [ipa-pc]: ark_poly_commit::ipa_pc::InnerProductArgPC
-/// [bcms20]: https://eprint.iacr.org/2020/499
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
 /// # Example Input
 /// ```

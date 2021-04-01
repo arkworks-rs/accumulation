@@ -1,11 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 //! A crate that provides infrastructure to implement accumulation schemes.
-//! The interface for accumulation schemes were formalized in [BCMS20][bcms20] and
-//! [BCLMS20][bclms20].
+//! The interface for accumulation schemes were formalized in [\[BCMS20\]][\[BCMS20\]] and
+//! [\[BCLMS20\]][bclms20].
 //!
-//! [bcms20]: https://eprint.iacr.org/2020/499.pdf
-//! [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+//! [\[BCMS20\]]: https://eprint.iacr.org/2020/499
+//! [bclms20]: https://eprint.iacr.org/2020/1618
 
 #![deny(
     const_err,
@@ -47,30 +47,30 @@ pub mod error;
 pub mod constraints;
 
 /// An accumulation scheme for the Hadamard product relation.
-/// The construction is described in detail in [BCLMS20][bclms20].
+/// The construction is described in detail in [\[BCLMS20\]][bclms20].
 ///
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 #[cfg(feature = "hp-as")]
 pub mod hp_as;
 
 /// An accumulation scheme based on the hardness of the discrete log problem.
-/// The construction is described in detail in [BCMS20][bcms20].
+/// The construction is described in detail in [\[BCMS20\]][\[BCMS20\]].
 ///
-/// [bcms20]: https://eprint.iacr.org/2020/499
+/// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
 #[cfg(feature = "ipa-pc-as")]
 pub mod ipa_pc_as;
 
 /// An accumulation scheme for a NARK for R1CS.
-/// The construction is described in detail in [BCLMS20][bclms20].
+/// The construction is described in detail in [\[BCLMS20\]][bclms20].
 ///
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 #[cfg(feature = "r1cs-nark-as")]
 pub mod r1cs_nark_as;
 
 /// An accumulation scheme for trivial homomorphic commitment schemes.
-/// The construction is described in detail in [BCLMS20][bclms20].
+/// The construction is described in detail in [\[BCLMS20\]][bclms20].
 ///
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 #[cfg(feature = "trivial-pc-as")]
 pub mod trivial_pc_as;
 
@@ -79,12 +79,12 @@ pub mod trivial_pc_as;
 /// also outputs a [`Proof`][pf] attesting that the [`Accumulator`][acc] was computed correctly,
 /// which a verifier can check. At any point, a decider can use an [`Accumulator`][acc] to determine
 /// if each accumulated input satisfied the predicate.
-/// The interface is defined in [BCLMS20][bclms20] as `SplitAccumulationScheme`.
+/// The interface is defined in [\[BCLMS20\]][bclms20] as `SplitAccumulationScheme`.
 ///
 /// [in]: Input
 /// [acc]: Accumulator
 /// [pf]: AccumulationScheme::Proof
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
 /// # Example
 /// ```
@@ -242,11 +242,11 @@ pub trait AccumulationScheme<CF: PrimeField>: Sized {
 
 /// A special case of an [`AccumulationScheme`] that has empty witnesses, so entire
 /// [`Inputs`][Input] and [`Accumulators`][Accumulator] are passed into the verifier.
-/// The interface is defined in [BCMS20][bcms20] as `AccumulationScheme` and in [BCLMS20][bclms20]
+/// The interface is defined in [\[BCMS20\]][\[BCMS20\]] as `AccumulationScheme` and in [\[BCLMS20\]][bclms20]
 /// as `AtomicAccumulationScheme`.
 ///
-/// [bcms20]: https://eprint.iacr.org/2020/499.pdf
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 pub trait AtomicAccumulationScheme<CF: PrimeField>:
     AccumulationScheme<CF, InputWitness = (), AccumulatorWitness = ()>
 {

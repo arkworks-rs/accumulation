@@ -29,14 +29,14 @@ pub mod constraints;
 
 /// An accumulation scheme for a trivial homomorphic commitment schemes.
 /// This implementation is specialized for [`TrivialPC`][trivial-pc].
-/// The construction is described in detail in Section 7 of [BCLMS20][bclms20].
+/// The construction is described in detail in Section 7 of [\[BCLMS20\]][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [BCLMS20][bclms20] for more details.
+/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [trivial-pc]: ark_poly_commit::trivial_pc::TrivialPC
-/// [bclms20]: https://eprint.iacr.org/2020/1618.pdf
+/// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
 /// # Example Input
 /// ```
@@ -169,6 +169,7 @@ where
     }
 
     /// Compute the witness polynomials and witness commitments from the inputs.
+    /// For a claim (p, z, v), the witness polynomial is w(X) = (p(X) - v)/(X - z).
     fn compute_witness_polynomials_and_commitments<'a>(
         ck: &trivial_pc::CommitterKey<G>,
         inputs: impl IntoIterator<Item = &'a InputRef<'a, ConstraintF<G>, Self>>,
@@ -211,7 +212,7 @@ where
         Ok((witness_polynomials, witness_commitments))
     }
 
-    /// Compute the linear combination of polynomials.
+    /// Compute the linear combination of polynomials p = \sum challenge_i * p_i.
     fn combine_polynomials<'a>(
         labeled_polynomials: impl IntoIterator<
             Item = &'a LabeledPolynomial<G::ScalarField, DensePolynomial<G::ScalarField>>,
@@ -226,7 +227,7 @@ where
         combined_polynomial
     }
 
-    /// Compute the linear combination of evaluations.
+    /// Compute the linear combination of evaluations v = \sum challenge_i * v_i.
     fn combine_evaluations<'a>(
         evaluations: impl IntoIterator<Item = &'a G::ScalarField>,
         challenges: &[G::ScalarField],
@@ -239,7 +240,7 @@ where
         combined_eval
     }
 
-    /// Compute the linear combination of commitments.
+    /// Compute the linear combination of commitments C = \sum challenge_i * C_i.
     fn combine_commitments<'a>(
         commitments: impl IntoIterator<Item = &'a LabeledCommitment<trivial_pc::Commitment<G>>>,
         challenges: &[G::ScalarField],
