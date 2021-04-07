@@ -701,9 +701,8 @@ where
         let as_sponge = sponge.fork(PROTOCOL_NAME);
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
-        let mut r1cs_input_len: usize = prover_key.nark_pk.index_info.num_instance_variables;
-        let mut r1cs_witness_len: usize =
-            prover_key.nark_pk.index_info.num_variables - r1cs_input_len;
+        let r1cs_input_len: usize = prover_key.nark_pk.index_info.num_instance_variables;
+        let r1cs_witness_len: usize = prover_key.nark_pk.index_info.num_variables - r1cs_input_len;
 
         // Collect the accumulator instances and witnesses. Run checks on them.
         let mut old_accumulator_instances = Vec::new();
@@ -1010,8 +1009,8 @@ where
         let instance = accumulator.instance;
         let witness = accumulator.witness;
 
-        let mut r1cs_input_len: usize = decider_key.index_info.num_instance_variables;
-        let mut r1cs_witness_len: usize = decider_key.index_info.num_variables - r1cs_input_len;
+        let r1cs_input_len: usize = decider_key.index_info.num_instance_variables;
+        let r1cs_witness_len: usize = decider_key.index_info.num_variables - r1cs_input_len;
 
         if Self::check_accumulator_instance_structure(instance, r1cs_input_len).is_err()
             || Self::check_accumulator_witness_structure(witness, r1cs_witness_len).is_err()

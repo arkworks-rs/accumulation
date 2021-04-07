@@ -179,7 +179,7 @@ pub struct SecondRoundMessage<F: Field> {
 }
 
 impl<F: Field> SecondRoundMessage<F> {
-    pub fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
+    pub(crate) fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
         let randomness = if with_zero_randomness {
             Some(SecondRoundMessageRandomness {
                 sigma_a: F::zero(),

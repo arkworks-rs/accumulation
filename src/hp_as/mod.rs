@@ -701,13 +701,13 @@ where
         }
 
         // Combine inputs and accumulators to be processed together
-        let mut all_input_instances = inputs
+        let all_input_instances = inputs
             .iter()
             .chain(&old_accumulators)
             .map(|input| input.instance)
             .collect::<Vec<_>>();
 
-        let mut all_input_witnesses = inputs
+        let all_input_witnesses = inputs
             .iter()
             .map(|input| {
                 Self::check_input_witness_structure(input.witness, prover_key, hp_vec_len, false)
