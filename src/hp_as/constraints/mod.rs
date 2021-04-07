@@ -361,6 +361,7 @@ pub mod tests {
     use crate::hp_as::constraints::ASForHPVerifierGadget;
     use crate::hp_as::tests::{ASForHPTestInput, ASForHPTestParams};
     use crate::hp_as::ASForHadamardProducts;
+    use ark_relations::r1cs::SynthesisError;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
 
@@ -378,46 +379,98 @@ pub mod tests {
     type Tests = ASVerifierGadgetTests<CF, AS, ASV, I, Sponge, SpongeVar>;
 
     #[test]
-    pub fn test_initialization_no_zk() {
-        Tests::test_initialization(
-            &ASForHPTestParams {
-                vector_len: 11,
-                make_zk: false,
-            },
-            1,
-        );
+    pub fn single_input_init_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::single_input_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn test_initialization_zk() {
-        Tests::test_initialization(
-            &ASForHPTestParams {
-                vector_len: 11,
-                make_zk: true,
-            },
-            1,
-        );
+    pub fn single_input_init_test_zk() -> Result<(), SynthesisError> {
+        Tests::single_input_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
     }
 
     #[test]
-    pub fn test_simple_accumulation_no_zk() {
-        Tests::test_simple_accumulation(
-            &ASForHPTestParams {
-                vector_len: 11,
-                make_zk: false,
-            },
-            1,
-        );
+    pub fn multiple_inputs_init_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::multiple_inputs_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
     }
 
     #[test]
-    pub fn test_simple_accumulation_zk() {
-        Tests::test_simple_accumulation(
-            &ASForHPTestParams {
-                vector_len: 11,
-                make_zk: true,
-            },
-            1,
-        );
+    pub fn multiple_input_init_test_zk() -> Result<(), SynthesisError> {
+        Tests::multiple_inputs_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::simple_accumulation_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn simple_accumulation_test_zk() -> Result<(), SynthesisError> {
+        Tests::simple_accumulation_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn multiple_inputs_accumulation_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::multiple_inputs_accumulation_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn multiple_inputs_accumulation_test_zk() -> Result<(), SynthesisError> {
+        Tests::multiple_inputs_accumulation_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::accumulators_only_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn accumulators_only_test_zk() -> Result<(), SynthesisError> {
+        Tests::accumulators_only_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
+    }
+
+    #[test]
+    pub fn no_inputs_init_test_no_zk() -> Result<(), SynthesisError> {
+        Tests::no_inputs_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: false,
+        })
+    }
+
+    #[test]
+    pub fn no_inputs_init_test_zk() -> Result<(), SynthesisError> {
+        Tests::no_inputs_init_test(&ASForHPTestParams {
+            vector_len: 11,
+            make_zk: true,
+        })
     }
 }

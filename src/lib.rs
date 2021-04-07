@@ -293,8 +293,8 @@ pub mod tests {
     }
 
     pub struct TemplateParams {
-        num_iterations: usize,
-        num_inputs_per_iteration: Vec<usize>,
+        pub(crate) num_iterations: usize,
+        pub(crate) num_inputs_per_iteration: Vec<usize>,
     }
 
     pub struct ASTests<CF, AS, I, S>
@@ -327,6 +327,7 @@ pub mod tests {
             test_params: &I::TestParams,
         ) -> Result<bool, AS::Error> {
             assert!(template_params.num_iterations > 0);
+
             let num_inputs_per_iteration = &template_params.num_inputs_per_iteration;
             let num_iterations = template_params.num_iterations;
             let total_num_inputs = num_iterations * num_inputs_per_iteration.iter().sum::<usize>();
@@ -339,8 +340,8 @@ pub mod tests {
 
             let inputs = I::generate_inputs(&input_params, total_num_inputs, &mut rng);
             assert_eq!(total_num_inputs, inputs.len());
-            let mut inputs_start = 0;
 
+            let mut inputs_start = 0;
             for _ in 0..num_iterations {
                 let mut old_accumulators = Vec::with_capacity(num_inputs_per_iteration.len());
                 for num_inputs in num_inputs_per_iteration {
