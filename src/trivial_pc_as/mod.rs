@@ -201,7 +201,10 @@ where
             );
 
             let mut witness_commitment =
-                TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0.pop().unwrap();
+                TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?
+                    .0
+                    .pop()
+                    .unwrap();
 
             witness_polynomials.push(labeled_witness_polynomial);
             witness_commitments.push(witness_commitment);
