@@ -732,12 +732,6 @@ where
             input_witnesses.push(witness);
         }
 
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
-            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
-                "No inputs or accumulators to accumulate.".to_string(),
-            )));
-        }
-
         let (make_zk_enabled, mut rng) = make_zk.into_components();
         // Ensure that none of the inputs or accumulators require zero-knowledge.
         if !make_zk_enabled {
@@ -756,6 +750,16 @@ where
                     )));
                 }
             }
+        }
+
+        let default_input_instance;
+        let default_input_witness;
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len, make_zk_enabled));
+            default_input_witness = Some(InputWitness::zero(r1cs_witness_len, make_zk_enabled));
+
+            input_instances.push(default_input_instance.as_ref().unwrap());
+            input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
         // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
@@ -911,9 +915,10 @@ where
         let as_sponge = sponge.fork(PROTOCOL_NAME);
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
+        let make_zk_enabled = proof.randomness.is_some();
         let r1cs_input_len = verifier_key.nark_index.num_instance_variables;
 
-        let input_instances = input_instances.into_iter().collect::<Vec<_>>();
+        let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
         for instance in &input_instances {
             if Self::check_input_instance_structure(instance, r1cs_input_len).is_err() {
                 return Ok(false);
@@ -927,14 +932,16 @@ where
             }
         }
 
+        let default_input_instance;
         if input_instances.len() + old_accumulator_instances.len() == 0 {
-            return Ok(false);
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len, make_zk_enabled));
+            input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
         // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let num_addends = input_instances.len()
             + old_accumulator_instances.len()
-            + if proof.randomness.is_some() { 1 } else { 0 };
+            + if make_zk_enabled { 1 } else { 0 };
 
         let beta_challenges = Self::compute_beta_challenges(
             num_addends,
@@ -1347,7 +1354,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
+    pub fn no_accumulators_or_inputs_test_no_zk() -> Result<(), BoxedError> {
         Tests::no_accumulators_or_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
@@ -1356,7 +1363,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
+    pub fn no_accumulators_or_inputs_test_zk() -> Result<(), BoxedError> {
         Tests::no_accumulators_or_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,

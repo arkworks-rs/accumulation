@@ -50,36 +50,6 @@ pub struct IndexProverKey<G: AffineCurve> {
 /// Index verifier key for our NARK.
 pub type IndexVerifierKey<G> = IndexProverKey<G>;
 
-/// The sigma protocol's prover commitment.
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct FirstRoundMessage<G: AffineCurve> {
-    /// Pedersen commitment to the `Az` vector.
-    pub(crate) comm_a: G,
-
-    /// Pedersen commitment to the `Bz` vector.
-    pub(crate) comm_b: G,
-
-    /// Pedersen commitment to the `Cz` vector.
-    pub(crate) comm_c: G,
-
-    /// The randomness used for the commitment.
-    pub(crate) randomness: Option<FirstRoundMessageRandomness<G>>,
-}
-
-impl<CF, G> Absorbable<CF> for FirstRoundMessage<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(CF, self.comm_a, self.comm_b, self.comm_c, self.randomness)
-    }
-
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
-    }
-}
-
 /// The sigma protocol's prover commitment randomness.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct FirstRoundMessageRandomness<G: AffineCurve> {
@@ -126,14 +96,57 @@ where
     }
 }
 
-/// The sigma protocol's prover response.
+/// The sigma protocol's prover commitment.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct SecondRoundMessage<F: Field> {
-    /// The R1CS witness with randomness applied if zero-knowledge is needed.
-    pub(crate) blinded_witness: Vec<F>,
+pub struct FirstRoundMessage<G: AffineCurve> {
+    /// Pedersen commitment to the `Az` vector.
+    pub(crate) comm_a: G,
 
-    /// The randomness used for the response.
-    pub(crate) randomness: Option<SecondRoundMessageRandomness<F>>,
+    /// Pedersen commitment to the `Bz` vector.
+    pub(crate) comm_b: G,
+
+    /// Pedersen commitment to the `Cz` vector.
+    pub(crate) comm_c: G,
+
+    /// The randomness used for the commitment.
+    pub(crate) randomness: Option<FirstRoundMessageRandomness<G>>,
+}
+
+impl<G: AffineCurve> FirstRoundMessage<G> {
+    pub(crate) fn zero(with_zero_randomness: bool) -> Self {
+        let randomness = if with_zero_randomness {
+            Some(FirstRoundMessageRandomness {
+                comm_r_a: G::zero(),
+                comm_r_b: G::zero(),
+                comm_r_c: G::zero(),
+                comm_1: G::zero(),
+                comm_2: G::zero(),
+            })
+        } else {
+            None
+        };
+
+        Self {
+            comm_a: G::zero(),
+            comm_b: G::zero(),
+            comm_c: G::zero(),
+            randomness,
+        }
+    }
+}
+
+impl<CF, G> Absorbable<CF> for FirstRoundMessage<G>
+where
+    CF: PrimeField,
+    G: AffineCurve + Absorbable<CF>,
+{
+    fn to_sponge_bytes(&self) -> Vec<u8> {
+        collect_sponge_bytes!(CF, self.comm_a, self.comm_b, self.comm_c, self.randomness)
+    }
+
+    fn to_sponge_field_elements(&self) -> Vec<CF> {
+        collect_sponge_field_elements!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
+    }
 }
 
 /// The sigma protocol's prover response randomness.
@@ -153,6 +166,36 @@ pub struct SecondRoundMessageRandomness<F: Field> {
 
     /// The blinded randomness for the Pedersen commitment to the cross terms
     pub(crate) sigma_o: F,
+}
+
+/// The sigma protocol's prover response.
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+pub struct SecondRoundMessage<F: Field> {
+    /// The R1CS witness with randomness applied if zero-knowledge is needed.
+    pub(crate) blinded_witness: Vec<F>,
+
+    /// The randomness used for the response.
+    pub(crate) randomness: Option<SecondRoundMessageRandomness<F>>,
+}
+
+impl<F: Field> SecondRoundMessage<F> {
+    pub fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
+        let randomness = if with_zero_randomness {
+            Some(SecondRoundMessageRandomness {
+                sigma_a: F::zero(),
+                sigma_b: F::zero(),
+                sigma_c: F::zero(),
+                sigma_o: F::zero(),
+            })
+        } else {
+            None
+        };
+
+        Self {
+            blinded_witness: vec![F::zero(); witness_len],
+            randomness,
+        }
+    }
 }
 
 /// The proof for our NARK.

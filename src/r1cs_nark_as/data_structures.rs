@@ -6,7 +6,7 @@ use crate::r1cs_nark_as::r1cs_nark::{
 };
 
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, Field, PrimeField};
+use ark_ff::{to_bytes, Field, PrimeField, Zero};
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
@@ -71,6 +71,15 @@ pub struct InputInstance<G: AffineCurve> {
     pub first_round_message: FirstRoundMessage<G>,
 }
 
+impl<G: AffineCurve> InputInstance<G> {
+    pub(crate) fn zero(input_len: usize, with_zero_randomness: bool) -> Self {
+        Self {
+            r1cs_input: vec![G::ScalarField::zero(); input_len],
+            first_round_message: FirstRoundMessage::zero(with_zero_randomness),
+        }
+    }
+}
+
 impl<CF, G> Absorbable<CF> for InputInstance<G>
 where
     CF: PrimeField,
@@ -100,6 +109,14 @@ where
 pub struct InputWitness<F: Field> {
     /// The sigma protocol's prover commitment of the NARK.
     pub second_round_message: SecondRoundMessage<F>,
+}
+
+impl<F: Field> InputWitness<F> {
+    pub(crate) fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
+        Self {
+            second_round_message: SecondRoundMessage::zero(witness_len, with_zero_randomness),
+        }
+    }
 }
 
 /// The [`AccumulatorInstance`][acc_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
