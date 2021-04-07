@@ -724,13 +724,13 @@ pub mod tests {
     type Tests = ASTests<CF, AS, I, Sponge>;
 
     #[test]
-    pub fn single_input_initialization_test() -> Result<(), BoxedError> {
-        Tests::single_input_initialization_test(&ASForTrivialPCTestParams { degree: 11 })
+    pub fn single_input_init_test() -> Result<(), BoxedError> {
+        Tests::single_input_init_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
-    pub fn multiple_inputs_initialization_test() -> Result<(), BoxedError> {
-        Tests::multiple_inputs_initialization_test(&ASForTrivialPCTestParams { degree: 11 })
+    pub fn multiple_inputs_init_test() -> Result<(), BoxedError> {
+        Tests::multiple_inputs_init_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
@@ -739,8 +739,8 @@ pub mod tests {
     }
 
     #[test]
-    pub fn multiple_accumulations_multiple_inputs_test() -> Result<(), BoxedError> {
-        Tests::multiple_accumulations_multiple_inputs_test(&ASForTrivialPCTestParams { degree: 11 })
+    pub fn multiple_inputs_accumulation_test() -> Result<(), BoxedError> {
+        Tests::multiple_inputs_accumulation_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 
     #[test]
@@ -749,7 +749,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn no_accumulators_or_inputs_fail_test() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_test(&ASForTrivialPCTestParams { degree: 11 })
+    pub fn no_inputs_init_test() -> Result<(), BoxedError> {
+        Tests::no_inputs_init_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 }

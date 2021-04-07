@@ -384,9 +384,8 @@ pub mod tests {
             Ok(true)
         }
 
-        pub fn single_input_initialization_test(
-            test_params: &I::TestParams,
-        ) -> Result<(), AS::Error> {
+        /// Tests the initialization of the first accumulator using one input.
+        pub fn single_input_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1],
@@ -395,17 +394,17 @@ pub mod tests {
             Ok(())
         }
 
-        pub fn multiple_inputs_initialization_test(
-            test_params: &I::TestParams,
-        ) -> Result<(), AS::Error> {
+        /// Tests the initialization of the first accumulator using multiple inputs.
+        pub fn multiple_inputs_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration: vec![2],
+                num_inputs_per_iteration: vec![3],
             };
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
+        /// Tests the accumulation of one input and one accumulator.
         pub fn simple_accumulation_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
@@ -415,20 +414,21 @@ pub mod tests {
             Ok(())
         }
 
-        pub fn multiple_accumulations_multiple_inputs_test(
+        /// Tests the accumulation of three inputs and three accumulators.
+        pub fn multiple_inputs_accumulation_test(
             test_params: &I::TestParams,
         ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration: vec![5; 5],
+                num_inputs_per_iteration: vec![3; 4],
             };
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
-        // Only add this test if scheme is intended to support cases with accumulators but no inputs
+        /// Tests the accumulation of three accumulators only.
         pub fn accumulators_only_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
-            let mut num_inputs_per_iteration = vec![0; 3];
+            let mut num_inputs_per_iteration = vec![0; 4];
 
             // To initialize the starting accumulator
             num_inputs_per_iteration[0] = 1;
@@ -442,9 +442,8 @@ pub mod tests {
             Ok(())
         }
 
-        pub fn no_accumulators_or_inputs_test(
-            test_params: &I::TestParams,
-        ) -> Result<(), AS::Error> {
+        /// Tests the initialization of the first accumulator using no inputs.
+        pub fn no_inputs_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: 1,
                 num_inputs_per_iteration: vec![0],
