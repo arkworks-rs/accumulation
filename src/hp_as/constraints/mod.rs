@@ -49,15 +49,9 @@ where
             return false;
         }
 
-        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
-            1
-        } else {
-            0
-        };
-
-        // The number of commitments can be derived from the number of inputs and the hiding
-        // requirements. Ensure that they match.
-        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+        // The number of commitments can be derived from the number of inputs. Ensure that
+        // they match.
+        if proof.t_comms.low.len() != num_inputs - 1 {
             return false;
         }
 
@@ -284,32 +278,43 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| SV::new(cs));
 
-        let mut all_input_instances = input_instances
-            .into_iter()
-            .chain(old_accumulator_instances)
-            .collect::<Vec<_>>();
+        let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
+        let mut old_accumulator_instances =
+            old_accumulator_instances.into_iter().collect::<Vec<_>>();
+        let mut num_all_inputs = input_instances.len() + old_accumulator_instances.len();
 
-        if all_input_instances.len() == 0 {
-            return Ok(Boolean::FALSE);
-        }
-
-        if !Self::check_proof_structure(proof, all_input_instances.len()) {
-            return Ok(Boolean::FALSE);
-        }
-
-        let mut num_inputs = all_input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
+        // Use the default input_instance if no inputs or accumulators are provided.
         let default_input_instance;
-        if make_zk && num_inputs == 1 {
+        if num_all_inputs == 0 {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 sponge.cs(),
-                InputInstance::default(),
+                InputInstance::zero(),
             )?);
 
-            num_inputs += 1;
-            all_input_instances.push(default_input_instance.as_ref().unwrap());
-        };
+            input_instances.push(default_input_instance.as_ref().unwrap());
+            num_all_inputs += 1;
+        }
+
+        // Placeholder input for hiding.
+        let placeholder_input_instance;
+        if make_zk && num_all_inputs == 1 {
+            placeholder_input_instance = Some(InputInstanceVar::new_constant(
+                sponge.cs(),
+                InputInstance::zero(),
+            )?);
+
+            input_instances.push(placeholder_input_instance.as_ref().unwrap());
+            num_all_inputs += 1;
+        }
+
+        if !Self::check_proof_structure(proof, num_all_inputs) {
+            return Ok(Boolean::FALSE);
+        }
+
+        let mut all_input_instances = input_instances;
+        all_input_instances.append(&mut old_accumulator_instances);
 
         // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenges_sponge = sponge;
@@ -321,11 +326,12 @@ where
         );
 
         let mu_challenges_bits =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk)?;
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk)?;
 
         challenges_sponge.absorb(&proof.t_comms)?;
 
-        let nu_challenges_bits = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs)?;
+        let nu_challenges_bits =
+            Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs)?;
 
         // Steps 2-4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(

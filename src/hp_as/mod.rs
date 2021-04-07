@@ -159,15 +159,9 @@ where
             return false;
         }
 
-        let placeholder_input = if proof.hiding_comms.is_some() && num_inputs == 1 {
-            1
-        } else {
-            0
-        };
-
         // The number of commitments can be derived from the number of inputs and the hiding
         // requirements. Ensure that they match.
-        if proof.t_comms.low.len() != num_inputs - 1 + placeholder_input {
+        if proof.t_comms.low.len() != num_inputs - 1 {
             return false;
         }
 
@@ -653,21 +647,58 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let inputs = inputs.into_iter().collect::<Vec<_>>();
+        let mut inputs = inputs.into_iter().collect::<Vec<_>>();
         let old_accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
+        let mut num_all_inputs = inputs.len() + old_accumulators.len();
 
-        if inputs.len() + old_accumulators.len() == 0 {
-            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
-                "No inputs or accumulators to accumulate.".to_string(),
-            )));
+        let (make_zk_enabled, rng) = make_zk.into_components();
+        if !make_zk_enabled && num_all_inputs > 0 {
+            // Ensure that none of the inputs or accumulators require zero-knowledge.
+            for input in inputs.iter().chain(&old_accumulators) {
+                if input.witness.randomness.is_some() {
+                    return Err(BoxedError::new(ASError::MissingRng(
+                        "Accumulating inputs with hiding requires rng.".to_string(),
+                    )));
+                }
+            }
         }
 
         // Establish the vector length we will be expecting.
-        let hp_vec_len = if old_accumulators.len() == 0 {
+        let hp_vec_len = if old_accumulators.len() > 0 {
+            old_accumulators[0].witness.a_vec.len()
+        } else if inputs.len() > 0 {
             inputs[0].witness.a_vec.len()
         } else {
-            old_accumulators[0].witness.a_vec.len()
+            prover_key.supported_num_elems()
         };
+
+        // Default inputs in the case there are no provided inputs or accumulators.
+        let default_input_instance;
+        let default_input_witness;
+        if num_all_inputs == 0 {
+            default_input_instance = Some(InputInstance::zero());
+            default_input_witness = Some(InputWitness::zero(hp_vec_len, make_zk_enabled));
+
+            inputs.push(InputRef::<_, Self> {
+                instance: default_input_instance.as_ref().unwrap(),
+                witness: default_input_witness.as_ref().unwrap(),
+            });
+            num_all_inputs += 1;
+        }
+
+        // Placeholder inputs for hiding.
+        let placeholder_input_instance;
+        let placeholder_input_witness;
+        if make_zk_enabled && num_all_inputs == 1 {
+            placeholder_input_instance = Some(InputInstance::zero());
+            placeholder_input_witness = Some(InputWitness::zero(hp_vec_len, make_zk_enabled));
+
+            inputs.push(InputRef::<_, Self> {
+                instance: placeholder_input_instance.as_ref().unwrap(),
+                witness: placeholder_input_witness.as_ref().unwrap(),
+            });
+            num_all_inputs += 1;
+        }
 
         // Combine inputs and accumulators to be processed together
         let mut all_input_instances = inputs
@@ -691,31 +722,6 @@ where
             }))
             .collect::<Result<Vec<&InputWitness<G::ScalarField>>, BoxedError>>()?;
 
-        let (make_zk_enabled, rng) = make_zk.into_components();
-        if !make_zk_enabled {
-            for witness in &all_input_witnesses {
-                if witness.randomness.is_some() {
-                    return Err(BoxedError::new(ASError::MissingRng(
-                        "Accumulating inputs with hiding requires rng.".to_string(),
-                    )));
-                }
-            }
-        }
-
-        let mut num_inputs = all_input_instances.len();
-
-        let default_input_instance;
-        let default_input_witness;
-
-        if make_zk_enabled && num_inputs == 1 {
-            default_input_instance = Some(InputInstance::default());
-            default_input_witness = Some(InputWitness::default());
-
-            num_inputs += 1;
-            all_input_instances.push(default_input_instance.as_ref().unwrap());
-            all_input_witnesses.push(default_input_witness.as_ref().unwrap());
-        }
-
         // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (hiding_vecs, hiding_rands, hiding_comms) = if make_zk_enabled {
             // If make_zk, then rng should exist here.
@@ -727,6 +733,7 @@ where
                 &all_input_witnesses,
                 rng.unwrap(),
             );
+
             (Some(hiding_vecs), Some(hiding_rands), Some(hiding_comms))
         } else {
             (None, None, None)
@@ -742,7 +749,7 @@ where
         );
 
         let mu_challenges =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk_enabled);
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk_enabled);
 
         // Steps 5-7 of the scheme's accumulation prover, as detailed in BCLMS20.
         let t_vecs: Vec<Vec<G::ScalarField>> = Self::compute_t_vecs(
@@ -761,9 +768,9 @@ where
 
         // Step 9 of the scheme's accumulation prover, as detailed in BCLMS20.
         challenges_sponge.absorb(&proof.t_comms);
-        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs);
+        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs);
 
-        let mut combined_challenges = Vec::with_capacity(num_inputs);
+        let mut combined_challenges = Vec::with_capacity(num_all_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {
             combined_challenges.push(mu.clone().mul(nu));
         }
@@ -809,29 +816,37 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let mut all_input_instances = input_instances
-            .into_iter()
-            .chain(old_accumulator_instances)
-            .collect::<Vec<_>>();
+        let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
+        let mut old_accumulator_instances =
+            old_accumulator_instances.into_iter().collect::<Vec<_>>();
+        let mut num_all_inputs = input_instances.len() + old_accumulator_instances.len();
 
-        if all_input_instances.len() == 0 {
-            return Ok(false);
-        }
-
-        if !Self::check_proof_structure(proof, all_input_instances.len()) {
-            return Ok(false);
-        }
-
-        let mut num_inputs = all_input_instances.len();
         let make_zk = proof.hiding_comms.is_some();
 
+        // Use the default input_instance if no inputs or accumulators are provided.
         let default_input_instance;
-        if make_zk && num_inputs == 1 {
-            default_input_instance = Some(InputInstance::default());
+        if num_all_inputs == 0 {
+            default_input_instance = Some(InputInstance::zero());
 
-            num_inputs += 1;
-            all_input_instances.push(default_input_instance.as_ref().unwrap());
+            input_instances.push(default_input_instance.as_ref().unwrap());
+            num_all_inputs += 1;
         }
+
+        // Placeholder input for hiding.
+        let placeholder_input_instance;
+        if make_zk && num_all_inputs == 1 {
+            placeholder_input_instance = Some(InputInstance::zero());
+
+            input_instances.push(placeholder_input_instance.as_ref().unwrap());
+            num_all_inputs += 1;
+        }
+
+        if !Self::check_proof_structure(proof, num_all_inputs) {
+            return Ok(false);
+        }
+
+        let mut all_input_instances = input_instances;
+        all_input_instances.append(&mut old_accumulator_instances);
 
         // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenges_sponge = sponge;
@@ -843,13 +858,13 @@ where
         );
 
         let mu_challenges =
-            Self::squeeze_mu_challenges(&mut challenges_sponge, num_inputs, make_zk);
+            Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk);
 
         challenges_sponge.absorb(&proof.t_comms);
 
-        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_inputs);
+        let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs);
 
-        let mut combined_challenges = Vec::with_capacity(num_inputs);
+        let mut combined_challenges = Vec::with_capacity(num_all_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {
             combined_challenges.push(mu.clone().mul(nu));
         }
@@ -1107,16 +1122,16 @@ pub mod tests {
     }
 
     #[test]
-    pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForHPTestParams {
+    pub fn no_accumulators_or_inputs_test_no_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_test(&ASForHPTestParams {
             vector_len: 11,
             make_zk: false,
         })
     }
 
     #[test]
-    pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForHPTestParams {
+    pub fn no_accumulators_or_inputs_test_zk() -> Result<(), BoxedError> {
+        Tests::no_accumulators_or_inputs_test(&ASForHPTestParams {
             vector_len: 11,
             make_zk: true,
         })

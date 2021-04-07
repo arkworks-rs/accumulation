@@ -750,6 +750,6 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForTrivialPCTestParams { degree: 11 })
+        Tests::no_accumulators_or_inputs_test(&ASForTrivialPCTestParams { degree: 11 })
     }
 }

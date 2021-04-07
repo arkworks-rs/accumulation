@@ -1040,7 +1040,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
+        Tests::no_accumulators_or_inputs_test(&AtomicASForIpaPCTestParams {
             degree: 11,
             make_zk: false,
         })
@@ -1048,7 +1048,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&AtomicASForIpaPCTestParams {
+        Tests::no_accumulators_or_inputs_test(&AtomicASForIpaPCTestParams {
             degree: 11,
             make_zk: true,
         })

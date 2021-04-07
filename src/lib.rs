@@ -7,7 +7,7 @@
 //! [\[BCMS20\]]: https://eprint.iacr.org/2020/499
 //! [bclms20]: https://eprint.iacr.org/2020/1618
 
-#![deny(
+#![warn(
     const_err,
     future_incompatible,
     missing_docs,
@@ -442,7 +442,7 @@ pub mod tests {
             Ok(())
         }
 
-        pub fn no_accumulators_or_inputs_fail_test(
+        pub fn no_accumulators_or_inputs_test(
             test_params: &I::TestParams,
         ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
@@ -450,7 +450,7 @@ pub mod tests {
                 num_inputs_per_iteration: vec![0],
             };
 
-            assert!(Self::test_template(&template_params, test_params).is_err());
+            assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
     }

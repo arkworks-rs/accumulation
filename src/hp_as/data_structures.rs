@@ -22,8 +22,8 @@ pub struct InputInstance<G: AffineCurve> {
     pub comm_3: G,
 }
 
-impl<G: AffineCurve> Default for InputInstance<G> {
-    fn default() -> Self {
+impl<G: AffineCurve> InputInstance<G> {
+    pub(crate) fn zero() -> Self {
         Self {
             comm_1: G::zero(),
             comm_2: G::zero(),
@@ -62,12 +62,22 @@ pub struct InputWitness<F: Field> {
     pub randomness: Option<InputWitnessRandomness<F>>,
 }
 
-impl<F: Field> Default for InputWitness<F> {
-    fn default() -> Self {
+impl<F: Field> InputWitness<F> {
+    pub(crate) fn zero(vec_len: usize, with_zero_randomness: bool) -> Self {
+        let randomness = if with_zero_randomness {
+            Some(InputWitnessRandomness {
+                rand_1: F::zero(),
+                rand_2: F::zero(),
+                rand_3: F::zero(),
+            })
+        } else {
+            None
+        };
+
         Self {
-            a_vec: vec![],
-            b_vec: vec![],
-            randomness: None,
+            a_vec: vec![F::zero(); vec_len],
+            b_vec: vec![F::zero(); vec_len],
+            randomness,
         }
     }
 }

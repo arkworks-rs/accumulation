@@ -1387,7 +1387,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_no_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForR1CSNarkTestParams {
+        Tests::no_accumulators_or_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: false,
@@ -1396,7 +1396,7 @@ pub mod tests {
 
     #[test]
     pub fn no_accumulators_or_inputs_fail_test_zk() -> Result<(), BoxedError> {
-        Tests::no_accumulators_or_inputs_fail_test(&ASForR1CSNarkTestParams {
+        Tests::no_accumulators_or_inputs_test(&ASForR1CSNarkTestParams {
             num_inputs: 5,
             num_constraints: 10,
             make_zk: true,
