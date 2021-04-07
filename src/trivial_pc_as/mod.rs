@@ -181,7 +181,7 @@ where
         PCError,
     > {
         let mut witness_polynomials = Vec::new();
-        let witness_commitments = Vec::new();
+        let mut witness_commitments = Vec::new();
 
         for input in inputs.into_iter() {
             let point = input.instance.point;
@@ -200,10 +200,8 @@ where
                 None,
             );
 
-            let mut witness_commitments =
-                TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0;
-
-            let witness_commitment = witness_commitments.pop().unwrap();
+            let mut witness_commitment =
+                TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?.0.pop().unwrap();
 
             witness_polynomials.push(labeled_witness_polynomial);
             witness_commitments.push(witness_commitment);
