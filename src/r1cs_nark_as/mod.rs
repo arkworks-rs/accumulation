@@ -6,7 +6,10 @@ use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness,
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
-use crate::r1cs_nark_as::r1cs_nark::{hash_matrices, matrix_vec_mul, R1CSNark};
+use crate::r1cs_nark_as::r1cs_nark::{
+    hash_matrices, matrix_vec_mul, FirstRoundMessage, IndexInfo, IndexVerifierKey,
+    PublicParameters as NARKPublicParameters, R1CSNark, SecondRoundMessage,
+};
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
 
@@ -20,10 +23,6 @@ use ark_std::marker::PhantomData;
 use ark_std::string::ToString;
 use ark_std::vec;
 use ark_std::vec::Vec;
-use r1cs_nark::{
-    FirstRoundMessage, IndexInfo, IndexVerifierKey, PublicParameters as NARKPublicParameters,
-    SecondRoundMessage,
-};
 use rand_core::RngCore;
 
 mod data_structures;
@@ -113,7 +112,8 @@ where
         // accumulated.
         if input_instance.r1cs_input.len() != r1cs_input_len {
             return Err(BoxedError::new(MalformedInput(
-                "All R1CS inputs must be of equal length.".to_string(),
+                "All R1CS input lengths must be equal and supported by the index prover key."
+                    .to_string(),
             )));
         }
 
@@ -129,7 +129,8 @@ where
         // accumulated.
         if input_witness.second_round_message.blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedInput(
-                "All R1CS witnesses must be of equal length.".to_string(),
+                "All R1CS witness lengths must be equal and supported by the index prover key."
+                    .to_string(),
             )));
         }
 
@@ -169,7 +170,8 @@ where
         // accumulated.
         if accumulator_instance.r1cs_input.len() != r1cs_input_len {
             return Err(BoxedError::new(MalformedAccumulator(
-                "All R1CS inputs must be of equal length.".to_string(),
+                "All R1CS input lengths must be equal and supported by the index prover key."
+                    .to_string(),
             )));
         }
 
@@ -185,22 +187,12 @@ where
         // accumulated.
         if accumulator_witness.r1cs_blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedAccumulator(
-                "All R1CS witnesses must be of equal length.".to_string(),
+                "All R1CS witness lengths must be equal and supported by the index prover key."
+                    .to_string(),
             )));
         }
 
         Ok(())
-    }
-
-    /// Check that the number of variables are supported by the index key.
-    fn check_r1cs_lengths(
-        index_info: &IndexInfo,
-        r1cs_input_len: usize,
-        r1cs_witness_len: usize,
-    ) -> bool {
-        // The lengths of the R1CS inputs and witnesses to be accumulated must be supported by the
-        // index key.
-        return index_info.num_variables == r1cs_input_len + r1cs_witness_len;
     }
 
     /// Blinds the commitments from the first round messages.
@@ -302,14 +294,15 @@ where
     /// Compute the input witnesses for HP_AS using the accumulation inputs.
     fn compute_hp_input_witnesses<'a>(
         prover_key: &ProverKey<G>,
-        inputs: &Vec<InputRef<'_, ConstraintF<G>, Self>>,
+        input_instances: &Vec<&InputInstance<G>>,
+        input_witnesses: &Vec<&InputWitness<G::ScalarField>>,
     ) -> Vec<HPInputWitness<G::ScalarField>> {
-        inputs
-            .into_iter()
-            .map(|input| {
-                let instance = input.instance;
-                let witness = input.witness;
+        assert_eq!(input_instances.len(), input_witnesses.len());
 
+        input_instances
+            .into_iter()
+            .zip(input_witnesses)
+            .map(|(instance, witness)| {
                 let second_round_message: &SecondRoundMessage<G::ScalarField> =
                     &witness.second_round_message;
 
@@ -708,90 +701,61 @@ where
         let as_sponge = sponge.fork(PROTOCOL_NAME);
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
-        // Collect all of the inputs and accumulators into vectors and extract additional information from them.
-        let mut inputs_zk_config = false;
+        let mut r1cs_input_len: usize = prover_key.nark_pk.index_info.num_instance_variables;
+        let mut r1cs_witness_len: usize =
+            prover_key.nark_pk.index_info.num_variables - r1cs_input_len;
 
-        let mut r1cs_input_len: usize = 0;
-        let mut r1cs_witness_len: usize = 0;
-        let mut r1cs_len_set = false;
-
-        let mut accumulator_instances = Vec::new();
-        let mut accumulator_witnesses = Vec::new();
+        // Collect the accumulator instances and witnesses. Run checks on them.
+        let mut old_accumulator_instances = Vec::new();
+        let mut old_accumulator_witnesses = Vec::new();
         for acc in old_accumulators {
             let instance = acc.instance;
             let witness = acc.witness;
 
-            if !r1cs_len_set {
-                r1cs_input_len = instance.r1cs_input.len();
-                r1cs_witness_len = witness.r1cs_blinded_witness.len();
-
-                if !Self::check_r1cs_lengths(
-                    &prover_key.nark_pk.index_info,
-                    r1cs_input_len,
-                    r1cs_witness_len,
-                ) {
-                    return Err(BoxedError::new(MalformedAccumulator(
-                        "The number of variables exceeds that supported by the prover key."
-                            .to_string(),
-                    )));
-                }
-
-                r1cs_len_set = true;
-            }
-
             Self::check_accumulator_instance_structure(instance, r1cs_input_len)?;
             Self::check_accumulator_witness_structure(witness, r1cs_witness_len)?;
 
-            inputs_zk_config = inputs_zk_config || witness.randomness.is_some();
-            accumulator_instances.push(instance);
-            accumulator_witnesses.push(witness);
+            old_accumulator_instances.push(instance);
+            old_accumulator_witnesses.push(witness);
         }
 
-        let mut all_inputs = Vec::new();
+        // Collect the accumulator instances and witnesses. Run checks on them.
         let mut input_instances = Vec::new();
         let mut input_witnesses = Vec::new();
         for input in inputs {
             let instance = input.instance;
             let witness = input.witness;
 
-            if !r1cs_len_set {
-                r1cs_input_len = instance.r1cs_input.len();
-                r1cs_witness_len = witness.second_round_message.blinded_witness.len();
-
-                if !Self::check_r1cs_lengths(
-                    &prover_key.nark_pk.index_info,
-                    r1cs_input_len,
-                    r1cs_witness_len,
-                ) {
-                    return Err(BoxedError::new(MalformedInput(
-                        "The number of variables exceeds that supported by the prover key."
-                            .to_string(),
-                    )));
-                }
-
-                r1cs_len_set = true;
-            }
-
             Self::check_input_structure(&input, r1cs_input_len, r1cs_witness_len)?;
 
-            inputs_zk_config =
-                inputs_zk_config || instance.first_round_message.randomness.is_some();
             input_instances.push(instance);
             input_witnesses.push(witness);
-            all_inputs.push(input);
         }
 
-        if input_instances.len() + accumulator_instances.len() == 0 {
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
         }
 
         let (make_zk_enabled, mut rng) = make_zk.into_components();
-        if !make_zk_enabled && inputs_zk_config {
-            return Err(BoxedError::new(ASError::MissingRng(
-                "Accumulating inputs with hiding requires rng.".to_string(),
-            )));
+        // Ensure that none of the inputs or accumulators require zero-knowledge.
+        if !make_zk_enabled {
+            for witness in &input_witnesses {
+                if witness.second_round_message.randomness.is_some() {
+                    return Err(BoxedError::new(ASError::MissingRng(
+                        "Accumulating inputs with hiding requires rng.".to_string(),
+                    )));
+                }
+            }
+
+            for witness in &old_accumulator_witnesses {
+                if witness.randomness.is_some() {
+                    return Err(BoxedError::new(ASError::MissingRng(
+                        "Accumulating accumulators with hiding requires rng.".to_string(),
+                    )));
+                }
+            }
         }
 
         // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
@@ -832,7 +796,8 @@ where
         );
 
         // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
-        let combined_hp_input_witnesses = Self::compute_hp_input_witnesses(prover_key, &all_inputs);
+        let combined_hp_input_witnesses =
+            Self::compute_hp_input_witnesses(prover_key, &input_instances, &input_witnesses);
 
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
@@ -842,9 +807,9 @@ where
             );
 
         // Steps 4-5 of the scheme's accumulation prover, as detailed in BCLMS20.
-        let hp_accumulators_iter = accumulator_instances
+        let hp_accumulators_iter = old_accumulator_instances
             .iter()
-            .zip(&accumulator_witnesses)
+            .zip(&old_accumulator_witnesses)
             .map(
                 |(instance, witness)| AccumulatorRef::<_, ASForHadamardProducts<G>> {
                     instance: &instance.hp_instance,
@@ -870,13 +835,13 @@ where
 
         // Step 8 of the scheme's accumulation prover, as detailed in BCLMS20.
         let num_addends = input_instances.len()
-            + accumulator_instances.len()
+            + old_accumulator_instances.len()
             + if make_zk_enabled { 1 } else { 0 };
 
         let beta_challenges = Self::compute_beta_challenges(
             num_addends,
             &prover_key.as_matrices_hash,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &input_instances,
             &proof_randomness,
             as_sponge,
@@ -888,7 +853,7 @@ where
             &all_blinded_comm_a,
             &all_blinded_comm_b,
             &all_blinded_comm_c,
-            &accumulator_instances,
+            &old_accumulator_instances,
             &beta_challenges,
             proof_randomness.as_ref(),
         );
@@ -904,7 +869,7 @@ where
         // Step 10 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (r1cs_blinded_witness, randomness) = Self::compute_accumulator_witness_components(
             &input_witnesses,
-            &accumulator_witnesses,
+            &old_accumulator_witnesses,
             &beta_challenges,
             prover_witness_randomness.as_ref(),
         );
@@ -946,29 +911,24 @@ where
         let as_sponge = sponge.fork(PROTOCOL_NAME);
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
 
+        let r1cs_input_len = verifier_key.nark_index.num_instance_variables;
+
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
-        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
-
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
-            return Ok(false);
-        }
-
-        let r1cs_input_len = if old_accumulator_instances.is_empty() {
-            input_instances[0].r1cs_input.len()
-        } else {
-            old_accumulator_instances[0].r1cs_input.len()
-        };
-
         for instance in &input_instances {
             if Self::check_input_instance_structure(instance, r1cs_input_len).is_err() {
                 return Ok(false);
             }
         }
 
+        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
         for instance in &old_accumulator_instances {
             if Self::check_accumulator_instance_structure(instance, r1cs_input_len).is_err() {
                 return Ok(false);
             }
+        }
+
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
+            return Ok(false);
         }
 
         // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
@@ -1043,11 +1003,12 @@ where
         let instance = accumulator.instance;
         let witness = accumulator.witness;
 
-        if !Self::check_r1cs_lengths(
-            &decider_key.index_info,
-            instance.r1cs_input.len(),
-            witness.r1cs_blinded_witness.len(),
-        ) {
+        let mut r1cs_input_len: usize = decider_key.index_info.num_instance_variables;
+        let mut r1cs_witness_len: usize = decider_key.index_info.num_variables - r1cs_input_len;
+
+        if Self::check_accumulator_instance_structure(instance, r1cs_input_len).is_err()
+            || Self::check_accumulator_witness_structure(witness, r1cs_witness_len).is_err()
+        {
             return Ok(false);
         }
 

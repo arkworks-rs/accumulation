@@ -417,29 +417,24 @@ where
         let as_sponge = sponge.fork(PROTOCOL_NAME)?;
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME)?;
 
+        let r1cs_input_len = verifier_key.nark_index.num_instance_variables;
+
         let input_instances = input_instances.into_iter().collect::<Vec<_>>();
-        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
-
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
-            return Ok(Boolean::FALSE);
-        }
-
-        let r1cs_input_len = if old_accumulator_instances.is_empty() {
-            input_instances[0].r1cs_input.len()
-        } else {
-            old_accumulator_instances[0].r1cs_input.len()
-        };
-
         for instance in &input_instances {
             if !Self::check_input_instance_structure(instance, r1cs_input_len) {
                 return Ok(Boolean::FALSE);
             }
         }
 
+        let old_accumulator_instances = old_accumulator_instances.into_iter().collect::<Vec<_>>();
         for instance in &old_accumulator_instances {
             if !Self::check_accumulator_instance_structure(instance, r1cs_input_len) {
                 return Ok(Boolean::FALSE);
             }
+        }
+
+        if input_instances.len() + old_accumulator_instances.len() == 0 {
+            return Ok(Boolean::FALSE);
         }
 
         // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
