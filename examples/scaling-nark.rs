@@ -13,9 +13,9 @@ use ark_relations::{
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::poseidon::PoseidonSponge;
 use ark_sponge::CryptographicSponge;
+use ark_std::rand::Rng;
 use ark_std::vec::Vec;
 use ark_std::UniformRand;
-use rand::Rng;
 use std::time::Instant;
 
 #[derive(Copy, Clone)]

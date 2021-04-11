@@ -20,10 +20,10 @@ use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
+use ark_std::rand::RngCore;
 use ark_std::string::ToString;
 use ark_std::vec;
 use ark_std::vec::Vec;
-use rand_core::RngCore;
 
 mod data_structures;
 pub use data_structures::*;
@@ -1104,9 +1104,9 @@ pub mod tests {
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorbable, CryptographicSponge};
     use ark_std::marker::PhantomData;
+    use ark_std::rand::RngCore;
     use ark_std::vec::Vec;
     use ark_std::UniformRand;
-    use rand_core::RngCore;
 
     #[derive(Clone)]
     // num_variables = num_inputs + 2

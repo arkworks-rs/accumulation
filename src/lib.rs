@@ -26,7 +26,7 @@
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_sponge::CryptographicSponge;
-use rand_core::RngCore;
+use ark_std::rand::RngCore;
 
 #[macro_use]
 extern crate derivative;
@@ -93,7 +93,7 @@ pub mod trivial_pc_as;
 /// use ark_accumulation::{AccumulationScheme, Accumulator, Input, MakeZK};
 /// use ark_ff::PrimeField;
 /// use ark_sponge::CryptographicSponge;
-/// use rand_core::RngCore;
+/// use ark_std::rand::RngCore;
 ///
 /// // Basic setup to get the parameters and keys of an accumulation scheme.
 /// fn initialize<CF: PrimeField, AS: AccumulationScheme<CF>, R: RngCore>(
@@ -259,8 +259,8 @@ pub mod tests {
     use ark_ff::PrimeField;
     use ark_sponge::CryptographicSponge;
     use ark_std::marker::PhantomData;
+    use ark_std::rand::RngCore;
     use ark_std::vec::Vec;
-    use rand_core::RngCore;
 
     pub const NUM_ITERATIONS: usize = 50;
 

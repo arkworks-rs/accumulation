@@ -12,11 +12,11 @@ use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
+use ark_std::rand::RngCore;
 use ark_std::string::ToString;
 use ark_std::vec;
 use ark_std::vec::Vec;
 use ark_std::UniformRand;
-use rand_core::RngCore;
 
 mod data_structures;
 pub use data_structures::*;
@@ -928,10 +928,10 @@ pub mod tests {
     use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::Absorbable;
+    use ark_std::rand::RngCore;
     use ark_std::test_rng;
     use ark_std::vec::Vec;
     use ark_std::UniformRand;
-    use rand_core::RngCore;
 
     pub struct ASForHPTestParams {
         pub(crate) vector_len: usize,

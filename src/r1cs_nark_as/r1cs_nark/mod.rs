@@ -9,11 +9,11 @@ use ark_relations::r1cs::{
 };
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_std::rand::RngCore;
 use ark_std::vec;
 use ark_std::vec::Vec;
 use ark_std::{cfg_into_iter, cfg_iter, marker::PhantomData, UniformRand};
 use blake2::{digest::VariableOutput, VarBlake2b};
-use rand_core::RngCore;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;

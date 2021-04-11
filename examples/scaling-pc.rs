@@ -14,9 +14,9 @@ use ark_poly_commit::{LabeledPolynomial, PCCommitterKey, PolynomialCommitment, U
 use ark_serialize::CanonicalSerialize;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
+use ark_std::rand::Rng;
 use ark_std::vec::Vec;
 use blake2::Blake2s;
-use rand::Rng;
 use std::time::Instant;
 
 type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;

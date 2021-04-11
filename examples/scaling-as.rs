@@ -17,11 +17,10 @@ use ark_serialize::CanonicalSerialize;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
 use ark_sponge::poseidon::PoseidonSponge;
 use ark_sponge::CryptographicSponge;
+use ark_std::rand::{Rng, RngCore};
 use ark_std::vec::Vec;
 use ark_std::UniformRand;
 use blake2::Blake2s;
-use rand::Rng;
-use rand_core::RngCore;
 use std::time::Instant;
 
 type TrivPC = TrivialPC<G1Affine, DensePolynomial<Fr>>;
