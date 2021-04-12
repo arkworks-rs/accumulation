@@ -1,4 +1,3 @@
-use crate::constraints::NNFieldVar;
 use crate::hp_as::constraints::{InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar};
 use crate::r1cs_nark_as::data_structures::{
     AccumulatorInstance, InputInstance, Proof, ProofRandomness, VerifierKey,
@@ -8,6 +7,7 @@ use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
@@ -254,7 +254,7 @@ where
 /// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// An R1CS input.
-    pub r1cs_input: Vec<NNFieldVar<G>>,
+    pub r1cs_input: Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
 
     /// The sigma protocol's prover commitment of the NARK.
     pub first_round_message: FirstRoundMessageVar<G, C>,
@@ -292,7 +292,13 @@ where
                 .r1cs_input
                 .clone()
                 .into_iter()
-                .map(|elem| NNFieldVar::<G>::new_variable(ns.clone(), || Ok(elem), mode))
+                .map(|elem| {
+                    NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
+                        ns.clone(),
+                        || Ok(elem),
+                        mode,
+                    )
+                })
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             let first_round_message = FirstRoundMessageVar::new_variable(
@@ -316,7 +322,7 @@ where
 /// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// An input for the indexed relation.
-    pub(crate) r1cs_input: Vec<NNFieldVar<G>>,
+    pub(crate) r1cs_input: Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
 
     /// Pedersen commitment to the `Az` vector.
     pub(crate) comm_a: C,
@@ -370,7 +376,13 @@ where
                 .r1cs_input
                 .clone()
                 .into_iter()
-                .map(|elem| NNFieldVar::<G>::new_variable(ns.clone(), || Ok(elem), mode))
+                .map(|elem| {
+                    NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
+                        ns.clone(),
+                        || Ok(elem),
+                        mode,
+                    )
+                })
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
             let comm_a = C::new_variable(ns.clone(), || Ok(instance.comm_a.clone()), mode)?;
             let comm_b = C::new_variable(ns.clone(), || Ok(instance.comm_b.clone()), mode)?;
@@ -440,7 +452,7 @@ where
 /// The randomness or their commitments used to blind the vectors of the indexed relation.
 pub(crate) struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, ConstraintF<G>>> {
     /// Randomness used to blind the R1CS input.
-    pub(crate) r1cs_r_input: Vec<NNFieldVar<G>>,
+    pub(crate) r1cs_r_input: Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
 
     /// Pedersen commitment to the vector that blinds the witness in `Az`.
     pub(crate) comm_r_a: C,
@@ -490,7 +502,13 @@ where
                 .r1cs_r_input
                 .clone()
                 .into_iter()
-                .map(|elem| NNFieldVar::<G>::new_variable(ns.clone(), || Ok(elem), mode))
+                .map(|elem| {
+                    NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
+                        ns.clone(),
+                        || Ok(elem),
+                        mode,
+                    )
+                })
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             let comm_r_a = C::new_variable(ns.clone(), || Ok(randomness.comm_r_a.clone()), mode)?;

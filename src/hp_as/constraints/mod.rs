@@ -1,9 +1,10 @@
-use crate::constraints::{ASVerifierGadget, NNFieldVar};
+use crate::constraints::ASVerifierGadget;
 use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::ASForHadamardProducts;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::groups::CurveVar;
@@ -79,7 +80,7 @@ where
         if make_zk {
             let hiding_components_bits =
                 vec![&mu_challenges_bits[1], &mu_challenges_bits[num_inputs - 1]];
-            let mut hiding_components_fe: Vec<NNFieldVar<G>> =
+            let mut hiding_components_fe: Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>> =
                 bits_le_to_nonnative(sponge.cs().clone(), hiding_components_bits)?;
             mu_challenges_bits.push(
                 (hiding_components_fe
@@ -102,7 +103,8 @@ where
         let nu_size = FieldElementSize::Truncated(128);
         let (mut nu_challenge_fe, mut nu_challenge_bits) =
             sponge.squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())?;
-        let nu_challenge_fe: NNFieldVar<G> = nu_challenge_fe.pop().unwrap();
+        let nu_challenge_fe: NonNativeFieldVar<G::ScalarField, ConstraintF<G>> =
+            nu_challenge_fe.pop().unwrap();
 
         let mut nu_challenges_bits: Vec<Vec<Boolean<ConstraintF<G>>>> =
             Vec::with_capacity(2 * num_inputs - 1);

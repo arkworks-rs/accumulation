@@ -1,4 +1,4 @@
-use crate::constraints::{ASVerifierGadget, NNFieldVar};
+use crate::constraints::ASVerifierGadget;
 use crate::hp_as::constraints::ASForHPVerifierGadget;
 use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
@@ -9,6 +9,7 @@ use crate::r1cs_nark_as::{
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
@@ -87,10 +88,16 @@ where
     /// Computes the gamma challenges using the provided sponge.
     #[tracing::instrument(target = "r1cs", skip(input, msg, nark_sponge))]
     fn compute_gamma_challenge<S: CryptographicSponge<ConstraintF<G>>>(
-        input: &[NNFieldVar<G>],
+        input: &[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>],
         msg: &FirstRoundMessageVar<G, C>,
         mut nark_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
-    ) -> Result<(NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), SynthesisError> {
+    ) -> Result<
+        (
+            NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+            Vec<Boolean<ConstraintF<G>>>,
+        ),
+        SynthesisError,
+    > {
         let mut input_bytes = Vec::new();
         for elem in input {
             input_bytes.append(&mut elem.to_bytes()?);
@@ -123,7 +130,13 @@ where
         input_instances: &Vec<&InputInstanceVar<G, C>>,
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
         mut as_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
-    ) -> Result<(Vec<NNFieldVar<G>>, Vec<Vec<Boolean<ConstraintF<G>>>>), SynthesisError> {
+    ) -> Result<
+        (
+            Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
+            Vec<Vec<Boolean<ConstraintF<G>>>>,
+        ),
+        SynthesisError,
+    > {
         absorb_gadget!(
             &mut as_sponge,
             as_matrices_hash,
@@ -139,7 +152,7 @@ where
         let mut outputs_fe = Vec::with_capacity(num_challenges);
         let mut outputs_bits = Vec::with_capacity(num_challenges);
 
-        outputs_fe.push(NNFieldVar::<G>::one());
+        outputs_fe.push(NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::one());
         outputs_bits.push(vec![Boolean::TRUE]);
 
         outputs_fe.append(&mut squeeze.0);
@@ -246,9 +259,9 @@ where
     /// Computes the linear combination of vectors.
     #[tracing::instrument(target = "r1cs", skip(vectors, challenges))]
     fn combine_vectors<'a>(
-        vectors: impl IntoIterator<Item = &'a Vec<NNFieldVar<G>>>,
-        challenges: &[NNFieldVar<G>],
-    ) -> Result<Vec<NNFieldVar<G>>, SynthesisError> {
+        vectors: impl IntoIterator<Item = &'a Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>>,
+        challenges: &[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>],
+    ) -> Result<Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>, SynthesisError> {
         let mut output = Vec::new();
         for (ni, vector) in vectors.into_iter().enumerate() {
             for (li, elem) in vector.into_iter().enumerate() {
@@ -290,15 +303,15 @@ where
         all_blinded_comm_b: &Vec<C>,
         all_blinded_comm_c: &Vec<C>,
         accumulator_instances: &Vec<&AccumulatorInstanceVar<G, C>>,
-        beta_challenges_fe: &Vec<NNFieldVar<G>>,
+        beta_challenges_fe: &Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
         beta_challenges_bits: &Vec<Vec<Boolean<ConstraintF<G>>>>,
         proof_randomness: Option<&ProofRandomnessVar<G, C>>,
     ) -> Result<
         (
-            Vec<NNFieldVar<G>>, // Combined R1CS input
-            C,                  // Combined comm_a
-            C,                  // Combined comm_b
-            C,                  // Combined comm_c
+            Vec<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>, // Combined R1CS input
+            C,                                                      // Combined comm_a
+            C,                                                      // Combined comm_b
+            C,                                                      // Combined comm_c
         ),
         SynthesisError,
     > {

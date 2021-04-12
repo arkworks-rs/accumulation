@@ -1,9 +1,10 @@
-use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget, NNFieldVar};
+use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget};
 use crate::ipa_pc_as::{ASForIpaPCDomain, AtomicASForInnerProductArgPC, IpaPCDomain};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::Field;
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, IpaPCSuccinctCheckGadget, SuccinctCheckPolynomialVar,
@@ -54,7 +55,7 @@ where
     #[tracing::instrument(target = "r1cs", skip(ck, linear_polynomial))]
     fn deterministic_commit_to_linear_polynomial(
         ck: &ipa_pc::constraints::VerifierKeyVar<G, C>,
-        linear_polynomial: &[NNFieldVar<G>; 2],
+        linear_polynomial: &[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>; 2],
     ) -> Result<FinalCommKeyVar<C>, SynthesisError> {
         let linear_polynomial_bits = linear_polynomial
             .into_iter()
@@ -70,9 +71,9 @@ where
     /// Evaluates a linear polynomial at a point.
     #[tracing::instrument(target = "r1cs", skip(linear_polynomial, point))]
     fn evaluate_linear_polynomial(
-        linear_polynomial: &[NNFieldVar<G>; 2],
-        point: &NNFieldVar<G>,
-    ) -> NNFieldVar<G> {
+        linear_polynomial: &[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>; 2],
+        point: &NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+    ) -> NonNativeFieldVar<G::ScalarField, ConstraintF<G>> {
         (&linear_polynomial[1]).mul(point) + &linear_polynomial[0]
     }
 
@@ -111,7 +112,7 @@ where
                     &input.point,
                     vec![&input.evaluation],
                     &input.ipa_proof,
-                    &|_| NNFieldVar::<G>::one(),
+                    &|_| NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::one(),
                 )?;
 
                 Ok((
@@ -160,7 +161,10 @@ where
             C,                       // Combined commitment
             C,                       // Randomized combined commitment
             Vec<(
-                (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>), // Coefficient and its bits
+                (
+                    NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+                    Vec<Boolean<ConstraintF<G>>>,
+                ), // Coefficient and its bits
                 &'a SuccinctCheckPolynomialVar<G>,
             )>, // Addends to compute combined check polynomial
         ),
@@ -250,11 +254,14 @@ where
         as_sponge: DomainSeparatedSpongeVar<ConstraintF<G>, S, SV, ASForIpaPCDomain>,
         combined_commitment: &C,
         combined_check_polynomial_addends: &Vec<(
-            (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>),
+            (
+                NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+                Vec<Boolean<ConstraintF<G>>>,
+            ),
             &'a SuccinctCheckPolynomialVar<G>,
         )>,
-        random_linear_polynomial: Option<&[NNFieldVar<G>; 2]>,
-    ) -> Result<NNFieldVar<G>, SynthesisError> {
+        random_linear_polynomial: Option<&[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>; 2]>,
+    ) -> Result<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>, SynthesisError> {
         let mut challenge_point_sponge = as_sponge;
         challenge_point_sponge.absorb(&combined_commitment)?;
 
@@ -295,15 +302,18 @@ where
     #[tracing::instrument(target = "r1cs", skip(combined_check_polynomial_addends, point))]
     fn evaluate_combined_check_polynomials<'a>(
         combined_check_polynomial_addends: &Vec<(
-            (NNFieldVar<G>, Vec<Boolean<ConstraintF<G>>>),
+            (
+                NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+                Vec<Boolean<ConstraintF<G>>>,
+            ),
             &'a SuccinctCheckPolynomialVar<G>,
         )>,
-        point: &NNFieldVar<G>,
-        random_linear_polynomial: Option<&[NNFieldVar<G>; 2]>,
-    ) -> Result<NNFieldVar<G>, SynthesisError> {
+        point: &NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
+        random_linear_polynomial: Option<&[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>; 2]>,
+    ) -> Result<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>, SynthesisError> {
         let mut eval = random_linear_polynomial
             .map(|p| Self::evaluate_linear_polynomial(p, point))
-            .unwrap_or_else(|| NNFieldVar::<G>::zero());
+            .unwrap_or_else(|| NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::zero());
 
         for ((scalar, _), polynomial) in combined_check_polynomial_addends {
             eval += &polynomial.evaluate(point)?.mul(scalar);

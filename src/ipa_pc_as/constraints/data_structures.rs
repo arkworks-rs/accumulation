@@ -1,10 +1,10 @@
-use crate::constraints::NNFieldVar;
 use crate::ipa_pc_as::data_structures::{InputInstance, Randomness, VerifierKey};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
 use ark_ff::{BitIteratorLE, Field, PrimeField};
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_poly_commit::ipa_pc;
 use ark_poly_commit::UVPolynomial;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -75,10 +75,10 @@ where
     pub(crate) ipa_commitment: ipa_pc::constraints::CommitmentVar<G, C>,
 
     /// Point where the proof was opened at.
-    pub(crate) point: NNFieldVar<G>,
+    pub(crate) point: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     /// Evaluation of the committed polynomial at the point.
-    pub(crate) evaluation: NNFieldVar<G>,
+    pub(crate) evaluation: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     /// The IpaPC proof of evaluation at the point.
     pub(crate) ipa_proof: ipa_pc::constraints::ProofVar<G, C>,
@@ -102,13 +102,13 @@ where
                 mode,
             )?;
 
-            let point = NNFieldVar::<G>::new_variable(
+            let point = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().point),
                 mode,
             )?;
 
-            let evaluation = NNFieldVar::<G>::new_variable(
+            let evaluation = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().evaluation),
                 mode,
@@ -137,7 +137,8 @@ where
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>,
 {
     /// A random linear polynomial to be accumulated.
-    pub(crate) random_linear_polynomial_coeffs: [NNFieldVar<G>; 2],
+    pub(crate) random_linear_polynomial_coeffs:
+        [NonNativeFieldVar<G::ScalarField, ConstraintF<G>>; 2],
 
     /// The IpaPC commitment to the random linear polynomial.
     pub(crate) random_linear_polynomial_commitment: C,
@@ -162,7 +163,7 @@ where
             assert!(random_linear_polynomial_coeffs.len() <= 2);
 
             let random_linear_polynomial_coeffs = [
-                NNFieldVar::<G>::new_variable(
+                NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                     ns.clone(),
                     || {
                         Ok(if random_linear_polynomial_coeffs.len() > 0 {
@@ -173,7 +174,7 @@ where
                     },
                     mode,
                 )?,
-                NNFieldVar::<G>::new_variable(
+                NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                     ns.clone(),
                     || {
                         Ok(if random_linear_polynomial_coeffs.len() > 1 {

@@ -7,13 +7,6 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::CryptographicSponge;
 
-#[cfg(feature = "impl")]
-use {crate::ConstraintF, ark_ec::AffineCurve, ark_nonnative_field::NonNativeFieldVar};
-
-// Useful type alias for implementations.
-#[cfg(feature = "impl")]
-pub(crate) type NNFieldVar<G> = NonNativeFieldVar<<G as AffineCurve>::ScalarField, ConstraintF<G>>;
-
 /// The verifier gadget of an [`AccumulationScheme`].
 pub trait ASVerifierGadget<CF: PrimeField, AS: AccumulationScheme<CF>> {
     /// The key used to check that an accumulator was computed correctly from the inputs

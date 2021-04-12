@@ -1,9 +1,9 @@
-use crate::constraints::NNFieldVar;
 use crate::trivial_pc_as::{InputInstance, SingleProof};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
@@ -59,10 +59,10 @@ where
     pub commitment: C,
 
     /// Point where the proof was opened at.
-    pub point: NNFieldVar<G>,
+    pub point: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     /// Evaluation of the committed polynomial at the point.
-    pub eval: NNFieldVar<G>,
+    pub eval: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     #[doc(hidden)]
     pub _affine: PhantomData<G>,
@@ -82,12 +82,12 @@ where
         f().and_then(|input_instance| {
             let pedersen_comm: G = input_instance.borrow().commitment.commitment().elem;
             let commitment = C::new_variable(ns.clone(), || Ok(pedersen_comm), mode)?;
-            let point = NNFieldVar::<G>::new_variable(
+            let point = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().point),
                 mode,
             )?;
-            let eval = NNFieldVar::<G>::new_variable(
+            let eval = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&input_instance.borrow().eval),
                 mode,
@@ -127,10 +127,10 @@ where
     pub(crate) witness_commitment: C,
 
     /// Evaluation of the witness polynomial at the challenge point.
-    pub(crate) witness_eval: NNFieldVar<G>,
+    pub(crate) witness_eval: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     /// Evaluation of the input polynomial at the challenge point.
-    pub(crate) eval: NNFieldVar<G>,
+    pub(crate) eval: NonNativeFieldVar<G::ScalarField, ConstraintF<G>>,
 
     #[doc(hidden)]
     pub(crate) _affine: PhantomData<G>,
@@ -150,12 +150,12 @@ where
         f().and_then(|single_proof| {
             let witness_commitment: G = single_proof.borrow().witness_commitment.commitment().elem;
             let witness_commitment = C::new_variable(ns.clone(), || Ok(witness_commitment), mode)?;
-            let witness_eval = NNFieldVar::<G>::new_variable(
+            let witness_eval = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&single_proof.borrow().witness_eval),
                 mode,
             )?;
-            let eval = NNFieldVar::<G>::new_variable(
+            let eval = NonNativeFieldVar::<G::ScalarField, ConstraintF<G>>::new_variable(
                 ns.clone(),
                 || Ok(&single_proof.borrow().eval),
                 mode,

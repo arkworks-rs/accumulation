@@ -1,10 +1,10 @@
-use crate::constraints::{ASVerifierGadget, NNFieldVar};
+use crate::constraints::ASVerifierGadget;
 use crate::trivial_pc_as::ASForTrivialPC;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
-use ark_nonnative_field::NonNativeFieldMulResultVar;
+use ark_nonnative_field::{NonNativeFieldMulResultVar, NonNativeFieldVar};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
@@ -52,9 +52,9 @@ where
     /// Compute the linear combination of evaluations.
     #[tracing::instrument(target = "r1cs", skip(evaluations, challenge))]
     fn combine_evaluation<'a>(
-        evaluations: impl IntoIterator<Item = &'a NNFieldVar<G>>,
-        challenge: &[NNFieldVar<G>],
-    ) -> Result<NNFieldVar<G>, SynthesisError> {
+        evaluations: impl IntoIterator<Item = &'a NonNativeFieldVar<G::ScalarField, ConstraintF<G>>>,
+        challenge: &[NonNativeFieldVar<G::ScalarField, ConstraintF<G>>],
+    ) -> Result<NonNativeFieldVar<G::ScalarField, ConstraintF<G>>, SynthesisError> {
         let mut combined_evaluation =
             NonNativeFieldMulResultVar::<G::ScalarField, ConstraintF<G>>::zero();
         for (i, eval) in evaluations.into_iter().enumerate() {
@@ -152,8 +152,10 @@ where
             );
 
             // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
-            let eval_check_lhs: NNFieldVar<G> = &single_proof.eval - &input_instance.eval;
-            let eval_check_rhs: NNFieldVar<G> = (&single_proof.witness_eval)
+            let eval_check_lhs: NonNativeFieldVar<G::ScalarField, ConstraintF<G>> =
+                &single_proof.eval - &input_instance.eval;
+            let eval_check_rhs: NonNativeFieldVar<G::ScalarField, ConstraintF<G>> = (&single_proof
+                .witness_eval)
                 .mul(&(&new_accumulator_instance.point - &input_instance.point));
 
             let eval_check = eval_check_lhs.is_eq(&eval_check_rhs)?;
