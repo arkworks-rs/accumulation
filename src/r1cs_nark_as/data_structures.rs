@@ -72,10 +72,10 @@ pub struct InputInstance<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> InputInstance<G> {
-    pub(crate) fn zero(input_len: usize, with_zero_randomness: bool) -> Self {
+    pub(crate) fn zero(input_len: usize) -> Self {
         Self {
             r1cs_input: vec![G::ScalarField::zero(); input_len],
-            first_round_message: FirstRoundMessage::zero(with_zero_randomness),
+            first_round_message: FirstRoundMessage::zero(),
         }
     }
 }
@@ -112,9 +112,9 @@ pub struct InputWitness<F: Field> {
 }
 
 impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
+    pub(crate) fn zero(witness_len: usize) -> Self {
         Self {
-            second_round_message: SecondRoundMessage::zero(witness_len, with_zero_randomness),
+            second_round_message: SecondRoundMessage::zero(witness_len),
         }
     }
 }

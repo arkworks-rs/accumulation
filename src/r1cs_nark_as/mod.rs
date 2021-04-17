@@ -731,6 +731,17 @@ where
             input_witnesses.push(witness);
         }
 
+        // Default input in the case there are no provided inputs or accumulators.
+        let default_input_instance;
+        let default_input_witness;
+        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len));
+            default_input_witness = Some(InputWitness::zero(r1cs_witness_len));
+
+            input_instances.push(default_input_instance.as_ref().unwrap());
+            input_witnesses.push(default_input_witness.as_ref().unwrap());
+        }
+
         let (make_zk_enabled, mut rng) = make_zk.into_components();
         // Ensure that none of the inputs or accumulators require zero-knowledge.
         if !make_zk_enabled {
@@ -749,16 +760,6 @@ where
                     )));
                 }
             }
-        }
-
-        let default_input_instance;
-        let default_input_witness;
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
-            default_input_instance = Some(InputInstance::zero(r1cs_input_len, make_zk_enabled));
-            default_input_witness = Some(InputWitness::zero(r1cs_witness_len, make_zk_enabled));
-
-            input_instances.push(default_input_instance.as_ref().unwrap());
-            input_witnesses.push(default_input_witness.as_ref().unwrap());
         }
 
         // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
@@ -931,9 +932,10 @@ where
             }
         }
 
+        // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
-            default_input_instance = Some(InputInstance::zero(r1cs_input_len, make_zk_enabled));
+        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len));
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
 

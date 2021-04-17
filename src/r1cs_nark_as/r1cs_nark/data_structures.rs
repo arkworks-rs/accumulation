@@ -113,24 +113,12 @@ pub struct FirstRoundMessage<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> FirstRoundMessage<G> {
-    pub(crate) fn zero(with_zero_randomness: bool) -> Self {
-        let randomness = if with_zero_randomness {
-            Some(FirstRoundMessageRandomness {
-                comm_r_a: G::zero(),
-                comm_r_b: G::zero(),
-                comm_r_c: G::zero(),
-                comm_1: G::zero(),
-                comm_2: G::zero(),
-            })
-        } else {
-            None
-        };
-
+    pub(crate) fn zero() -> Self {
         Self {
             comm_a: G::zero(),
             comm_b: G::zero(),
             comm_c: G::zero(),
-            randomness,
+            randomness: None,
         }
     }
 }
@@ -179,21 +167,10 @@ pub struct SecondRoundMessage<F: Field> {
 }
 
 impl<F: Field> SecondRoundMessage<F> {
-    pub(crate) fn zero(witness_len: usize, with_zero_randomness: bool) -> Self {
-        let randomness = if with_zero_randomness {
-            Some(SecondRoundMessageRandomness {
-                sigma_a: F::zero(),
-                sigma_b: F::zero(),
-                sigma_c: F::zero(),
-                sigma_o: F::zero(),
-            })
-        } else {
-            None
-        };
-
+    pub(crate) fn zero(witness_len: usize) -> Self {
         Self {
             blinded_witness: vec![F::zero(); witness_len],
-            randomness,
+            randomness: None,
         }
     }
 }

@@ -449,11 +449,12 @@ where
             }
         }
 
+        // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
-        if input_instances.len() + old_accumulator_instances.len() == 0 {
+        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 sponge.cs(),
-                InputInstance::zero(r1cs_input_len, make_zk_enabled),
+                InputInstance::zero(r1cs_input_len),
             )?);
             input_instances.push(default_input_instance.as_ref().unwrap());
         }

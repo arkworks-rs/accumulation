@@ -63,21 +63,11 @@ pub struct InputWitness<F: Field> {
 }
 
 impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(vec_len: usize, with_zero_randomness: bool) -> Self {
-        let randomness = if with_zero_randomness {
-            Some(InputWitnessRandomness {
-                rand_1: F::zero(),
-                rand_2: F::zero(),
-                rand_3: F::zero(),
-            })
-        } else {
-            None
-        };
-
+    pub(crate) fn zero(vec_len: usize) -> Self {
         Self {
             a_vec: vec![F::zero(); vec_len],
             b_vec: vec![F::zero(); vec_len],
-            randomness,
+            randomness: None,
         }
     }
 }

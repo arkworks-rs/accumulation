@@ -672,12 +672,12 @@ where
             prover_key.supported_num_elems()
         };
 
-        // Default inputs in the case there are no provided inputs or accumulators.
+        // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
         let default_input_witness;
         if num_all_inputs == 0 {
             default_input_instance = Some(InputInstance::zero());
-            default_input_witness = Some(InputWitness::zero(hp_vec_len, make_zk_enabled));
+            default_input_witness = Some(InputWitness::zero(hp_vec_len));
 
             inputs.push(InputRef::<_, Self> {
                 instance: default_input_instance.as_ref().unwrap(),
@@ -691,7 +691,7 @@ where
         let placeholder_input_witness;
         if make_zk_enabled && num_all_inputs == 1 {
             placeholder_input_instance = Some(InputInstance::zero());
-            placeholder_input_witness = Some(InputWitness::zero(hp_vec_len, make_zk_enabled));
+            placeholder_input_witness = Some(InputWitness::zero(hp_vec_len));
 
             inputs.push(InputRef::<_, Self> {
                 instance: placeholder_input_instance.as_ref().unwrap(),

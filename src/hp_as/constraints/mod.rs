@@ -287,7 +287,7 @@ where
 
         let make_zk = proof.hiding_comms.is_some();
 
-        // Use the default input_instance if no inputs or accumulators are provided.
+        // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
         if num_all_inputs == 0 {
             default_input_instance = Some(InputInstanceVar::new_constant(
