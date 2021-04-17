@@ -1,6 +1,6 @@
 use ark_ec::AffineCurve;
-use ark_ff::{to_bytes, PrimeField};
-use ark_poly_commit::{trivial_pc, LabeledCommitment};
+use ark_ff::{to_bytes, PrimeField, Zero};
+use ark_poly_commit::{trivial_pc, LabeledCommitment, PolynomialLabel};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
 use ark_std::io::{Read, Write};
@@ -20,6 +20,20 @@ pub struct InputInstance<G: AffineCurve> {
 
     /// Evaluation of the committed polynomial at the point.
     pub eval: G::ScalarField,
+}
+
+impl<G: AffineCurve> InputInstance<G> {
+    pub(crate) fn zero() -> Self {
+        Self {
+            commitment: LabeledCommitment::new(
+                PolynomialLabel::new(),
+                trivial_pc::Commitment::default(),
+                None,
+            ),
+            point: G::ScalarField::zero(),
+            eval: G::ScalarField::zero(),
+        }
+    }
 }
 
 impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputInstance<G> {

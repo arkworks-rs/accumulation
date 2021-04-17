@@ -145,7 +145,7 @@ where
         }
 
         // The polynomial to be accumulated must have a degree that is supported by the prover key.
-        if witness.degree() < 1 || witness.degree() > prover_key.supported_degree() {
+        if witness.degree() > prover_key.supported_degree() {
             if is_accumulator {
                 return Err(BoxedError::new(ASError::MalformedAccumulator(format!(
                     "An accumulator witness of degree {} is unsupported for this prover key",
@@ -310,10 +310,28 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let inputs: Vec<InputRef<'a, _, Self>> = inputs.into_iter().collect();
-        let accumulators: Vec<AccumulatorRef<'a, _, Self>> = old_accumulators.into_iter().collect();
+        let mut inputs = inputs.into_iter().collect::<Vec<_>>();
+        let accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
 
-        let input_instances = inputs
+        // Default input in the case there are no provided inputs or accumulators.
+        let default_input_instance;
+        let default_input_witness;
+        if inputs.is_empty() && accumulators.is_empty() {
+            default_input_instance = Some(InputInstance::zero());
+            default_input_witness = Some(LabeledPolynomial::new(
+                PolynomialLabel::new(),
+                DensePolynomial::zero(),
+                None,
+                None,
+            ));
+
+            inputs.push(InputRef::<_, Self> {
+                instance: default_input_instance.as_ref().unwrap(),
+                witness: default_input_witness.as_ref().unwrap(),
+            });
+        }
+
+        let mut all_input_instances = inputs
             .iter()
             .map(|input| Self::check_input_instance_structure(input.instance, false))
             .chain(accumulators.iter().map(|accumulator| {
@@ -321,19 +339,13 @@ where
             }))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
-        let input_witnesses = inputs
+        let mut all_input_witnesses = inputs
             .iter()
             .map(|input| Self::check_input_witness_structure(input.witness, prover_key, false))
             .chain(accumulators.iter().map(|accumulator| {
                 Self::check_input_witness_structure(accumulator.witness, prover_key, true)
             }))
             .collect::<Result<Vec<_>, BoxedError>>()?;
-
-        if input_instances.len() == 0 {
-            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
-                "No inputs or accumulators to accumulate.".to_string(),
-            )));
-        }
 
         // Steps 1c-1d of the scheme's accumulation prover, as detailed in BCLMS20.
         let (witness_polynomials, witness_commitments) =
@@ -343,14 +355,14 @@ where
             )
             .map_err(|e| BoxedError::new(e))?;
 
-        assert_eq!(input_witnesses.len(), witness_polynomials.len());
-        assert_eq!(input_witnesses.len(), witness_commitments.len());
+        assert_eq!(all_input_witnesses.len(), witness_polynomials.len());
+        assert_eq!(all_input_witnesses.len(), witness_commitments.len());
 
         // Step 2 of the scheme's accumulation prover, as detailed in BCLMS20.
         let mut challenge_point_sponge = sponge.clone();
         challenge_point_sponge.absorb(&prover_key.supported_degree());
 
-        for (instance, witness_commitment) in input_instances.iter().zip(&witness_commitments) {
+        for (instance, witness_commitment) in all_input_instances.iter().zip(&witness_commitments) {
             absorb![
                 &mut challenge_point_sponge,
                 instance,
@@ -369,7 +381,7 @@ where
         linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
 
         let mut proof = Vec::new();
-        for ((input_witness, witness_polynomial), witness_commitment) in input_witnesses
+        for ((input_witness, witness_polynomial), witness_commitment) in all_input_witnesses
             .iter()
             .zip(&witness_polynomials)
             .zip(&witness_commitments)
@@ -402,7 +414,7 @@ where
 
         // Step 5 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_polynomial = Self::combine_polynomials(
-            input_witnesses.into_iter().chain(&witness_polynomials),
+            all_input_witnesses.into_iter().chain(&witness_polynomials),
             linear_combination_challenges.as_slice(),
         );
 
@@ -414,7 +426,7 @@ where
 
         // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_commitment = Self::combine_commitments(
-            input_instances
+            all_input_instances
                 .into_iter()
                 .map(|instance| &instance.commitment)
                 .chain(&witness_commitments),
@@ -453,7 +465,7 @@ where
         let sponge = sponge.unwrap_or_else(|| S::new());
 
         // Collect the input and run basic checks on them.
-        let input_instances = input_instances
+        let all_input_instances = input_instances
             .into_iter()
             .map(|instance| Self::check_input_instance_structure(instance, false))
             .chain(
@@ -463,13 +475,17 @@ where
             )
             .collect::<Result<Vec<_>, BoxedError>>();
 
-        if input_instances.is_err() {
+        if all_input_instances.is_err() {
             return Ok(false);
         }
 
-        let input_instances = input_instances.unwrap();
-        if input_instances.len() == 0 {
-            return Ok(false);
+        let mut all_input_instances = all_input_instances.unwrap();
+
+        // Default input in the case there are no provided inputs or accumulators.
+        let default_input_instance;
+        if all_input_instances.is_empty() {
+            default_input_instance = Some(InputInstance::zero());
+            all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
         let new_accumulator_instance =
@@ -479,11 +495,11 @@ where
         }
 
         let new_accumulator_instance = new_accumulator_instance.unwrap();
-        if input_instances.len() == 0 {
+        if all_input_instances.len() == 0 {
             return Ok(false);
         }
 
-        if !Self::check_proof_structure(proof, input_instances.len()) {
+        if !Self::check_proof_structure(proof, all_input_instances.len()) {
             return Ok(false);
         }
 
@@ -492,7 +508,7 @@ where
         challenge_point_sponge.absorb(verifier_key);
 
         let mut commitments = Vec::new();
-        for (input_instance, p) in input_instances.into_iter().zip(proof) {
+        for (input_instance, p) in all_input_instances.into_iter().zip(proof) {
             // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
             absorb![
                 &mut challenge_point_sponge,

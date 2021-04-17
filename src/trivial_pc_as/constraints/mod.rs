@@ -1,10 +1,11 @@
 use crate::constraints::ASVerifierGadget;
-use crate::trivial_pc_as::ASForTrivialPC;
+use crate::trivial_pc_as::{ASForTrivialPC, InputInstance};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_nonnative_field::{NonNativeFieldMulResultVar, NonNativeFieldVar};
+use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
@@ -120,18 +121,21 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| SV::new(cs));
+        let sponge = sponge.unwrap_or_else(|| SV::new(cs.clone()));
 
-        let input_instances = input_instances
+        let mut all_input_instances = input_instances
             .into_iter()
             .chain(old_accumulator_instances)
             .collect::<Vec<_>>();
 
-        if input_instances.len() == 0 {
-            return Ok(Boolean::FALSE);
+        let default_input_instance;
+        if all_input_instances.is_empty() {
+            default_input_instance =
+                Some(InputInstanceVar::new_constant(cs, InputInstance::zero())?);
+            all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
-        if !Self::check_proof_structure(proof, input_instances.len()) {
+        if !Self::check_proof_structure(proof, all_input_instances.len()) {
             return Ok(Boolean::FALSE);
         }
 
@@ -142,7 +146,8 @@ where
         challenge_point_sponge.absorb(&verifier_key.0)?;
 
         let mut commitment = Vec::new();
-        for (input_instance, single_proof) in input_instances.into_iter().zip(&proof.single_proofs)
+        for (input_instance, single_proof) in
+            all_input_instances.into_iter().zip(&proof.single_proofs)
         {
             // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
             absorb_gadget!(
