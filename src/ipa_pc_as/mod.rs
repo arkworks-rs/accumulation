@@ -545,12 +545,6 @@ where
                 .map(|instance| Self::check_input_instance_structure(instance, true))
                 .collect::<Result<Vec<_>, BoxedError>>()?;
 
-        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
-            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
-                "No inputs or accumulators to accumulate.".to_string(),
-            )));
-        }
-
         let (make_zk_enabled, mut rng) = make_zk.into_components();
         if !make_zk_enabled {
             for instance in input_instances.iter().chain(&old_accumulator_instances) {
@@ -561,6 +555,12 @@ where
                 }
             }
         };
+
+        if !make_zk_enabled && input_instances.is_empty() && old_accumulator_instances.is_empty() {
+            return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
+                "No inputs or accumulators to accumulate.".to_string(),
+            )));
+        }
 
         let proof = if make_zk_enabled {
             // If make_zk, then rng should exist here.
@@ -670,14 +670,16 @@ where
 
         let old_accumulator_instances = old_accumulator_instances.unwrap();
 
-        if input_instances.is_empty() && old_accumulator_instances.is_empty() {
+        if !Self::check_proof_structure(&proof) {
+            return Ok(false);
+        }
+
+        let make_zk = proof.is_some();
+        if !make_zk && input_instances.is_empty() && old_accumulator_instances.is_empty() {
+            // TODO: Add special case for default
             return Err(BoxedError::new(ASError::MissingAccumulatorsAndInputs(
                 "No inputs or accumulators to accumulate.".to_string(),
             )));
-        }
-
-        if !Self::check_proof_structure(&proof) {
-            return Ok(false);
         }
 
         // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
@@ -692,10 +694,6 @@ where
         };
 
         let succinct_checks = succinct_check_result.ok().unwrap();
-
-        if succinct_checks.is_empty() {
-            return Ok(false);
-        }
 
         // Steps 4-5 of the scheme's common subroutine, as detailed in BCMS20.
         if let Some(randomness) = proof.as_ref() {

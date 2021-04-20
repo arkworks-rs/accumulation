@@ -384,6 +384,19 @@ where
             return Ok(Boolean::FALSE);
         }
 
+        let make_zk = proof.randomness.is_some();
+        if !make_zk && input_instances.is_empty() && old_accumulator_instances.is_empty() {
+            // TODO: Add special case for default
+            return Ok(Boolean::FALSE);
+        }
+
+        // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
+        let succinct_check_result = Self::succinct_check_inputs::<_, S, SV>(
+            ns!(cs, "succinct_check_results").cs(),
+            &verifier_key.ipa_svk,
+            input_instances.into_iter().chain(old_accumulator_instances),
+        )?;
+
         if let Some(randomness) = proof.randomness.as_ref() {
             let linear_polynomial_commitment = Self::deterministic_commit_to_linear_polynomial(
                 &verifier_key.ipa_ck_linear,
@@ -394,17 +407,6 @@ where
                 &linear_polynomial_commitment
                     .is_eq(&randomness.random_linear_polynomial_commitment)?,
             )?;
-        }
-
-        // Step 2 of the scheme's common subroutine, as detailed in BCMS20.
-        let succinct_check_result = Self::succinct_check_inputs::<_, S, SV>(
-            ns!(cs, "succinct_check_results").cs(),
-            &verifier_key.ipa_svk,
-            input_instances.into_iter().chain(old_accumulator_instances),
-        )?;
-
-        if succinct_check_result.is_empty() {
-            return Ok(Boolean::FALSE);
         }
 
         // Steps 6-8 and 10 of the scheme's common subroutine, as detailed in BCMS20.
