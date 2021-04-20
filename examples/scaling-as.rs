@@ -33,7 +33,7 @@ type IpaPC = InnerProductArgPC<
     Fq,
     DomainSeparatedSponge<Fq, PoseidonSponge<Fq>, IpaPCDomain>,
 >;
-type ASForIpaPC = AtomicASForInnerProductArgPC<G1Affine>;
+type ASForIpaPC = AtomicASForInnerProductArgPC<G1Affine, PoseidonSponge<Fq>>;
 
 fn profile_as<F, P, PC, CF, S, AS, R, ParamGen, InputGen>(
     min_degree: usize,
