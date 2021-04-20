@@ -1,10 +1,8 @@
 use ark_ec::AffineCurve;
-use ark_ff::PrimeField;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::{ipa_pc, LabeledCommitment};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::domain_separated::DomainSeparator;
-use ark_sponge::{Absorbable, CryptographicSponge};
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
@@ -101,34 +99,5 @@ pub struct ASForIpaPCDomain {}
 impl DomainSeparator for ASForIpaPCDomain {
     fn domain() -> Vec<u8> {
         b"AS-FOR-IPA-PC-2020".to_vec()
-    }
-}
-
-/// The current implementation of IpaPC requires passing in a sponge type as a generic type.
-/// However, functions that IpaPC offer may not require the use of a sponge. This struct allows us
-/// to always pass in a sponge as a generic type when the accumulation scheme API does not have
-/// access to any sponge types (ie. in the indexer). Once IpaPC supports passing in sponge objects
-/// only when necessary, we can remove this workaround.
-#[derive(Clone)]
-pub(crate) struct UnimplementedSponge {}
-impl<CF: PrimeField> CryptographicSponge<CF> for UnimplementedSponge {
-    fn new() -> Self {
-        unimplemented!()
-    }
-
-    fn absorb(&mut self, _input: &impl Absorbable<CF>) {
-        unimplemented!()
-    }
-
-    fn squeeze_bytes(&mut self, _num_bytes: usize) -> Vec<u8> {
-        unimplemented!()
-    }
-
-    fn squeeze_bits(&mut self, _num_bits: usize) -> Vec<bool> {
-        unimplemented!()
-    }
-
-    fn squeeze_field_elements(&mut self, _num_elements: usize) -> Vec<CF> {
-        unimplemented!()
     }
 }
