@@ -27,6 +27,8 @@ where
 {
     pub(crate) ipa_svk: ipa_pc::constraints::SuccinctVerifierKeyVar<G, C>,
     pub(crate) ipa_ck_linear: ipa_pc::constraints::VerifierKeyVar<G, C>,
+
+    pub(crate) default_proof: ipa_pc::Proof<G>,
 }
 
 impl<G, C> AllocVar<VerifierKey<G>, ConstraintF<G>> for VerifierKeyVar<G, C>
@@ -53,9 +55,12 @@ where
                 mode,
             )?;
 
+            let default_proof = verifier_key.borrow().default_proof.clone();
+
             Ok(Self {
                 ipa_svk,
                 ipa_ck_linear,
+                default_proof,
             })
         })
     }

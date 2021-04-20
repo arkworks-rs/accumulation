@@ -1,3 +1,5 @@
+use crate::ipa_pc_as::IpaPC;
+use crate::ConstraintF;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -45,6 +47,9 @@ pub struct VerifierKey<G: AffineCurve> {
 
     /// The IpaPC committer key for random linear polynomials.
     pub(crate) ipa_ck_linear: ipa_pc::CommitterKey<G>,
+
+    /// The IpaPC proof for the opening of the zero polynomial at the point zero.
+    pub(crate) default_proof: ipa_pc::Proof<G>,
 }
 
 /// The [`InputInstance`][input_instance] of the [`AtomicASForInnerProductArgPC`][as_for_ipa_pc].
