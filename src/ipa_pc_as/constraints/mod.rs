@@ -11,6 +11,7 @@ use ark_poly_commit::ipa_pc::constraints::{
     CMCommitGadget, IpaPCSuccinctCheckGadget, SuccinctCheckPolynomialVar,
 };
 use ark_poly_commit::{ipa_pc, LabeledCommitment, PolynomialLabel};
+use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::bits::uint8::UInt8;
 use ark_r1cs_std::eq::EqGadget;
@@ -27,7 +28,6 @@ use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSiz
 use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
 use ark_std::vec;
-use ark_r1cs_std::alloc::AllocVar;
 use ark_std::vec::Vec;
 
 mod data_structures;

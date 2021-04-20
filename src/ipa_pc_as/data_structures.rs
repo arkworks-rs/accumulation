@@ -1,5 +1,3 @@
-use crate::ipa_pc_as::IpaPC;
-use crate::ConstraintF;
 use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_poly::polynomial::univariate::DensePolynomial;

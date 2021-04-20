@@ -200,7 +200,7 @@ where
                 None,
             );
 
-            let mut witness_commitment =
+            let witness_commitment =
                 TrivialPC::commit(ck, vec![&labeled_witness_polynomial], None)?
                     .0
                     .pop()
@@ -331,7 +331,7 @@ where
             });
         }
 
-        let mut all_input_instances = inputs
+        let all_input_instances = inputs
             .iter()
             .map(|input| Self::check_input_instance_structure(input.instance, false))
             .chain(accumulators.iter().map(|accumulator| {
@@ -339,7 +339,7 @@ where
             }))
             .collect::<Result<Vec<_>, BoxedError>>()?;
 
-        let mut all_input_witnesses = inputs
+        let all_input_witnesses = inputs
             .iter()
             .map(|input| Self::check_input_witness_structure(input.witness, prover_key, false))
             .chain(accumulators.iter().map(|accumulator| {
