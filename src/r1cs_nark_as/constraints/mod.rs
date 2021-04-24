@@ -4,7 +4,7 @@ use crate::hp_as::constraints::{
     InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
 };
 use crate::r1cs_nark_as::{
-    r1cs_nark, ASForR1CSNark, InputInstance, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME,
+    r1cs_nark, ASForR1CSNark, InputInstance, CHALLENGE_SIZE, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME,
 };
 use crate::ConstraintF;
 
@@ -105,8 +105,9 @@ where
 
         absorb_gadget!(&mut nark_sponge, input_bytes, msg);
 
-        let mut squeezed = nark_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])?;
+        let mut squeezed = nark_sponge.squeeze_nonnative_field_elements_with_sizes(&[
+            FieldElementSize::Truncated(CHALLENGE_SIZE),
+        ])?;
 
         Ok((squeezed.0.pop().unwrap(), squeezed.1.pop().unwrap()))
     }
@@ -146,7 +147,7 @@ where
         );
 
         let mut squeeze = as_sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated(128); num_challenges - 1].as_slice(),
+            vec![FieldElementSize::Truncated(CHALLENGE_SIZE); num_challenges - 1].as_slice(),
         )?;
 
         let mut outputs_fe = Vec::with_capacity(num_challenges);

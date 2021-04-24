@@ -1,3 +1,4 @@
+use crate::r1cs_nark_as::CHALLENGE_SIZE;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -58,7 +59,9 @@ where
         absorb!(&mut sponge, input_bytes, msg);
 
         let out = sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(128)])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_SIZE,
+            )])
             .pop()
             .unwrap();
 

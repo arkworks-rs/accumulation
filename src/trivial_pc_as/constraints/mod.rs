@@ -1,5 +1,7 @@
 use crate::constraints::ASVerifierGadget;
-use crate::trivial_pc_as::{ASForTrivialPC, InputInstance};
+use crate::trivial_pc_as::{
+    ASForTrivialPC, InputInstance, CHALLENGE_POINT_SIZE, LINEAR_COMBINATION_CHALLENGE_SIZE,
+};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -171,7 +173,9 @@ where
 
         // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut challenge_point_sponge_field_element_and_bits = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?;
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_POINT_SIZE,
+            )])?;
 
         let challenge_point = challenge_point_sponge_field_element_and_bits
             .0
@@ -190,8 +194,17 @@ where
         let mut linear_combination_challenge_sponge = sponge;
         let challenge_point_bytes = challenge_point_bits
             .chunks(8)
-            .map(UInt8::<ConstraintF<G>>::from_bits_le)
+            .map(|bits| {
+                if bits.len() == 8 {
+                    UInt8::<ConstraintF<G>>::from_bits_le(bits)
+                } else {
+                    let mut bits_tmp = bits.to_vec();
+                    bits_tmp.resize_with(8, || Boolean::FALSE);
+                    UInt8::<ConstraintF<G>>::from_bits_le(bits_tmp.as_slice())
+                }
+            })
             .collect::<Vec<_>>();
+
         // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         linear_combination_challenge_sponge.absorb(&challenge_point_bytes)?;
 
@@ -205,7 +218,11 @@ where
 
         let (linear_combination_challenge, linear_combination_challenge_bits) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated(128); proof.single_proofs.len() * 2].as_slice(),
+                vec![
+                    FieldElementSize::Truncated(LINEAR_COMBINATION_CHALLENGE_SIZE);
+                    proof.single_proofs.len() * 2
+                ]
+                .as_slice(),
             )?;
 
         // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.

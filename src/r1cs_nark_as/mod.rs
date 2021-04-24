@@ -38,6 +38,9 @@ pub mod constraints;
 pub(crate) const HP_AS_PROTOCOL_NAME: &[u8] = b"AS-FOR-HP-2020";
 pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 
+/// Size of squeezed challenges in terms of number of bits.
+pub(self) const CHALLENGE_SIZE: usize = 128;
+
 /// An accumulation scheme for a NARK for R1CS.
 /// This implementation is specialized for [`r1cs_nark`].
 /// The construction is described in detail in Section 9 of [\[BCLMS20\]][bclms20].
@@ -417,7 +420,7 @@ where
         );
 
         let mut squeeze = as_sponge.squeeze_nonnative_field_elements_with_sizes(
-            vec![FieldElementSize::Truncated(128); num_challenges - 1].as_slice(),
+            vec![FieldElementSize::Truncated(CHALLENGE_SIZE); num_challenges - 1].as_slice(),
         );
 
         let mut outputs = Vec::with_capacity(num_challenges);

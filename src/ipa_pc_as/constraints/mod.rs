@@ -1,6 +1,7 @@
 use crate::constraints::{ASVerifierGadget, AtomicASVerifierGadget};
 use crate::ipa_pc_as::{
     ASForIpaPCDomain, AtomicASForInnerProductArgPC, InputInstance, IpaPCDomain,
+    CHALLENGE_POINT_SIZE, LINEAR_COMBINATION_CHALLENGE_SIZE,
 };
 use crate::ConstraintF;
 
@@ -202,7 +203,11 @@ where
 
         let (linear_combination_challenges, linear_combination_challenge_bits) =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated(128); succinct_checks.len()].as_slice(),
+                vec![
+                    FieldElementSize::Truncated(LINEAR_COMBINATION_CHALLENGE_SIZE);
+                    succinct_checks.len()
+                ]
+                .as_slice(),
             )?;
 
         let mut combined_commitment = if let Some(randomness) = proof.randomness.as_ref() {
@@ -276,7 +281,15 @@ where
         {
             let linear_combination_challenge_bytes = linear_combination_challenge_bits
                 .chunks(8)
-                .map(UInt8::<ConstraintF<G>>::from_bits_le)
+                .map(|bits| {
+                    if bits.len() == 8 {
+                        UInt8::<ConstraintF<G>>::from_bits_le(bits)
+                    } else {
+                        let mut bits_tmp = bits.to_vec();
+                        bits_tmp.resize_with(8, || Boolean::FALSE);
+                        UInt8::<ConstraintF<G>>::from_bits_le(bits_tmp.as_slice())
+                    }
+                })
                 .collect::<Vec<_>>();
 
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes)?;
@@ -288,7 +301,9 @@ where
         }
 
         Ok(challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])?
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_POINT_SIZE,
+            )])?
             .0
             .pop()
             .unwrap())

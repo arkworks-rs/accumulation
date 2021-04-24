@@ -25,6 +25,9 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
+/// Size of squeezed challenges in terms of number of bits.
+pub(crate) const CHALLENGE_SIZE: usize = 128;
+
 /// An accumulation scheme for the Hadamard product relation.
 /// The construction is described in detail in Section 8 of [\[BCLMS20\]][bclms20].
 ///
@@ -232,7 +235,7 @@ where
         mu_challenges.push(G::ScalarField::one());
 
         if num_inputs > 1 {
-            let mu_size = FieldElementSize::Truncated(128);
+            let mu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
             mu_challenges.append(&mut sponge.squeeze_nonnative_field_elements_with_sizes(
                 vec![mu_size; num_inputs - 1].as_slice(),
             ));
@@ -250,7 +253,7 @@ where
         sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
         num_inputs: usize,
     ) -> Vec<G::ScalarField> {
-        let nu_size = FieldElementSize::Truncated(128);
+        let nu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
         let nu_challenge: G::ScalarField = sponge
             .squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())
             .pop()

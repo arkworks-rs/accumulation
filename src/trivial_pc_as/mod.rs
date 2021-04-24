@@ -27,6 +27,10 @@ pub use data_structures::*;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
+/// Sizes of squeezed challenges in terms of number of bits.
+pub(self) const LINEAR_COMBINATION_CHALLENGE_SIZE: usize = 126;
+pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
+
 /// An accumulation scheme for a trivial homomorphic commitment schemes.
 /// This implementation is specialized for [`TrivialPC`][trivial-pc].
 /// The construction is described in detail in Section 7 of [\[BCLMS20\]][bclms20].
@@ -371,13 +375,15 @@ where
         }
 
         let challenge_point = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_POINT_SIZE,
+            )])
             .pop()
             .unwrap();
 
         let mut linear_combination_challenges_sponge = sponge;
         let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
-        challenge_point_bytes.resize_with(23, || 0u8);
+        challenge_point_bytes.resize_with((CHALLENGE_POINT_SIZE + 7) / 8, || 0u8);
         linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
 
         let mut proof = Vec::new();
@@ -409,7 +415,11 @@ where
         // Step 4 of the scheme's accumulation prover, as detailed in BCLMS20.
         let linear_combination_challenges = linear_combination_challenges_sponge
             .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
+                vec![
+                    FieldElementSize::Truncated(LINEAR_COMBINATION_CHALLENGE_SIZE);
+                    proof.len() * 2
+                ]
+                .as_slice(),
             );
 
         // Step 5 of the scheme's accumulation prover, as detailed in BCLMS20.
@@ -531,7 +541,9 @@ where
 
         // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let challenge_point: G::ScalarField = challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_POINT_SIZE,
+            )])
             .pop()
             .unwrap();
 
@@ -542,7 +554,7 @@ where
         // Step 5 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let mut linear_combination_challenges_sponge = sponge;
         let mut challenge_point_bytes = to_bytes!(challenge_point).unwrap();
-        challenge_point_bytes.resize_with(23, || 0u8);
+        challenge_point_bytes.resize_with((CHALLENGE_POINT_SIZE + 7) / 8, || 0u8);
         linear_combination_challenges_sponge.absorb(&challenge_point_bytes);
 
         for single_proof in proof {
@@ -555,7 +567,11 @@ where
 
         let linear_combination_challenges = linear_combination_challenges_sponge
             .squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated(128); proof.len() * 2].as_slice(),
+                vec![
+                    FieldElementSize::Truncated(LINEAR_COMBINATION_CHALLENGE_SIZE);
+                    proof.len() * 2
+                ]
+                .as_slice(),
             );
 
         // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.

@@ -1,6 +1,6 @@
 use crate::constraints::ASVerifierGadget;
 use crate::hp_as::data_structures::InputInstance;
-use crate::hp_as::ASForHadamardProducts;
+use crate::hp_as::{ASForHadamardProducts, CHALLENGE_SIZE};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -70,9 +70,9 @@ where
         mu_challenges_bits.push(vec![Boolean::TRUE]);
 
         if num_inputs > 1 {
-            let mu_challenges_bits_rest = sponge.squeeze_bits(128 * (num_inputs - 1))?;
+            let mu_challenges_bits_rest = sponge.squeeze_bits(CHALLENGE_SIZE * (num_inputs - 1))?;
             mu_challenges_bits_rest
-                .chunks(128)
+                .chunks(CHALLENGE_SIZE)
                 .into_iter()
                 .for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
         }
@@ -100,7 +100,7 @@ where
         sponge: &mut impl CryptographicSpongeVar<ConstraintF<G>, S>,
         num_inputs: usize,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
-        let nu_size = FieldElementSize::Truncated(128);
+        let nu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
         let (mut nu_challenge_fe, mut nu_challenge_bits) =
             sponge.squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())?;
         let nu_challenge_fe: NonNativeFieldVar<G::ScalarField, ConstraintF<G>> =

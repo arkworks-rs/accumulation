@@ -38,6 +38,10 @@ pub(crate) type IpaPC<G, S> = InnerProductArgPC<
     DomainSeparatedSponge<ConstraintF<G>, S, IpaPCDomain>,
 >;
 
+/// Sizes of squeezed challenges in terms of number of bits.
+pub(self) const LINEAR_COMBINATION_CHALLENGE_SIZE: usize = 128;
+pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
+
 /// An accumulation scheme for a polynomial commitment scheme based on inner product arguments.
 /// This implementation is specialized for [`InnerProductArgPC`][ipa-pc].
 /// The construction is described in detail in Section 7 of [\[BCMS20\]][\[BCMS20\]].
@@ -287,7 +291,11 @@ where
 
         let linear_combination_challenges: Vec<G::ScalarField> =
             linear_combination_challenge_sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![FieldElementSize::Truncated(128); succinct_checks.len()].as_slice(),
+                vec![
+                    FieldElementSize::Truncated(LINEAR_COMBINATION_CHALLENGE_SIZE);
+                    succinct_checks.len()
+                ]
+                .as_slice(),
             );
 
         let mut combined_commitment = if let Some(randomness) = proof.as_ref() {
@@ -361,7 +369,8 @@ where
         for (linear_combination_challenge, check_polynomial) in combined_check_polynomial_addends {
             let mut linear_combination_challenge_bytes =
                 to_bytes!(linear_combination_challenge).unwrap();
-            linear_combination_challenge_bytes.resize_with(16, || 0);
+            linear_combination_challenge_bytes
+                .resize_with((LINEAR_COMBINATION_CHALLENGE_SIZE + 7) / 8, || 0);
             challenge_point_sponge.absorb(&linear_combination_challenge_bytes);
 
             Self::absorb_succinct_check_polynomial_into_sponge(
@@ -371,7 +380,9 @@ where
         }
 
         challenge_point_sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(184)])
+            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+                CHALLENGE_POINT_SIZE,
+            )])
             .pop()
             .unwrap()
     }
