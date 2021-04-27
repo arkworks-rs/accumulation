@@ -409,41 +409,36 @@ pub mod tests {
         pub fn simple_accumulation_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration: vec![1; 2],
+                num_inputs_per_iteration: vec![1, 1],
             };
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
-        /// Tests the accumulation of three inputs and three accumulators.
+        /// Tests the accumulation of multiple inputs and multiple accumulators.
         pub fn multiple_inputs_accumulation_test(
             test_params: &I::TestParams,
         ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration: vec![3; 4],
+                num_inputs_per_iteration: vec![1, 1, 2, 3],
             };
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
-        /// Tests the accumulation of three accumulators only.
+        /// Tests the accumulation of multiple accumulators without any inputs.
         pub fn accumulators_only_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
-            let mut num_inputs_per_iteration = vec![0; 4];
-
-            // To initialize the starting accumulator
-            num_inputs_per_iteration[0] = 1;
-
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
-                num_inputs_per_iteration,
+                num_inputs_per_iteration: vec![1, 0, 0, 0],
             };
 
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
 
-        /// Tests the initialization of the first accumulator using no inputs.
+        /// Tests the initialization of the first accumulator without any inputs.
         pub fn no_inputs_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: 1,
