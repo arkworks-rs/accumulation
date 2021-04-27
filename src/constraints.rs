@@ -153,7 +153,7 @@ pub mod tests {
                     .unwrap();
 
                     let accumulator_instance_var =
-                        ASV::AccumulatorInstance::new_witness(cs.clone(), || {
+                        ASV::AccumulatorInstance::new_input(cs.clone(), || {
                             Ok(accumulator.instance.clone())
                         })
                         .unwrap();
@@ -180,8 +180,13 @@ pub mod tests {
 
                     assert!(cs.is_satisfied().unwrap(), "Verify failed.");
 
+                    old_accumulator_instance_vars.push(
+                        ASV::AccumulatorInstance::new_witness(cs.clone(), || {
+                            Ok(accumulator.instance.clone())
+                        })
+                        .unwrap(),
+                    );
                     old_accumulators.push(accumulator);
-                    old_accumulator_instance_vars.push(accumulator_instance_var);
                 }
             }
 
