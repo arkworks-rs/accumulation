@@ -1,0 +1,79 @@
+[package]
+name = "ark-accumulation"
+version = "0.1.0"
+authors = [
+  "Benedikt Bünz <benedikt@cs.stanford.edu>",
+  "Alessandro Chiesa <alexch@berkeley.edu>",
+  "William Lin <will.lin@berkeley.edu>",
+  "Pratyush Mishra <pratyush@berkeley.edu>",
+  "Nicholas Spooner <nick.spooner@berkeley.edu>",
+]
+edition = "2018"
+
+[dependencies]
+# Dependencies for core library
+ark-ec = { version = "^0.2.0", default-features = false }
+ark-ff = { version = "^0.2.0", default-features = false }
+ark-serialize = { version = "^0.2.0", default-features = false, features = [ "derive" ] }
+ark-sponge = { git = "https://github.com/arkworks-rs/sponge/", branch = "accumulation-experimental", default-features = false }
+ark-std = { version = "^0.2.0", default-features = false }
+derivative = { version = "2.1.1", default-features = false, features = [ "use_core" ] }
+
+# Dependencies for r1cs
+ark-crypto-primitives = { version = "^0.2.0", default-features = false, optional = true }
+ark-nonnative-field = { version = "^0.2.0", default-features = false, optional = true }
+ark-relations = { version = "^0.2.0", default-features = false, optional = true }
+ark-r1cs-std = { version = "^0.2.0", default-features = false, optional = true }
+tracing = { version = "0.1", default-features = false, features = [ "attributes" ], optional = true }
+
+# Dependencies for parallel
+rayon = { version = "1", optional = true }
+
+# Dependencies for implementations
+ark-poly = { version = "^0.2.0", default-features = false, optional = true }
+ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit", branch = "accumulation-experimental", default-features = false, optional = true }
+blake2 = { version = "0.9.1", default-features = false, optional = true }
+digest = { version = "0.9.0", default-features = false, optional = true }
+
+[dev-dependencies]
+ark-pallas = { version = "^0.2.0", features = [ "r1cs", "curve" ] }
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.2", default-features = false, features = [ "registry" ] }
+
+[features]
+default = [ "r1cs", "std" ]
+
+parallel = [ "std", "ark-ec/parallel", "ark-ff/parallel", "ark-poly/parallel",
+             "ark-poly-commit/parallel", "ark-std/parallel", "rayon" ]
+
+print-trace = [ "ark-poly-commit/print-trace", "ark-std/print-trace" ]
+
+r1cs = [ "ark-crypto-primitives/r1cs", "ark-nonnative-field", "ark-poly-commit/r1cs",
+         "ark-relations", "ark-r1cs-std", "ark-sponge/r1cs", "tracing" ]
+
+std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-field/std",
+        "ark-poly/std", "ark-poly-commit/std", "ark-relations/std", "ark-r1cs-std/std",
+        "ark-serialize/std", "ark-sponge/std", "ark-std/std" ]
+
+# Accumulation scheme implementations
+impl = []
+hp-as = [ "impl", "ark-poly" ]
+ipa-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
+r1cs-nark-as = [ "impl", "blake2", "digest", "hp-as", "r1cs" ]
+trivial-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "scaling-as"
+required-features = [ "hp-as", "ipa-pc-as", "r1cs-nark-as", "trivial-pc-as" ]
+
+[[example]]
+name = "scaling-nark"
+required-features = [ "hp-as", "r1cs-nark-as" ]
+
+[[example]]
+name = "scaling-pc"
+required-features = [ "ipa-pc-as" ]
