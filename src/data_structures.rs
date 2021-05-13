@@ -5,10 +5,20 @@ use ark_std::io::{Read, Write};
 use ark_std::rand::RngCore;
 
 // Useful type alias for implementations.
-#[cfg(feature = "impl")]
+#[cfg(any(
+    feature = "hp-as",
+    feature = "ipa-pc-as",
+    feature = "r1cs-nark-as",
+    feature = "trivial-pc-as"
+))]
 use {ark_ec::AffineCurve, ark_ff::Field};
 
-#[cfg(feature = "impl")]
+#[cfg(any(
+    feature = "hp-as",
+    feature = "ipa-pc-as",
+    feature = "r1cs-nark-as",
+    feature = "trivial-pc-as"
+))]
 pub(crate) type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 
 /// A pair consisting of references to an instance and witness.

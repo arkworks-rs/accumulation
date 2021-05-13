@@ -64,6 +64,14 @@ pub mod hp_as;
 #[cfg_attr(docsrs, doc(cfg(feature = "ipa-pc-as")))]
 pub mod ipa_pc_as;
 
+/// An accumulation scheme based on bilinear groups.
+/// The construction is described in detail in [\[BCMS20\]][\[BCMS20\]].
+///
+/// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
+#[cfg(feature = "marlin-pc-as")]
+#[cfg_attr(docsrs, doc(cfg(feature = "marlin-pc-as")))]
+pub mod marlin_pc_as;
+
 /// An accumulation scheme for a NARK for R1CS.
 /// The construction is described in detail in [\[BCLMS20\]][bclms20].
 ///
