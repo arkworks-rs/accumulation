@@ -1,8 +1,11 @@
-use crate::hp_as::constraints::{InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar};
+use crate::hp_as::constraints::{
+    InputInstanceVar as HPInputInstanceVar, ProofVar as HPProofVar,
+    VerifierKeyVar as HPVerifierKeyVar,
+};
 use crate::r1cs_nark_as::data_structures::{
     AccumulatorInstance, InputInstance, Proof, ProofRandomness, VerifierKey,
 };
-use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, FirstRoundMessageRandomness, IndexInfo};
+use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, FirstRoundMessageRandomness};
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
@@ -19,54 +22,19 @@ use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
 
-pub(crate) struct IndexInfoVar<CF: PrimeField> {
-    /// The total number of variables in the constraint system.
-    pub num_variables: usize,
-
-    /// The number of constraints.
-    pub num_constraints: usize,
-
-    /// The number of public input (i.e. instance) variables.
-    pub num_instance_variables: usize,
-
-    /// Hash of the matrices.
-    pub matrices_hash: Vec<FpVar<CF>>,
-}
-
-impl<CF: PrimeField> AllocVar<IndexInfo, CF> for IndexInfoVar<CF> {
-    fn new_variable<T: Borrow<IndexInfo>>(
-        cs: impl Into<Namespace<CF>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let ns = cs.into();
-        f().and_then(|index_info| {
-            let index_info = index_info.borrow();
-            let matrices_hash = index_info
-                .matrices_hash
-                .as_ref()
-                .to_sponge_field_elements()
-                .into_iter()
-                .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
-                .collect::<Result<Vec<_>, SynthesisError>>()?;
-
-            Ok(Self {
-                num_variables: index_info.num_variables,
-                num_constraints: index_info.num_constraints,
-                num_instance_variables: index_info.num_instance_variables,
-                matrices_hash,
-            })
-        })
-    }
-}
-
 /// The [`VerifierKey`][vk] of the [`ASForR1CSNarkVerifierGadget`][as_for_r1cs_nark_verifier].
 ///
 /// [vk]: crate::constraints::ASVerifierGadget::VerifierKey
 /// [as_for_r1cs_nark_verifier]: crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget
 pub struct VerifierKeyVar<CF: PrimeField> {
-    /// Information about the index.
-    pub(crate) nark_index: IndexInfoVar<CF>,
+    /// The number of public input (i.e. instance) variables.
+    pub(crate) num_instance_variables: usize,
+
+    /// The verifier key for accumulation scheme for Hadamard Products.
+    pub(crate) hp_as_vk: HPVerifierKeyVar<CF>,
+
+    /// Hash of the matrices compute for the nark.
+    pub(crate) nark_matrices_hash: Vec<FpVar<CF>>,
 
     /// Hash of the matrices computed for the accumulation scheme.
     pub(crate) as_matrices_hash: Vec<FpVar<CF>>,
@@ -82,8 +50,18 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
         f().and_then(|vk| {
             let vk = vk.borrow();
 
-            let nark_index =
-                IndexInfoVar::new_variable(ns.clone(), || Ok(vk.nark_index.clone()), mode)?;
+            let num_instance_variables = vk.num_instance_variables;
+
+            let hp_as_vk =
+                HPVerifierKeyVar::new_variable(ns.clone(), || Ok(vk.num_constraints), mode)?;
+
+            let nark_matrices_hash = vk
+                .nark_matrices_hash
+                .as_ref()
+                .to_sponge_field_elements()
+                .into_iter()
+                .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
+                .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             let as_matrices_hash = vk
                 .as_matrices_hash
@@ -94,10 +72,24 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             Ok(Self {
-                nark_index,
+                num_instance_variables,
+                hp_as_vk,
+                nark_matrices_hash,
                 as_matrices_hash,
             })
         })
+    }
+}
+
+impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
+        let num_instance_variables = FpVar::Constant(CF::from(self.num_instance_variables as u128));
+        collect_sponge_field_elements_gadget!(
+            num_instance_variables,
+            self.hp_as_vk,
+            self.nark_matrices_hash,
+            self.as_matrices_hash
+        )
     }
 }
 

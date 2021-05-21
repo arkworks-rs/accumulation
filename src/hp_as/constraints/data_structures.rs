@@ -42,6 +42,12 @@ impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
     }
 }
 
+impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
+        collect_sponge_field_elements_gadget!(self.num_supported_elems)
+    }
+}
+
 /// The [`InputInstance`][input] of the [`ASForHPVerifierGadget`][as_for_hp_verifier].
 ///
 /// [input]: crate::constraints::ASVerifierGadget::InputInstance

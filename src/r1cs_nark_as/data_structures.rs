@@ -1,9 +1,7 @@
 use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
 };
-use crate::r1cs_nark_as::r1cs_nark::{
-    FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
-};
+use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, IndexProverKey, SecondRoundMessage};
 
 use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField, Zero};
@@ -51,11 +49,52 @@ pub struct ProverKey<G: AffineCurve> {
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 #[derive(Clone)]
 pub struct VerifierKey {
-    /// Information about the index.
-    pub(crate) nark_index: IndexInfo,
+    /// The number of public input (i.e. instance) variables.
+    pub(crate) num_instance_variables: usize,
+
+    /// The number of constraints.
+    pub(crate) num_constraints: usize,
+
+    /// Hash of the matrices for the NARK.
+    pub(crate) nark_matrices_hash: [u8; 32],
 
     /// Hash of the matrices for the accumulation scheme.
     pub(crate) as_matrices_hash: [u8; 32],
+}
+
+impl VerifierKey {
+    /// Outputs a placeholder for a verifier key to be used in PCD circuit setup.
+    /// The constraints equivalent of the verifier key only requires the correct public input
+    /// length while everything else may be left as unknown variables.
+    pub fn placeholder(input_len: usize) -> Self {
+        Self {
+            num_instance_variables: input_len,
+            num_constraints: 0,
+            nark_matrices_hash: [0u8; 32],
+            as_matrices_hash: [0u8; 32],
+        }
+    }
+}
+
+impl<CF: PrimeField + Absorbable<CF>> Absorbable<CF> for VerifierKey {
+    fn to_sponge_bytes(&self) -> Vec<u8> {
+        collect_sponge_bytes!(
+            CF,
+            self.num_instance_variables,
+            self.num_constraints,
+            self.nark_matrices_hash.to_vec(),
+            self.as_matrices_hash.to_vec()
+        )
+    }
+
+    fn to_sponge_field_elements(&self) -> Vec<CF> {
+        collect_sponge_field_elements!(
+            self.num_instance_variables,
+            self.num_constraints,
+            self.nark_matrices_hash.to_vec(),
+            self.as_matrices_hash.to_vec()
+        )
+    }
 }
 
 /// The [`InputInstance`][input_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
