@@ -1,5 +1,6 @@
 use crate::hp_as::{
     InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
+    ProofHidingCommitments, ProofTCommitments,
 };
 use crate::r1cs_nark_as::r1cs_nark::{
     FirstRoundMessage, IndexInfo, IndexProverKey, SecondRoundMessage,
@@ -72,10 +73,11 @@ pub struct InputInstance<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> InputInstance<G> {
-    pub(crate) fn zero(input_len: usize) -> Self {
+    /// Returns a default input instance.
+    pub fn zero(input_len: usize, make_zk: bool) -> Self {
         Self {
             r1cs_input: vec![G::ScalarField::zero(); input_len],
-            first_round_message: FirstRoundMessage::zero(),
+            first_round_message: FirstRoundMessage::zero(make_zk),
         }
     }
 }
@@ -112,9 +114,9 @@ pub struct InputWitness<F: Field> {
 }
 
 impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(witness_len: usize) -> Self {
+    pub(crate) fn zero(witness_len: usize, make_zk: bool) -> Self {
         Self {
-            second_round_message: SecondRoundMessage::zero(witness_len),
+            second_round_message: SecondRoundMessage::zero(witness_len, make_zk),
         }
     }
 }
@@ -139,6 +141,19 @@ pub struct AccumulatorInstance<G: AffineCurve> {
 
     /// The Hadamard product accumulation scheme input instance.
     pub(crate) hp_instance: HPInputInstance<G>,
+}
+
+impl<G: AffineCurve> AccumulatorInstance<G> {
+    /// Outputs a placeholder for an accumulator instance to be used in the PCD circuit setup.
+    pub fn placeholder(input_len: usize) -> Self {
+        Self {
+            r1cs_input: vec![G::ScalarField::zero(); input_len],
+            comm_a: G::zero(),
+            comm_b: G::zero(),
+            comm_c: G::zero(),
+            hp_instance: HPInputInstance::<G>::zero(),
+        }
+    }
 }
 
 impl<CF, G> Absorbable<CF> for AccumulatorInstance<G>
@@ -211,6 +226,59 @@ pub struct Proof<G: AffineCurve> {
 
     /// Randomness or their commitments used to blind the vectors of the indexed relation.
     pub(crate) randomness: Option<ProofRandomness<G>>,
+}
+
+impl<G: AffineCurve> Proof<G> {
+    /// Outputs a placeholder for a proof to be used in the PCD circuit setup.
+    pub fn placeholder(
+        r1cs_input_len: usize,
+        num_accumulators_and_inputs: usize,
+        make_zk: bool,
+    ) -> Self {
+        let randomness = if make_zk {
+            Some(ProofRandomness {
+                r1cs_r_input: vec![G::ScalarField::zero(); r1cs_input_len],
+                comm_r_a: G::zero(),
+                comm_r_b: G::zero(),
+                comm_r_c: G::zero(),
+            })
+        } else {
+            None
+        };
+
+        // Accounts for the default case.
+        let mut num_inputs = num_accumulators_and_inputs;
+        if num_inputs == 0 {
+            num_inputs += 1;
+        }
+
+        // Accounts for the addition dummy input added to HP_AS for zero knowledge.
+        if num_inputs == 1 && make_zk {
+            num_inputs += 1;
+        }
+
+        let hp_proof = HPProof::<G> {
+            t_comms: ProofTCommitments {
+                low: vec![G::zero(); num_inputs - 1],
+                high: vec![G::zero(); num_inputs - 1],
+            },
+
+            hiding_comms: if make_zk {
+                Some(ProofHidingCommitments {
+                    comm_1: G::zero(),
+                    comm_2: G::zero(),
+                    comm_3: G::zero(),
+                })
+            } else {
+                None
+            },
+        };
+
+        Self {
+            hp_proof,
+            randomness,
+        }
+    }
 }
 
 /// The randomness or their commitments used to blind the vectors of the indexed relation.

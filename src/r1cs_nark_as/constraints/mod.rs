@@ -459,7 +459,7 @@ where
         if input_instances.is_empty() && old_accumulator_instances.is_empty() {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 sponge.cs(),
-                InputInstance::zero(r1cs_input_len),
+                InputInstance::zero(r1cs_input_len, false),
             )?);
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
