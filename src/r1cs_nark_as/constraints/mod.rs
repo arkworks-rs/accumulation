@@ -31,25 +31,28 @@ pub use data_structures::*;
 /// The verifier gadget of [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
-pub struct ASForR1CSNarkVerifierGadget<G, C, S, SV>
+pub struct ASForR1CSNarkVerifierGadget<G, C, CS, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
     _curve: PhantomData<C>,
+    _circuit: PhantomData<CS>,
     _sponge: PhantomData<S>,
     _sponge_var: PhantomData<SV>,
 }
 
-impl<G, C, S, SV> ASForR1CSNarkVerifierGadget<G, C, S, SV>
+impl<G, C, CS, S, SV> ASForR1CSNarkVerifierGadget<G, C, CS, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
+    CS: ConstraintSynthesizer<G::ScalarField>,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -393,7 +396,7 @@ where
 }
 
 impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForR1CSNark<G, CS, S>>
-    for ASForR1CSNarkVerifierGadget<G, C, S, SV>
+    for ASForR1CSNarkVerifierGadget<G, C, CS, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
@@ -565,7 +568,7 @@ pub mod tests {
 
     type AS = ASForR1CSNark<G, DummyCircuit<F>, Sponge>;
     type I = ASForR1CSNarkTestInput<CF, Sponge>;
-    type ASV = ASForR1CSNarkVerifierGadget<G, C, Sponge, SpongeVar>;
+    type ASV = ASForR1CSNarkVerifierGadget<G, C, DummyCircuit<F>, Sponge, SpongeVar>;
 
     type Tests = ASVerifierGadgetTests<CF, Sponge, SpongeVar, AS, ASV, I>;
 
