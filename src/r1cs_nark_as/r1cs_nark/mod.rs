@@ -2,7 +2,7 @@ use crate::r1cs_nark_as::CHALLENGE_SIZE;
 use crate::ConstraintF;
 
 use ark_ec::AffineCurve;
-use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
+use ark_ff::{BigInteger, Field, PrimeField, Zero};
 use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
@@ -136,7 +136,7 @@ where
         // Step 1 of the scheme's prover, as detailed in BCLMS20.
         let constraint_time = start_timer!(|| "Generating constraints and witnesses");
         let pcs = ConstraintSystem::new_ref();
-        pcs.set_optimization_goal(OptimizationGoal::Weight);
+        pcs.set_optimization_goal(OptimizationGoal::Constraints);
         pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
             construct_matrices: false,
         });
@@ -343,13 +343,6 @@ where
             return false;
         }
 
-        // format the input appropriately.
-        let input = {
-            let mut tmp = vec![G::ScalarField::one()];
-            tmp.extend_from_slice(&input);
-            tmp
-        };
-
         // Step 2 of the scheme's verifier, as detailed in BCLMS20.
         let gamma = Self::compute_challenge(
             &ivk.index_info,
@@ -521,7 +514,15 @@ pub(crate) mod test {
             num_variables: 10,
             num_constraints: 100,
         };
-        let v = c.a.unwrap() * &c.b.unwrap();
+
+        let pcs = ConstraintSystem::new_ref();
+        pcs.set_optimization_goal(OptimizationGoal::Constraints);
+        pcs.set_mode(ark_relations::r1cs::SynthesisMode::Prove {
+            construct_matrices: false,
+        });
+        c.generate_constraints(pcs.clone()).unwrap();
+
+        let r1cs_input = pcs.borrow().unwrap().instance_assignment.clone();
 
         let pp = R1CSNark::<Affine, PoseidonSponge<Fq>>::setup();
         let (ipk, ivk) = R1CSNark::<Affine, PoseidonSponge<Fq>>::index(&pp, c).unwrap();
@@ -537,9 +538,10 @@ pub(crate) mod test {
                 Some(rng),
             )
             .unwrap();
+
             assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
                 &ivk,
-                &[v],
+                &r1cs_input,
                 &proof,
                 Some(PoseidonSponge::<Fq>::new()),
             ))
