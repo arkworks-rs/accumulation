@@ -39,7 +39,7 @@ pub struct PredicateIndex<F: Field> {
 #[derive(Clone)]
 pub struct ProverKey<G: AffineCurve> {
     /// The NARK prover key.
-    pub(crate) nark_pk: IndexProverKey<G>,
+    pub nark_pk: IndexProverKey<G>,
 
     /// Hash of the matrices for the accumulation scheme.
     pub(crate) as_matrices_hash: [u8; 32],
