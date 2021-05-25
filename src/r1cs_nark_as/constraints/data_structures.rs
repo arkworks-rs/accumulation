@@ -83,7 +83,7 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
 
 impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
-        let num_instance_variables = FpVar::Constant(CF::from(self.num_instance_variables as u128));
+        let num_instance_variables = FpVar::Constant(CF::from(self.num_instance_variables as u64));
         collect_sponge_field_elements_gadget!(
             num_instance_variables,
             self.hp_as_vk,
