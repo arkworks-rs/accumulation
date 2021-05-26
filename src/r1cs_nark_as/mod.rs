@@ -110,6 +110,22 @@ where
     CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
+    /// Returns a new sponge from a base sponge that is used by the NARK.
+    pub fn nark_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(r1cs_nark::PROTOCOL_NAME)
+    }
+
+    /// Returns a new sponge from a base sponge that is used by this accumulation scheme.
+    fn as_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(PROTOCOL_NAME)
+    }
+
+    /// Returns a new sponge from a base sponge that is used by the accumulation scheme for
+    /// Hadamard products.
+    fn hp_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(HP_AS_PROTOCOL_NAME)
+    }
+
     /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         input_instance: &InputInstance<G>,
@@ -717,9 +733,9 @@ where
         S: 'a,
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
-        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.fork(PROTOCOL_NAME);
-        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
+        let nark_sponge = Self::nark_sponge(&sponge);
+        let as_sponge = Self::as_sponge(&sponge);
+        let hp_sponge = Self::hp_sponge(&sponge);
 
         let r1cs_input_len: usize = prover_key.nark_pk.index_info.num_instance_variables;
         let r1cs_witness_len: usize = prover_key.nark_pk.index_info.num_variables - r1cs_input_len;
@@ -935,9 +951,9 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.fork(PROTOCOL_NAME);
-        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
+        let nark_sponge = Self::nark_sponge(&sponge);
+        let as_sponge = Self::as_sponge(&sponge);
+        let hp_sponge = Self::hp_sponge(&sponge);
 
         let make_zk_enabled = proof.randomness.is_some();
         let r1cs_input_len = verifier_key.num_instance_variables;
@@ -1115,7 +1131,7 @@ pub mod tests {
     use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
     use crate::r1cs_nark_as::r1cs_nark::IndexProverKey;
     use crate::r1cs_nark_as::r1cs_nark::R1CSNark;
-    use crate::r1cs_nark_as::{r1cs_nark, ASForR1CSNark};
+    use crate::r1cs_nark_as::ASForR1CSNark;
     use crate::tests::*;
     use crate::AccumulationScheme;
     use crate::ConstraintF;
@@ -1240,7 +1256,9 @@ pub mod tests {
                     params: input_params.0.clone(),
                 };
 
-                let nark_sponge = S::new().fork(r1cs_nark::PROTOCOL_NAME);
+                let sponge = S::new();
+                let nark_sponge =
+                    ASForR1CSNark::<G, DummyCircuit<G::ScalarField>, S>::nark_sponge(&sponge);
 
                 let proof = R1CSNark::<G, S>::prove(
                     ipk,
