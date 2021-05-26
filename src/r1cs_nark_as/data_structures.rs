@@ -144,19 +144,7 @@ where
 ///
 /// [input_witness]: crate::AccumulationScheme::InputWitness
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct InputWitness<F: Field> {
-    /// The sigma protocol's prover commitment of the NARK.
-    pub second_round_message: SecondRoundMessage<F>,
-}
-
-impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(witness_len: usize) -> Self {
-        Self {
-            second_round_message: SecondRoundMessage::zero(witness_len),
-        }
-    }
-}
+pub type InputWitness<F> = SecondRoundMessage<F>;
 
 /// The [`AccumulatorInstance`][acc_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///

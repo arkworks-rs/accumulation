@@ -54,7 +54,7 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 /// # Example Input
 /// ```
 ///
-/// use ark_accumulation::r1cs_nark_as::{ASForR1CSNark, InputInstance, InputWitness};
+/// use ark_accumulation::r1cs_nark_as::{ASForR1CSNark, InputInstance};
 /// use ark_accumulation::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, SecondRoundMessage};
 /// use ark_accumulation::Input;
 /// use ark_ec::AffineCurve;
@@ -84,9 +84,7 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 ///         first_round_message: first_msg,
 ///     };
 ///
-///     let witness = InputWitness {
-///         second_round_message: second_msg,
-///     };
+///     let witness = second_msg;
 ///
 ///     Input::<_, _, ASForR1CSNark<G, CS, S>> { instance, witness }
 /// }
@@ -150,7 +148,7 @@ where
     ) -> Result<(), BoxedError> {
         // The length of the R1CS witness must be equal to those of the other R1CS witnesses being
         // accumulated.
-        if input_witness.second_round_message.blinded_witness.len() != r1cs_witness_len {
+        if input_witness.blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedInput(
                 "All R1CS witness lengths must be equal and supported by the index prover key."
                     .to_string(),
@@ -172,7 +170,7 @@ where
         // The randomness requirements of the first round message and the second round messages
         // must match.
         if input.instance.first_round_message.randomness.is_some()
-            != input.witness.second_round_message.randomness.is_some()
+            != input.witness.randomness.is_some()
         {
             return Err(BoxedError::new(MalformedInput(
                 "The existence of the first round message randomness and the second round \
@@ -326,8 +324,7 @@ where
             .into_iter()
             .zip(input_witnesses)
             .map(|(instance, witness)| {
-                let second_round_message: &SecondRoundMessage<G::ScalarField> =
-                    &witness.second_round_message;
+                let second_round_message: &SecondRoundMessage<G::ScalarField> = witness;
 
                 let a_vec = matrix_vec_mul(
                     &prover_key.nark_pk.a,
@@ -576,41 +573,35 @@ where
             .chain(
                 input_witnesses
                     .iter()
-                    .map(|witness| &witness.second_round_message.blinded_witness),
+                    .map(|witness| &witness.blinded_witness),
             );
 
         let all_sigma_a = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_a))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_a)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_a)),
+            );
 
         let all_sigma_b = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_b))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_b)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_b)),
+            );
 
         let all_sigma_c = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_c))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_c)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_c)),
+            );
 
         let (r1cs_blinded_witnesses, all_sigma_a, all_sigma_b, all_sigma_c) =
             if let Some((r1cs_r_witness, rand_1, rand_2, rand_3)) = prover_witness_randomness {
@@ -782,7 +773,7 @@ where
         // Ensure that none of the inputs or accumulators require zero-knowledge.
         if !make_zk_enabled {
             for witness in &input_witnesses {
-                if witness.second_round_message.randomness.is_some() {
+                if witness.randomness.is_some() {
                     return Err(BoxedError::new(ASError::MissingRng(
                         "Accumulating inputs with hiding requires rng.".to_string(),
                     )));
@@ -1128,7 +1119,7 @@ where
 pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
+    use crate::r1cs_nark_as::data_structures::InputInstance;
     use crate::r1cs_nark_as::r1cs_nark::IndexProverKey;
     use crate::r1cs_nark_as::r1cs_nark::R1CSNark;
     use crate::r1cs_nark_as::ASForR1CSNark;
@@ -1283,9 +1274,7 @@ pub mod tests {
                     first_round_message: proof.first_msg.clone(),
                 };
 
-                let witness = InputWitness {
-                    second_round_message: proof.second_msg,
-                };
+                let witness = proof.second_msg;
 
                 inputs.push(
                     Input::<_, _, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>> {
