@@ -7,7 +7,7 @@ use crate::hp_as::{
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
 use crate::r1cs_nark_as::r1cs_nark::{
-    hash_matrices, matrix_vec_mul, FirstRoundMessage, IndexInfo, IndexVerifierKey,
+    hash_matrices, matrix_vec_mul, FirstRoundMessage, IndexVerifierKey,
     PublicParameters as NARKPublicParameters, R1CSNark, SecondRoundMessage,
 };
 use crate::ConstraintF;
@@ -220,7 +220,7 @@ where
 
     /// Blinds the commitments from the first round messages.
     fn compute_blinded_commitments(
-        index_info: &IndexInfo,
+        nark_matrices_hash: &[u8; 32],
         input_instances: &Vec<&InputInstance<G>>,
         nark_sponge: S,
     ) -> (Vec<G>, Vec<G>, Vec<G>, Vec<G>) {
@@ -239,7 +239,7 @@ where
 
             if let Some(first_msg_randomness) = instance.first_round_message.randomness.as_ref() {
                 let gamma_challenge = R1CSNark::<G, S>::compute_challenge(
-                    index_info,
+                    nark_matrices_hash,
                     instance.r1cs_input.as_slice(),
                     first_round_message,
                     nark_sponge.clone(),
@@ -710,7 +710,9 @@ where
         };
 
         let vk = VerifierKey {
-            nark_index: ivk.index_info.clone(),
+            num_instance_variables: ivk.index_info.num_instance_variables,
+            num_constraints: ivk.index_info.num_constraints,
+            nark_matrices_hash: ivk.index_info.matrices_hash.clone(),
             as_matrices_hash,
         };
 
@@ -822,7 +824,7 @@ where
         // Step 2 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
-                &prover_key.nark_pk.index_info,
+                &prover_key.nark_pk.index_info.matrices_hash,
                 &input_instances,
                 nark_sponge,
             );
@@ -954,7 +956,7 @@ where
         let hp_sponge = Self::hp_sponge(&sponge);
 
         let make_zk_enabled = proof.randomness.is_some();
-        let r1cs_input_len = verifier_key.nark_index.num_instance_variables;
+        let r1cs_input_len = verifier_key.num_instance_variables;
 
         let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
         for instance in &input_instances {
@@ -994,7 +996,7 @@ where
         // Step 2 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
-                &verifier_key.nark_index,
+                &verifier_key.nark_matrices_hash,
                 &input_instances,
                 nark_sponge,
             );
@@ -1012,7 +1014,7 @@ where
 
         // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let hp_verify = ASForHadamardProducts::<G, S>::verify(
-            &verifier_key.nark_index.num_constraints,
+            &verifier_key.num_constraints,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
