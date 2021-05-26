@@ -1,8 +1,6 @@
 use crate::constraints::ASVerifierGadget;
 use crate::hp_as::constraints::ASForHPVerifierGadget;
-use crate::hp_as::constraints::{
-    InputInstanceVar as HPInputInstanceVar, VerifierKeyVar as HPVerifierKeyVar,
-};
+use crate::hp_as::constraints::InputInstanceVar as HPInputInstanceVar;
 use crate::r1cs_nark_as::{
     r1cs_nark, ASForR1CSNark, InputInstance, CHALLENGE_SIZE, HP_AS_PROTOCOL_NAME, PROTOCOL_NAME,
 };
@@ -172,9 +170,12 @@ where
     }
 
     /// Blinds the commitments from the first round messages.
-    #[tracing::instrument(target = "r1cs", skip(index_info, input_instances, nark_sponge))]
+    #[tracing::instrument(
+        target = "r1cs",
+        skip(nark_matrices_hash, input_instances, nark_sponge)
+    )]
     fn compute_blinded_commitments(
-        index_info: &IndexInfoVar<ConstraintF<G>>,
+        nark_matrices_hash: &Vec<FpVar<ConstraintF<G>>>,
         input_instances: &Vec<&InputInstanceVar<G, C>>,
         mut nark_sponge: impl CryptographicSpongeVar<ConstraintF<G>, S>,
     ) -> Result<(Vec<C>, Vec<C>, Vec<C>, Vec<C>), SynthesisError> {
@@ -183,7 +184,7 @@ where
         let mut all_blinded_comm_c = Vec::with_capacity(input_instances.len());
         let mut all_blinded_comm_prod = Vec::with_capacity(input_instances.len());
 
-        nark_sponge.absorb(&index_info.matrices_hash)?;
+        nark_sponge.absorb(nark_matrices_hash)?;
 
         for instance in input_instances {
             let first_round_message: &FirstRoundMessageVar<G, C> = &instance.first_round_message;
@@ -441,7 +442,7 @@ where
         let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME)?;
 
         let make_zk_enabled = proof.randomness.is_some();
-        let r1cs_input_len = verifier_key.nark_index.num_instance_variables;
+        let r1cs_input_len = verifier_key.num_instance_variables;
 
         let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
         for instance in &input_instances {
@@ -484,7 +485,7 @@ where
         // Step 2 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
-                &verifier_key.nark_index,
+                &verifier_key.nark_matrices_hash,
                 &input_instances,
                 nark_sponge,
             )?;
@@ -500,15 +501,9 @@ where
             .iter()
             .map(|instance| &instance.hp_instance);
 
-        // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
-        let hp_vk = HPVerifierKeyVar::<ConstraintF<G>>::new_constant(
-            cs.clone(),
-            verifier_key.nark_index.num_constraints,
-        )?;
-
         let hp_verify = ASForHPVerifierGadget::<G, C, S, SV>::verify(
             cs,
-            &hp_vk,
+            &verifier_key.hp_as_vk,
             &hp_input_instances,
             hp_accumulator_instances,
             &new_accumulator_instance.hp_instance,
