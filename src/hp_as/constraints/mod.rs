@@ -52,13 +52,13 @@ where
 
         // The number of commitments to the low and high coefficients must be equal, given how
         // they were computed.
-        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+        if proof.product_poly_comm.low.len() != proof.product_poly_comm.high.len() {
             return false;
         }
 
         // The number of commitments can be derived from the number of inputs. Ensure that
         // they match.
-        if proof.t_comms.low.len() != num_inputs - 1 {
+        if proof.product_poly_comm.low.len() != num_inputs - 1 {
             return false;
         }
 
@@ -206,12 +206,20 @@ where
         )?;
 
         let comm_3 = {
-            let t_comm_low_addend =
-                Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None, None)?;
+            let product_poly_comm_low_addend = Self::combine_commitments(
+                proof.product_poly_comm.low.iter(),
+                &nu_challenges,
+                None,
+                None,
+            )?;
 
-            let t_comm_high_addend =
-                Self::combine_commitments(proof.t_comms.high.iter(), &nu_challenges, None, None)?
-                    .scalar_mul_le(nu_challenges[1].iter())?;
+            let product_poly_comm_high_addend = Self::combine_commitments(
+                proof.product_poly_comm.high.iter(),
+                &nu_challenges,
+                None,
+                None,
+            )?
+            .scalar_mul_le(nu_challenges[1].iter())?;
 
             let hiding_comm_addend_3 = proof
                 .hiding_comms
@@ -230,8 +238,8 @@ where
                 hiding_comm_addend_3.as_ref(),
             )?;
 
-            t_comm_low_addend
-                + &(t_comm_high_addend + &comm_3_addend)
+            product_poly_comm_low_addend
+                + &(product_poly_comm_high_addend + &comm_3_addend)
                     .scalar_mul_le(nu_challenges[num_inputs - 1].iter())?
         };
 
@@ -334,7 +342,7 @@ where
         let mu_challenges_bits =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk)?;
 
-        challenges_sponge.absorb(&proof.t_comms)?;
+        challenges_sponge.absorb(&proof.product_poly_comm)?;
 
         let nu_challenges_bits =
             Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs)?;

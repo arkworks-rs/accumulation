@@ -162,13 +162,13 @@ where
 
         // The number of commitments to the low and high coefficients must be equal, given how
         // they were computed.
-        if proof.t_comms.low.len() != proof.t_comms.high.len() {
+        if proof.product_poly_comm.low.len() != proof.product_poly_comm.high.len() {
             return false;
         }
 
         // The number of commitments can be derived from the number of inputs and the hiding
         // requirements. Ensure that they match.
-        if proof.t_comms.low.len() != num_inputs - 1 {
+        if proof.product_poly_comm.low.len() != num_inputs - 1 {
             return false;
         }
 
@@ -351,12 +351,12 @@ where
     /// Outputs commitments and randomizers to each t_vec, excluding the `n-1`th t_vec
     /// The commitments and randomizers are split into two, one computed on everything
     /// before the `n-1`th t_vec and one computed on everything after the `n-1`th t_vec.
-    fn compute_t_comms(
+    fn compute_product_poly_comm(
         ck: &PedersenCommitmentCK<G>,
         t_vecs: &Vec<Vec<G::ScalarField>>,
-    ) -> Result<ProofTCommitments<G>, BoxedError> {
+    ) -> Result<ProductPolynomialCommitment<G>, BoxedError> {
         if t_vecs.len() == 0 {
-            return Ok(ProofTCommitments {
+            return Ok(ProductPolynomialCommitment {
                 low: vec![],
                 high: vec![],
             });
@@ -364,7 +364,7 @@ where
 
         let num_inputs = (t_vecs.len() + 1) / 2;
 
-        let mut t_comms = ProofTCommitments {
+        let mut product_poly_comm = ProductPolynomialCommitment {
             low: Vec::with_capacity(num_inputs - 1),
             high: Vec::with_capacity(num_inputs - 1),
         };
@@ -377,14 +377,14 @@ where
             let comm = PedersenCommitment::commit(ck, t_vec.as_slice(), None);
 
             (if i < num_inputs - 1 {
-                &mut t_comms.low
+                &mut product_poly_comm.low
             } else {
-                &mut t_comms.high
+                &mut product_poly_comm.high
             })
             .push(comm);
         }
 
-        Ok(t_comms)
+        Ok(product_poly_comm)
     }
 
     /// Computes the linear combination of Pedersen commitments.
@@ -441,11 +441,11 @@ where
         );
 
         let combined_comm_3 = {
-            let t_comm_low_addend =
-                Self::combine_commitments(proof.t_comms.low.iter(), &nu_challenges, None);
+            let product_poly_comm_low_addend =
+                Self::combine_commitments(proof.product_poly_comm.low.iter(), &nu_challenges, None);
 
-            let t_comm_high_addend = Self::combine_commitments(
-                proof.t_comms.high.iter(),
+            let product_poly_comm_high_addend = Self::combine_commitments(
+                proof.product_poly_comm.high.iter(),
                 &nu_challenges[num_inputs..],
                 None,
             );
@@ -462,7 +462,7 @@ where
             )
             .mul(nu_challenges[num_inputs - 1].into());
 
-            t_comm_low_addend + &t_comm_high_addend + &comm_3_addend
+            product_poly_comm_low_addend + &product_poly_comm_high_addend + &comm_3_addend
         };
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
@@ -769,14 +769,14 @@ where
         );
 
         // Step 8 of the scheme's accumulation prover, as detailed in BCLMS20.
-        let t_comms = Self::compute_t_comms(prover_key, &t_vecs)?;
+        let product_poly_comm = Self::compute_product_poly_comm(prover_key, &t_vecs)?;
         let proof = Proof {
-            t_comms,
+            product_poly_comm,
             hiding_comms,
         };
 
         // Step 9 of the scheme's accumulation prover, as detailed in BCLMS20.
-        challenges_sponge.absorb(&proof.t_comms);
+        challenges_sponge.absorb(&proof.product_poly_comm);
         let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs);
 
         let mut combined_challenges = Vec::with_capacity(num_all_inputs);
@@ -870,7 +870,7 @@ where
         let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk);
 
-        challenges_sponge.absorb(&proof.t_comms);
+        challenges_sponge.absorb(&proof.product_poly_comm);
 
         let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs);
 
