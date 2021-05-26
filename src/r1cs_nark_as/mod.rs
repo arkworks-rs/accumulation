@@ -755,8 +755,8 @@ where
         let default_input_instance;
         let default_input_witness;
         if input_instances.is_empty() && old_accumulator_instances.is_empty() {
-            default_input_instance = Some(InputInstance::zero(r1cs_input_len));
-            default_input_witness = Some(InputWitness::zero(r1cs_witness_len));
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len, false));
+            default_input_witness = Some(InputWitness::zero(r1cs_witness_len, false));
 
             input_instances.push(default_input_instance.as_ref().unwrap());
             input_witnesses.push(default_input_witness.as_ref().unwrap());
@@ -959,7 +959,7 @@ where
         // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
         if input_instances.is_empty() && old_accumulator_instances.is_empty() {
-            default_input_instance = Some(InputInstance::zero(r1cs_input_len));
+            default_input_instance = Some(InputInstance::zero(r1cs_input_len, false));
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
