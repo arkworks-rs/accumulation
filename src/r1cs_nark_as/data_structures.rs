@@ -1,6 +1,6 @@
 use crate::hp_as::{
-    InputInstance as HPInputInstance, InputWitness as HPInputWitness, Proof as HPProof,
-    ProofHidingCommitments, ProofTCommitments,
+    InputInstance as HPInputInstance, InputWitness as HPInputWitness, ProductPolynomialCommitment,
+    Proof as HPProof, ProofHidingCommitments,
 };
 use crate::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, IndexProverKey, SecondRoundMessage};
 
@@ -146,19 +146,7 @@ where
 ///
 /// [input_witness]: crate::AccumulationScheme::InputWitness
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub struct InputWitness<F: Field> {
-    /// The sigma protocol's prover commitment of the NARK.
-    pub second_round_message: SecondRoundMessage<F>,
-}
-
-impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(witness_len: usize, make_zk: bool) -> Self {
-        Self {
-            second_round_message: SecondRoundMessage::zero(witness_len, make_zk),
-        }
-    }
-}
+pub type InputWitness<F> = SecondRoundMessage<F>;
 
 /// The [`AccumulatorInstance`][acc_instance] of the [`ASForR1CSNark`][as_for_r1cs_nark].
 ///
@@ -297,7 +285,7 @@ impl<G: AffineCurve> Proof<G> {
         }
 
         let hp_proof = HPProof::<G> {
-            t_comms: ProofTCommitments {
+            product_poly_comm: ProductPolynomialCommitment {
                 low: vec![G::zero(); num_inputs - 1],
                 high: vec![G::zero(); num_inputs - 1],
             },

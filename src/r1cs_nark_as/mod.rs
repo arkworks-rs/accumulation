@@ -7,8 +7,8 @@ use crate::hp_as::{
     InputWitnessRandomness as HPInputWitnessRandomness,
 };
 use crate::r1cs_nark_as::r1cs_nark::{
-    hash_matrices, matrix_vec_mul, FirstRoundMessage, IndexVerifierKey,
-    PublicParameters as NARKPublicParameters, R1CSNark, SecondRoundMessage,
+    hash_matrices, matrix_vec_mul, FirstRoundMessage, IndexProverKey, IndexVerifierKey, R1CSNark,
+    SecondRoundMessage,
 };
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
@@ -17,7 +17,6 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::One;
 use ark_ff::UniformRand;
 use ark_poly_commit::trivial_pc::PedersenCommitment;
-use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::rand::RngCore;
@@ -54,7 +53,7 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 /// # Example Input
 /// ```
 ///
-/// use ark_accumulation::r1cs_nark_as::{ASForR1CSNark, InputInstance, InputWitness};
+/// use ark_accumulation::r1cs_nark_as::{ASForR1CSNark, InputInstance};
 /// use ark_accumulation::r1cs_nark_as::r1cs_nark::{FirstRoundMessage, SecondRoundMessage};
 /// use ark_accumulation::Input;
 /// use ark_ec::AffineCurve;
@@ -68,15 +67,14 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 /// // 1. The R1CS input for an indexed relation:                          `input`
 /// // 2. The NARK prover's first round message for the indexed relation:  `first_msg`
 /// // 3. The NARK prover's second round message for the indexed relation: `second_msg`
-/// fn new_accumulation_input<G, CS, S>(
+/// fn new_accumulation_input<G, S>(
 ///     input: Vec<G::ScalarField>,
 ///     first_msg: FirstRoundMessage<G>,
 ///     second_msg: SecondRoundMessage<G::ScalarField>,
-/// ) -> Input<ConstraintF<G>, S, ASForR1CSNark<G, CS, S>>
+/// ) -> Input<ConstraintF<G>, S, ASForR1CSNark<G, S>>
 ///     where
 ///         G: AffineCurve + Absorbable<ConstraintF<G>>,
 ///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-///         CS: ConstraintSynthesizer<G::ScalarField> + Clone,
 ///         S: CryptographicSponge<ConstraintF<G>>
 /// {
 ///     let instance = InputInstance {
@@ -84,32 +82,43 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 ///         first_round_message: first_msg,
 ///     };
 ///
-///     let witness = InputWitness {
-///         second_round_message: second_msg,
-///     };
+///     let witness = second_msg;
 ///
-///     Input::<_, _, ASForR1CSNark<G, CS, S>> { instance, witness }
+///     Input::<_, _, ASForR1CSNark<G, S>> { instance, witness }
 /// }
 /// ```
-pub struct ASForR1CSNark<G, CS, S>
+pub struct ASForR1CSNark<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     _affine: PhantomData<G>,
-    _constraint_synthesizer: PhantomData<CS>,
     _sponge: PhantomData<S>,
 }
 
-impl<G, CS, S> ASForR1CSNark<G, CS, S>
+impl<G, S> ASForR1CSNark<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
+    /// Returns a new sponge from a base sponge that is used by the NARK.
+    pub fn nark_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(r1cs_nark::PROTOCOL_NAME)
+    }
+
+    /// Returns a new sponge from a base sponge that is used by this accumulation scheme.
+    fn as_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(PROTOCOL_NAME)
+    }
+
+    /// Returns a new sponge from a base sponge that is used by the accumulation scheme for
+    /// Hadamard products.
+    fn hp_sponge(base_sponge: &S) -> S {
+        base_sponge.fork(HP_AS_PROTOCOL_NAME)
+    }
+
     /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
         input_instance: &InputInstance<G>,
@@ -134,7 +143,7 @@ where
     ) -> Result<(), BoxedError> {
         // The length of the R1CS witness must be equal to those of the other R1CS witnesses being
         // accumulated.
-        if input_witness.second_round_message.blinded_witness.len() != r1cs_witness_len {
+        if input_witness.blinded_witness.len() != r1cs_witness_len {
             return Err(BoxedError::new(MalformedInput(
                 "All R1CS witness lengths must be equal and supported by the index prover key."
                     .to_string(),
@@ -156,7 +165,7 @@ where
         // The randomness requirements of the first round message and the second round messages
         // must match.
         if input.instance.first_round_message.randomness.is_some()
-            != input.witness.second_round_message.randomness.is_some()
+            != input.witness.randomness.is_some()
         {
             return Err(BoxedError::new(MalformedInput(
                 "The existence of the first round message randomness and the second round \
@@ -310,8 +319,7 @@ where
             .into_iter()
             .zip(input_witnesses)
             .map(|(instance, witness)| {
-                let second_round_message: &SecondRoundMessage<G::ScalarField> =
-                    &witness.second_round_message;
+                let second_round_message: &SecondRoundMessage<G::ScalarField> = witness;
 
                 let a_vec = matrix_vec_mul(
                     &prover_key.nark_pk.a,
@@ -560,41 +568,35 @@ where
             .chain(
                 input_witnesses
                     .iter()
-                    .map(|witness| &witness.second_round_message.blinded_witness),
+                    .map(|witness| &witness.blinded_witness),
             );
 
         let all_sigma_a = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_a))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_a)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_a)),
+            );
 
         let all_sigma_b = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_b))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_b)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_b)),
+            );
 
         let all_sigma_c = accumulator_witnesses
             .iter()
             .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_c))
-            .chain(input_witnesses.iter().map(|witness| {
-                witness
-                    .second_round_message
-                    .randomness
-                    .as_ref()
-                    .map(|r| &r.sigma_c)
-            }));
+            .chain(
+                input_witnesses
+                    .iter()
+                    .map(|witness| witness.randomness.as_ref().map(|r| &r.sigma_c)),
+            );
 
         let (r1cs_blinded_witnesses, all_sigma_a, all_sigma_b, all_sigma_c) =
             if let Some((r1cs_r_witness, rand_1, rand_2, rand_3)) = prover_witness_randomness {
@@ -651,18 +653,17 @@ where
     }
 }
 
-impl<G, CS, S> AccumulationScheme<ConstraintF<G>, S> for ASForR1CSNark<G, CS, S>
+impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForR1CSNark<G, S>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
 {
     type PublicParameters =
         <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PublicParameters;
 
-    type PredicateParams = NARKPublicParameters;
-    type PredicateIndex = CS;
+    type PredicateParams = ();
+    type PredicateIndex = (IndexProverKey<G>, IndexVerifierKey<G>);
 
     type ProverKey = ProverKey<G>;
     type VerifierKey = VerifierKey;
@@ -680,16 +681,15 @@ where
 
     fn index(
         _public_params: &Self::PublicParameters,
-        predicate_params: &Self::PredicateParams,
+        _predicate_params: &Self::PredicateParams,
         predicate_index: &Self::PredicateIndex,
     ) -> Result<(Self::ProverKey, Self::VerifierKey, Self::DeciderKey), Self::Error> {
-        let (ipk, ivk) = R1CSNark::<G, S>::index(&predicate_params, predicate_index.clone())
-            .map_err(BoxedError::new)?;
+        let (ipk, ivk) = predicate_index;
 
         let as_matrices_hash = hash_matrices(PROTOCOL_NAME, &ipk.a, &ipk.b, &ipk.c);
 
         let pk = ProverKey {
-            nark_pk: ipk,
+            nark_pk: ipk.clone(),
             as_matrices_hash: as_matrices_hash.clone(),
         };
 
@@ -700,7 +700,7 @@ where
             as_matrices_hash,
         };
 
-        let dk = ivk;
+        let dk = ivk.clone();
 
         Ok((pk, vk, dk))
     }
@@ -717,9 +717,9 @@ where
         S: 'a,
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
-        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.fork(PROTOCOL_NAME);
-        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
+        let nark_sponge = Self::nark_sponge(&sponge);
+        let as_sponge = Self::as_sponge(&sponge);
+        let hp_sponge = Self::hp_sponge(&sponge);
 
         let r1cs_input_len: usize = prover_key.nark_pk.index_info.num_instance_variables;
         let r1cs_witness_len: usize = prover_key.nark_pk.index_info.num_variables - r1cs_input_len;
@@ -766,7 +766,7 @@ where
         // Ensure that none of the inputs or accumulators require zero-knowledge.
         if !make_zk_enabled {
             for witness in &input_witnesses {
-                if witness.second_round_message.randomness.is_some() {
+                if witness.randomness.is_some() {
                     return Err(BoxedError::new(ASError::MissingRng(
                         "Accumulating inputs with hiding requires rng.".to_string(),
                     )));
@@ -935,9 +935,9 @@ where
     {
         let sponge = sponge.unwrap_or_else(|| S::new());
 
-        let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME);
-        let as_sponge = sponge.fork(PROTOCOL_NAME);
-        let hp_sponge = sponge.fork(HP_AS_PROTOCOL_NAME);
+        let nark_sponge = Self::nark_sponge(&sponge);
+        let as_sponge = Self::as_sponge(&sponge);
+        let hp_sponge = Self::hp_sponge(&sponge);
 
         let make_zk_enabled = proof.randomness.is_some();
         let r1cs_input_len = verifier_key.num_instance_variables;
@@ -1112,10 +1112,10 @@ where
 pub mod tests {
     use crate::data_structures::Input;
     use crate::error::BoxedError;
-    use crate::r1cs_nark_as::data_structures::{InputInstance, InputWitness};
+    use crate::r1cs_nark_as::data_structures::InputInstance;
     use crate::r1cs_nark_as::r1cs_nark::IndexProverKey;
     use crate::r1cs_nark_as::r1cs_nark::R1CSNark;
-    use crate::r1cs_nark_as::{r1cs_nark, ASForR1CSNark};
+    use crate::r1cs_nark_as::ASForR1CSNark;
     use crate::tests::*;
     use crate::AccumulationScheme;
     use crate::ConstraintF;
@@ -1188,7 +1188,7 @@ pub mod tests {
         _sponge: PhantomData<S>,
     }
 
-    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>
+    impl<G, S> ASTestInput<ConstraintF<G>, S, ASForR1CSNark<G, S>>
         for ASForR1CSNarkTestInput<ConstraintF<G>, S>
     where
         G: AffineCurve + Absorbable<ConstraintF<G>>,
@@ -1203,14 +1203,8 @@ pub mod tests {
             rng: &mut impl RngCore,
         ) -> (
             Self::InputParams,
-            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
-                ConstraintF<G>,
-                S,
-            >>::PredicateParams,
-            <ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S> as AccumulationScheme<
-                ConstraintF<G>,
-                S,
-            >>::PredicateIndex,
+            <ASForR1CSNark<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateParams,
+            <ASForR1CSNark<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PredicateIndex,
         ) {
             let nark_pp = R1CSNark::<G, S>::setup();
             let circuit = DummyCircuit {
@@ -1219,17 +1213,20 @@ pub mod tests {
                 params: test_params.clone(),
             };
 
-            let (pk, _) = R1CSNark::<G, S>::index(&nark_pp, circuit.clone()).unwrap();
+            let (ipk, ivk) = R1CSNark::<G, S>::index(&nark_pp, circuit.clone()).unwrap();
 
-            ((test_params.clone(), pk), nark_pp, circuit)
+            (
+                (test_params.clone(), ipk.clone()),
+                nark_pp,
+                (ipk, ivk.clone()),
+            )
         }
 
         fn generate_inputs(
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
-        ) -> Vec<Input<ConstraintF<G>, S, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>>>
-        {
+        ) -> Vec<Input<ConstraintF<G>, S, ASForR1CSNark<G, S>>> {
             let (test_params, ipk) = input_params;
 
             let mut inputs = Vec::with_capacity(num_inputs);
@@ -1240,7 +1237,8 @@ pub mod tests {
                     params: input_params.0.clone(),
                 };
 
-                let nark_sponge = S::new().fork(r1cs_nark::PROTOCOL_NAME);
+                let sponge = S::new();
+                let nark_sponge = ASForR1CSNark::<G, S>::nark_sponge(&sponge);
 
                 let proof = R1CSNark::<G, S>::prove(
                     ipk,
@@ -1265,16 +1263,9 @@ pub mod tests {
                     first_round_message: proof.first_msg.clone(),
                 };
 
-                let witness = InputWitness {
-                    second_round_message: proof.second_msg,
-                };
+                let witness = proof.second_msg;
 
-                inputs.push(
-                    Input::<_, _, ASForR1CSNark<G, DummyCircuit<G::ScalarField>, S>> {
-                        instance,
-                        witness,
-                    },
-                );
+                inputs.push(Input::<_, _, ASForR1CSNark<G, S>> { instance, witness });
             }
 
             inputs
@@ -1282,12 +1273,11 @@ pub mod tests {
     }
 
     type G = ark_pallas::Affine;
-    type F = ark_pallas::Fr;
     type CF = ark_pallas::Fq;
 
     type Sponge = PoseidonSponge<CF>;
 
-    type AS = ASForR1CSNark<G, DummyCircuit<F>, Sponge>;
+    type AS = ASForR1CSNark<G, Sponge>;
     type I = ASForR1CSNarkTestInput<CF, Sponge>;
 
     type Tests = ASTests<CF, Sponge, AS, I>;

@@ -1,4 +1,4 @@
-use crate::hp_as::data_structures::{Proof, ProofHidingCommitments, ProofTCommitments};
+use crate::hp_as::data_structures::{ProductPolynomialCommitment, Proof, ProofHidingCommitments};
 use crate::hp_as::InputInstance;
 use crate::ConstraintF;
 
@@ -116,7 +116,7 @@ where
 {
     /// Pedersen commitments to each coefficient vector of the product polynomial
     /// `a(X, µ) ◦ b(X)`, excluding `n-1`th coefficient (0-index)
-    pub(crate) t_comms: ProofTCommitmentsVar<G, C>,
+    pub(crate) product_poly_comm: ProductPolynomialCommitmentVar<G, C>,
 
     /// Pedersen commitments to the random vectors used to apply zero-knowledge to the vectors
     /// of the Hadamard product relation.
@@ -138,9 +138,9 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|proof| {
-            let t_comms = ProofTCommitmentsVar::new_variable(
+            let product_poly_comm = ProductPolynomialCommitmentVar::new_variable(
                 ns.clone(),
-                || Ok(&proof.borrow().t_comms),
+                || Ok(&proof.borrow().product_poly_comm),
                 mode,
             )?;
             let hiding_comms = proof
@@ -153,7 +153,7 @@ where
                 .transpose()?;
 
             Ok(Self {
-                t_comms,
+                product_poly_comm,
                 hiding_comms,
                 _curve: PhantomData,
             })
@@ -163,7 +163,7 @@ where
 
 /// The Pedersen commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
 /// Excludes `n-1`th commitment (0-index)
-pub(crate) struct ProofTCommitmentsVar<G, C>
+pub(crate) struct ProductPolynomialCommitmentVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
@@ -178,42 +178,43 @@ where
     pub(crate) _curve: PhantomData<G>,
 }
 
-impl<G, C> AllocVar<ProofTCommitments<G>, ConstraintF<G>> for ProofTCommitmentsVar<G, C>
+impl<G, C> AllocVar<ProductPolynomialCommitment<G>, ConstraintF<G>>
+    for ProductPolynomialCommitmentVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>>,
 {
-    fn new_variable<T: Borrow<ProofTCommitments<G>>>(
+    fn new_variable<T: Borrow<ProductPolynomialCommitment<G>>>(
         cs: impl Into<Namespace<ConstraintF<G>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
-        f().and_then(|t_comms| {
-            let t_comms_low = t_comms
+        f().and_then(|product_poly_comm| {
+            let product_poly_comm_low = product_poly_comm
                 .borrow()
                 .low
                 .iter()
-                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
+                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-            let t_comms_high = t_comms
+            let product_poly_comm_high = product_poly_comm
                 .borrow()
                 .high
                 .iter()
-                .map(|t_comm| C::new_variable(ns.clone(), || Ok(t_comm.clone()), mode))
+                .map(|comm| C::new_variable(ns.clone(), || Ok(comm.clone()), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             Ok(Self {
-                low: t_comms_low,
-                high: t_comms_high,
+                low: product_poly_comm_low,
+                high: product_poly_comm_high,
                 _curve: PhantomData,
             })
         })
     }
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofTCommitmentsVar<G, C>
+impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProductPolynomialCommitmentVar<G, C>
 where
     G: AffineCurve,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,

@@ -95,7 +95,7 @@ pub struct InputWitnessRandomness<F: Field> {
 pub struct Proof<G: AffineCurve> {
     /// Pedersen commitments to each coefficient vector of the product polynomial
     /// `a(X, µ) ◦ b(X)`, excluding `n-1`th coefficient (0-index)
-    pub(crate) t_comms: ProofTCommitments<G>,
+    pub(crate) product_poly_comm: ProductPolynomialCommitment<G>,
 
     /// Pedersen commitments to the random vectors used to apply zero-knowledge to the vectors
     /// of the Hadamard product relation.
@@ -105,7 +105,7 @@ pub struct Proof<G: AffineCurve> {
 /// The Pedersen commitments to each coefficient vector of the product polynomial `a(X, µ) ◦ b(X)`.
 /// Excludes `n-1`th commitment (0-index)
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct ProofTCommitments<G: AffineCurve> {
+pub(crate) struct ProductPolynomialCommitment<G: AffineCurve> {
     /// Pedersen commitments to the first `n-1` coefficients of the lower powers.
     pub(crate) low: Vec<G>,
 
@@ -113,7 +113,7 @@ pub(crate) struct ProofTCommitments<G: AffineCurve> {
     pub(crate) high: Vec<G>,
 }
 
-impl<G, CF> Absorbable<CF> for ProofTCommitments<G>
+impl<G, CF> Absorbable<CF> for ProductPolynomialCommitment<G>
 where
     G: AffineCurve + Absorbable<CF>,
     CF: PrimeField,
