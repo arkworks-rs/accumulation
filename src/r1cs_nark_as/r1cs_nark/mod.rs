@@ -47,12 +47,12 @@ where
     S: CryptographicSponge<ConstraintF<G>>,
 {
     pub(crate) fn compute_challenge(
-        index_info: &IndexInfo,
+        matrices_hash: &[u8; 32],
         input: &[G::ScalarField],
         msg: &FirstRoundMessage<G>,
         mut sponge: S,
     ) -> G::ScalarField {
-        sponge.absorb(&index_info.matrices_hash.as_ref());
+        sponge.absorb(&matrices_hash.as_ref());
 
         let input_bytes = input
             .iter()
@@ -282,7 +282,7 @@ where
 
         // Step 7 of the scheme's prover, as detailed in BCLMS20.
         let gamma = Self::compute_challenge(
-            &ipk.index_info,
+            &ipk.index_info.matrices_hash,
             &input,
             &first_msg,
             sponge.unwrap_or_else(|| S::new()),
@@ -345,7 +345,7 @@ where
 
         // Step 2 of the scheme's verifier, as detailed in BCLMS20.
         let gamma = Self::compute_challenge(
-            &ivk.index_info,
+            &ivk.index_info.matrices_hash,
             &input,
             &proof.first_msg,
             sponge.unwrap_or_else(|| S::new()),
@@ -463,7 +463,7 @@ fn inner_prod<F: Field>(row: &[(F, usize)], input: &[F], witness: &[F]) -> F {
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use ark_ff::UniformRand;
+    use ark_ff::{PrimeField, UniformRand};
     use ark_pallas::{Affine, Fq, Fr};
     use ark_relations::{
         lc,
