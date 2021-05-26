@@ -15,7 +15,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::AbsorbableGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
@@ -393,13 +393,12 @@ where
     }
 }
 
-impl<G, C, CS, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForR1CSNark<G, CS, S>>
+impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForR1CSNark<G, S>>
     for ASForR1CSNarkVerifierGadget<G, C, S, SV>
 where
     G: AffineCurve + Absorbable<ConstraintF<G>>,
     C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
     ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    CS: ConstraintSynthesizer<G::ScalarField> + Clone,
     S: CryptographicSponge<ConstraintF<G>>,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
@@ -542,9 +541,7 @@ where
 pub mod tests {
     use crate::constraints::tests::ASVerifierGadgetTests;
     use crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget;
-    use crate::r1cs_nark_as::tests::{
-        ASForR1CSNarkTestInput, ASForR1CSNarkTestParams, DummyCircuit,
-    };
+    use crate::r1cs_nark_as::tests::{ASForR1CSNarkTestInput, ASForR1CSNarkTestParams};
     use crate::r1cs_nark_as::ASForR1CSNark;
     use ark_relations::r1cs::SynthesisError;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
@@ -552,13 +549,12 @@ pub mod tests {
 
     type G = ark_pallas::Affine;
     type C = ark_pallas::constraints::GVar;
-    type F = ark_pallas::Fr;
     type CF = ark_pallas::Fq;
 
     type Sponge = PoseidonSponge<CF>;
     type SpongeVar = PoseidonSpongeVar<CF>;
 
-    type AS = ASForR1CSNark<G, DummyCircuit<F>, Sponge>;
+    type AS = ASForR1CSNark<G, Sponge>;
     type I = ASForR1CSNarkTestInput<CF, Sponge>;
     type ASV = ASForR1CSNarkVerifierGadget<G, C, Sponge, SpongeVar>;
 
