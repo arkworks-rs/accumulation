@@ -198,8 +198,8 @@ impl<F: Field> SecondRoundMessage<F> {
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<G: AffineCurve> {
     /// The sigma protocol's prove commitment.
-    pub(crate) first_msg: FirstRoundMessage<G>,
+    pub first_msg: FirstRoundMessage<G>,
 
     /// The sigma protocol's prove response.
-    pub(crate) second_msg: SecondRoundMessage<G::ScalarField>,
+    pub second_msg: SecondRoundMessage<G::ScalarField>,
 }
