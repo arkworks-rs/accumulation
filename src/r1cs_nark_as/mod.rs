@@ -40,13 +40,18 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"AS-FOR-R1CS-NARK-2020";
 /// Size of squeezed challenges in terms of number of bits.
 pub(self) const CHALLENGE_SIZE: usize = 128;
 
-/// An accumulation scheme for a NARK for R1CS.
-/// This implementation is specialized for [`r1cs_nark`].
-/// The construction is described in detail in Section 9 of [\[BCLMS20\]][bclms20].
+/// An accumulation scheme for a NARK for R1CS, specialized for [`r1cs_nark`].
+/// The construction is described in detail in Section 8 of [\[BCLMS20\]][bclms20].
+///
+/// The implementation differs from the construction in the paper in that the full R1CS input is
+/// included in the accumulator instance, rather than its commitment. The construction in the paper
+/// commits to the R1CS input to bound the public input size for the paper's PCD construction.
+/// However, the PCD implementation will hash the inputs, so the committing to the R1CS input for
+/// the accumulator instance is no longer necessary.
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
+/// See Remark 9.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
@@ -782,8 +787,8 @@ where
             }
         }
 
-        // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
-        // We perform Step 7 here because the optional rng will be consumed later in the method, so
+        // Step 4 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // We perform Step 4 here because the optional rng will be consumed later in the method, so
         // we use it here first.
         let (proof_randomness, prover_witness_randomness) = if make_zk_enabled {
             // If make_zk, then rng should exist here.
@@ -805,7 +810,7 @@ where
             (None, None)
         };
 
-        // Step 2 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // Step 1 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
                 &prover_key.nark_pk.index_info.matrices_hash,
@@ -813,16 +818,17 @@ where
                 nark_sponge,
             );
 
+        // Step 2 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
             &all_blinded_comm_b,
             &all_blinded_comm_prod,
         );
 
-        // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_hp_input_witnesses =
             Self::compute_hp_input_witnesses(prover_key, &input_instances, &input_witnesses);
 
+        // Step 3 of the scheme's accumulation prover, as detailed in BCLMS20.
         let combined_hp_inputs_iter = combined_hp_input_instances
             .iter()
             .zip(&combined_hp_input_witnesses)
@@ -833,7 +839,6 @@ where
                 },
             );
 
-        // Steps 4-5 of the scheme's accumulation prover, as detailed in BCLMS20.
         let hp_accumulators_iter = old_accumulator_instances
             .iter()
             .zip(&old_accumulator_witnesses)
@@ -844,7 +849,6 @@ where
                 },
             );
 
-        // Step 6 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (hp_accumulator, hp_proof) = ASForHadamardProducts::<G, S>::prove(
             &prover_key.nark_pk.ck,
             combined_hp_inputs_iter,
@@ -858,9 +862,9 @@ where
             Some(hp_sponge),
         )?;
 
-        // Step 7 was previously executed above.
+        // Step 4 was previously executed above.
 
-        // Step 8 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // Step 5 of the scheme's accumulation prover, as detailed in BCLMS20.
         let num_addends = input_instances.len()
             + old_accumulator_instances.len()
             + if make_zk_enabled { 1 } else { 0 };
@@ -874,7 +878,7 @@ where
             as_sponge,
         );
 
-        // Step 9 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // Step 6 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
             &all_blinded_comm_a,
@@ -893,7 +897,7 @@ where
             hp_instance: hp_accumulator.instance.clone(),
         };
 
-        // Step 10 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // Step 7 of the scheme's accumulation prover, as detailed in BCLMS20.
         let (r1cs_blinded_witness, randomness) = Self::compute_accumulator_witness_components(
             &input_witnesses,
             &old_accumulator_witnesses,
@@ -907,7 +911,7 @@ where
             randomness,
         };
 
-        // Steps 11-12 of the scheme's accumulation prover, as detailed in BCLMS20.
+        // Step 8 of the scheme's accumulation prover, as detailed in BCLMS20.
         let accumulator = Accumulator::<_, _, Self> {
             instance: combined_acc_instance,
             witness: combined_acc_witness,
@@ -963,7 +967,36 @@ where
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
-        // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        // Steps 1-2 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
+            Self::compute_blinded_commitments(
+                &verifier_key.nark_matrices_hash,
+                &input_instances,
+                nark_sponge,
+            );
+
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        let hp_input_instances = Self::compute_hp_input_instances(
+            &all_blinded_comm_a,
+            &all_blinded_comm_b,
+            &all_blinded_comm_prod,
+        );
+
+        // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        let hp_accumulator_instances = old_accumulator_instances
+            .iter()
+            .map(|instance| &instance.hp_instance);
+
+        let hp_verify = ASForHadamardProducts::<G, S>::verify(
+            &verifier_key.num_constraints,
+            &hp_input_instances,
+            hp_accumulator_instances,
+            &new_accumulator_instance.hp_instance,
+            &proof.hp_proof,
+            Some(hp_sponge),
+        )?;
+
+        // Step 5 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let num_addends = input_instances.len()
             + old_accumulator_instances.len()
             + if make_zk_enabled { 1 } else { 0 };
@@ -977,36 +1010,7 @@ where
             as_sponge,
         );
 
-        // Step 2 of the scheme's accumulation verifier, as detailed in BCLMS20.
-        let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
-            Self::compute_blinded_commitments(
-                &verifier_key.nark_matrices_hash,
-                &input_instances,
-                nark_sponge,
-            );
-
-        let hp_input_instances = Self::compute_hp_input_instances(
-            &all_blinded_comm_a,
-            &all_blinded_comm_b,
-            &all_blinded_comm_prod,
-        );
-
-        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
-        let hp_accumulator_instances = old_accumulator_instances
-            .iter()
-            .map(|instance| &instance.hp_instance);
-
-        // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
-        let hp_verify = ASForHadamardProducts::<G, S>::verify(
-            &verifier_key.num_constraints,
-            &hp_input_instances,
-            hp_accumulator_instances,
-            &new_accumulator_instance.hp_instance,
-            &proof.hp_proof,
-            Some(hp_sponge),
-        )?;
-
-        // Steps 5-6 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
             &all_blinded_comm_a,
@@ -1063,7 +1067,7 @@ where
             &witness.r1cs_blinded_witness,
         );
 
-        // Steps 4-6 of the scheme's accumulation decider, as detailed in BCLMS20.
+        // Steps 4-7 of the scheme's accumulation decider, as detailed in BCLMS20.
         let (sigma_a, sigma_b, sigma_c) = if let Some(randomness) = witness.randomness.as_ref() {
             (
                 Some(randomness.sigma_a),
@@ -1097,7 +1101,7 @@ where
             && comm_c.eq(&instance.comm_c);
 
         Ok(comm_check
-            // Step 7 of the scheme's accumulation decider, as detailed in BCLMS20.
+            // Step 8 of the scheme's accumulation decider, as detailed in BCLMS20.
             && ASForHadamardProducts::<G, S>::decide( &decider_key.ck,
                 AccumulatorRef::<_, _, ASForHadamardProducts<G, S>> {
                     instance: &instance.hp_instance,

@@ -464,21 +464,7 @@ where
             input_instances.push(default_input_instance.as_ref().unwrap());
         }
 
-        // Step 1 of the scheme's accumulation verifier, as detailed in BCLMS20.
-        let num_addends = input_instances.len()
-            + old_accumulator_instances.len()
-            + if make_zk_enabled { 1 } else { 0 };
-
-        let (beta_challenges_fe, beta_challenges_bits) = Self::compute_beta_challenges(
-            num_addends,
-            &verifier_key.as_matrices_hash,
-            &old_accumulator_instances,
-            &input_instances,
-            proof.randomness.as_ref(),
-            as_sponge,
-        )?;
-
-        // Step 2 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        // Steps 1-2 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (all_blinded_comm_a, all_blinded_comm_b, all_blinded_comm_c, all_blinded_comm_prod) =
             Self::compute_blinded_commitments(
                 &verifier_key.nark_matrices_hash,
@@ -486,13 +472,14 @@ where
                 nark_sponge,
             )?;
 
+        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let hp_input_instances = Self::compute_hp_input_instances(
             &all_blinded_comm_a,
             &all_blinded_comm_b,
             &all_blinded_comm_prod,
         );
 
-        // Step 3 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        // Step 4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let hp_accumulator_instances = old_accumulator_instances
             .iter()
             .map(|instance| &instance.hp_instance);
@@ -507,7 +494,21 @@ where
             Some(hp_sponge),
         )?;
 
-        // Steps 5-6 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        // Step 5 of the scheme's accumulation verifier, as detailed in BCLMS20.
+        let num_addends = input_instances.len()
+            + old_accumulator_instances.len()
+            + if make_zk_enabled { 1 } else { 0 };
+
+        let (beta_challenges_fe, beta_challenges_bits) = Self::compute_beta_challenges(
+            num_addends,
+            &verifier_key.as_matrices_hash,
+            &old_accumulator_instances,
+            &input_instances,
+            proof.randomness.as_ref(),
+            as_sponge,
+        )?;
+
+        // Step 6 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let (r1cs_input, comm_a, comm_b, comm_c) = Self::compute_accumulator_instance_components(
             &input_instances,
             &all_blinded_comm_a,
