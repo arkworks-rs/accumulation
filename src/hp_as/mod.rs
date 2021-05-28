@@ -29,11 +29,11 @@ pub mod constraints;
 pub(crate) const CHALLENGE_SIZE: usize = 128;
 
 /// An accumulation scheme for the Hadamard product relation.
-/// The construction is described in detail in Section 8 of [\[BCLMS20\]][bclms20].
+/// The construction is described in detail in Section 7 of [\[BCLMS20\]][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
+/// See Remark 9.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [bclms20]: https://eprint.iacr.org/2020/1618
 ///

@@ -33,11 +33,11 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 
 /// An accumulation scheme for a trivial homomorphic commitment schemes.
 /// This implementation is specialized for [`TrivialPC`][trivial-pc].
-/// The construction is described in detail in Section 7 of [\[BCLMS20\]][bclms20].
+/// The construction is described in detail in Section A of [\[BCLMS20\]][bclms20].
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
+/// See Remark 9.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [trivial-pc]: ark_poly_commit::trivial_pc::TrivialPC
 /// [bclms20]: https://eprint.iacr.org/2020/1618

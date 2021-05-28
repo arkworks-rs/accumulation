@@ -48,7 +48,7 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 ///
 /// The implementation substitutes power challenges with multiple independent challenges when
 /// possible to lower constraint costs for the verifier.
-/// See Remark 10.1 in [\[BCLMS20\]][bclms20] for more details.
+/// See Remark 9.1 in [\[BCLMS20\]][bclms20] for more details.
 ///
 /// [ipa-pc]: ark_poly_commit::ipa_pc::InnerProductArgPC
 /// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
