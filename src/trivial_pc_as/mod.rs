@@ -327,7 +327,7 @@ where
         let default_input_instance;
         let default_input_witness;
         if inputs.is_empty() && accumulators.is_empty() {
-            default_input_instance = Some(InputInstance::zero());
+            default_input_instance = Some(InputInstance::placeholder());
             default_input_witness = Some(LabeledPolynomial::new(
                 PolynomialLabel::new(),
                 DensePolynomial::zero(),
@@ -500,7 +500,7 @@ where
         // Default input in the case there are no provided inputs or accumulators.
         let default_input_instance;
         if all_input_instances.is_empty() {
-            default_input_instance = Some(InputInstance::zero());
+            default_input_instance = Some(InputInstance::placeholder());
             all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 

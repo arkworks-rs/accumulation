@@ -113,10 +113,10 @@ pub struct InputInstance<G: AffineCurve> {
 
 impl<G: AffineCurve> InputInstance<G> {
     /// Returns a default input instance.
-    pub fn zero(input_len: usize, make_zk: bool) -> Self {
+    pub fn placeholder(input_len: usize, make_zk: bool) -> Self {
         Self {
             r1cs_input: vec![G::ScalarField::zero(); input_len],
-            first_round_message: FirstRoundMessage::zero(make_zk),
+            first_round_message: FirstRoundMessage::placeholder(make_zk),
         }
     }
 }
@@ -178,7 +178,7 @@ impl<G: AffineCurve> AccumulatorInstance<G> {
             comm_a: G::zero(),
             comm_b: G::zero(),
             comm_c: G::zero(),
-            hp_instance: HPInputInstance::<G>::zero(),
+            hp_instance: HPInputInstance::<G>::placeholder(),
         }
     }
 }

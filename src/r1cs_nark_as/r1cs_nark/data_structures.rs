@@ -113,7 +113,7 @@ pub struct FirstRoundMessage<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> FirstRoundMessage<G> {
-    pub(crate) fn zero(make_zk: bool) -> Self {
+    pub(crate) fn placeholder(make_zk: bool) -> Self {
         Self {
             comm_a: G::zero(),
             comm_b: G::zero(),
@@ -177,7 +177,7 @@ pub struct SecondRoundMessage<F: Field> {
 }
 
 impl<F: Field> SecondRoundMessage<F> {
-    pub(crate) fn zero(witness_len: usize, make_zk: bool) -> Self {
+    pub(crate) fn placeholder(witness_len: usize, make_zk: bool) -> Self {
         Self {
             blinded_witness: vec![F::zero(); witness_len],
             randomness: if make_zk {
