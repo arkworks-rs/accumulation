@@ -23,7 +23,7 @@ pub struct InputInstance<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> InputInstance<G> {
-    pub(crate) fn zero() -> Self {
+    pub(crate) fn placeholder() -> Self {
         Self {
             comm_1: G::zero(),
             comm_2: G::zero(),
@@ -63,7 +63,7 @@ pub struct InputWitness<F: Field> {
 }
 
 impl<F: Field> InputWitness<F> {
-    pub(crate) fn zero(vec_len: usize) -> Self {
+    pub(crate) fn placeholder(vec_len: usize) -> Self {
         Self {
             a_vec: vec![F::zero(); vec_len],
             b_vec: vec![F::zero(); vec_len],

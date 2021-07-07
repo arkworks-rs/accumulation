@@ -136,8 +136,10 @@ where
 
         let default_input_instance;
         if all_input_instances.is_empty() {
-            default_input_instance =
-                Some(InputInstanceVar::new_constant(cs, InputInstance::zero())?);
+            default_input_instance = Some(InputInstanceVar::new_constant(
+                cs,
+                InputInstance::placeholder(),
+            )?);
             all_input_instances.push(default_input_instance.as_ref().unwrap());
         }
 

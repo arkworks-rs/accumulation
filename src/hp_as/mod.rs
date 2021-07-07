@@ -685,8 +685,8 @@ where
         let default_input_instance;
         let default_input_witness;
         if num_all_inputs == 0 {
-            default_input_instance = Some(InputInstance::zero());
-            default_input_witness = Some(InputWitness::zero(hp_vec_len));
+            default_input_instance = Some(InputInstance::placeholder());
+            default_input_witness = Some(InputWitness::placeholder(hp_vec_len));
 
             inputs.push(InputRef::<_, _, Self> {
                 instance: default_input_instance.as_ref().unwrap(),
@@ -699,8 +699,8 @@ where
         let placeholder_input_instance;
         let placeholder_input_witness;
         if make_zk_enabled && num_all_inputs == 1 {
-            placeholder_input_instance = Some(InputInstance::zero());
-            placeholder_input_witness = Some(InputWitness::zero(hp_vec_len));
+            placeholder_input_instance = Some(InputInstance::placeholder());
+            placeholder_input_witness = Some(InputWitness::placeholder(hp_vec_len));
 
             inputs.push(InputRef::<_, _, Self> {
                 instance: placeholder_input_instance.as_ref().unwrap(),
@@ -836,7 +836,7 @@ where
         // Use the default input_instance if no inputs or accumulators are provided.
         let default_input_instance;
         if num_all_inputs == 0 {
-            default_input_instance = Some(InputInstance::zero());
+            default_input_instance = Some(InputInstance::placeholder());
 
             input_instances.push(default_input_instance.as_ref().unwrap());
             num_all_inputs += 1;
@@ -845,7 +845,7 @@ where
         // Placeholder input for hiding.
         let placeholder_input_instance;
         if make_zk && num_all_inputs == 1 {
-            placeholder_input_instance = Some(InputInstance::zero());
+            placeholder_input_instance = Some(InputInstance::placeholder());
 
             input_instances.push(placeholder_input_instance.as_ref().unwrap());
             num_all_inputs += 1;

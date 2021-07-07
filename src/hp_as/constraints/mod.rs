@@ -304,7 +304,7 @@ where
         if num_all_inputs == 0 {
             default_input_instance = Some(InputInstanceVar::new_constant(
                 sponge.cs(),
-                InputInstance::zero(),
+                InputInstance::placeholder(),
             )?);
 
             input_instances.push(default_input_instance.as_ref().unwrap());
@@ -316,7 +316,7 @@ where
         if make_zk && num_all_inputs == 1 {
             placeholder_input_instance = Some(InputInstanceVar::new_constant(
                 sponge.cs(),
-                InputInstance::zero(),
+                InputInstance::placeholder(),
             )?);
 
             input_instances.push(placeholder_input_instance.as_ref().unwrap());

@@ -23,7 +23,7 @@ pub struct InputInstance<G: AffineCurve> {
 }
 
 impl<G: AffineCurve> InputInstance<G> {
-    pub(crate) fn zero() -> Self {
+    pub(crate) fn placeholder() -> Self {
         Self {
             commitment: LabeledCommitment::new(
                 PolynomialLabel::new(),
