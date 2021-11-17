@@ -333,6 +333,7 @@ pub mod tests {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 1],
             };
+            Self::print_costs_breakdown(test_params);
             assert!(Self::test_template(&template_params, test_params)?);
             Ok(())
         }
