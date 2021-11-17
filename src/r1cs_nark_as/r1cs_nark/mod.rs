@@ -413,6 +413,7 @@ where
             had_prod_comm += first_msg_randomness.comm_2.mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
+        add_to_trace!(|| "Verifier result", || format!("A equal: {}, B equal: {}, C equal: {}, Hadamard Product equal: {}", a_equal, b_equal, c_equal, had_prod_equal));
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }

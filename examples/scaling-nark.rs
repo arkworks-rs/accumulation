@@ -4,7 +4,7 @@
 
 // For benchmarking
 use ark_accumulation::r1cs_nark_as::r1cs_nark::R1CSNark;
-use ark_ff::PrimeField;
+use ark_ff::{PrimeField, One};
 use ark_pallas::{Affine, Fq, Fr};
 use ark_relations::{
     lc,
@@ -94,7 +94,7 @@ fn profile_nark<R: Rng>(
         let start = Instant::now();
         assert!(R1CSNark::<Affine, PoseidonSponge<Fq>>::verify(
             &ivk,
-            &[v, a, a, a, a],
+            &[Fr::one(), v, a, a, a, a],
             &proof,
             Some(PoseidonSponge::new())
         ));
@@ -111,7 +111,7 @@ fn profile_nark<R: Rng>(
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 4 || args[1] == "-h" || args[1] == "--help" {
+    if args.len() < 3 || args[1] == "-h" || args[1] == "--help" {
         println!("\nHelp: Invoke this as <program> <log_min_degree> <log_max_degree>\n");
     }
     let min_num_constraints: usize = String::from(args[1].clone())
