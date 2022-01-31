@@ -37,6 +37,7 @@ digest = { version = "0.9.0", default-features = false, optional = true }
 
 [dev-dependencies]
 ark-pallas = { version = "^0.2.0", features = [ "r1cs", "curve" ] }
+ark-bls12-377 = { version = "^0.2.0", default-features = false, features = [ "curve", "r1cs" ] }
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.2", default-features = false, features = [ "registry" ] }
 
@@ -59,6 +60,7 @@ std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-
 impl = []
 hp-as = [ "impl", "ark-poly" ]
 ipa-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
+marlin-pc-as = [ "impl", "ark-poly", "ark-poly-commit" ]
 r1cs-nark-as = [ "impl", "blake2", "digest", "hp-as", "r1cs" ]
 trivial-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
 
