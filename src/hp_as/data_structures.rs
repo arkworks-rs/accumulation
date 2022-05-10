@@ -1,7 +1,7 @@
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorb};
 use ark_std::io::{Read, Write};
 use ark_std::vec;
 use ark_std::vec::Vec;
@@ -32,17 +32,13 @@ impl<G: AffineCurve> InputInstance<G> {
     }
 }
 
-impl<G, CF> Absorbable<CF> for InputInstance<G>
-where
-    G: AffineCurve + Absorbable<CF>,
-    CF: PrimeField,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(CF, self.comm_1, self.comm_2, self.comm_3)
+impl<G: AffineCurve + Absorb> Absorb for InputInstance<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3)
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
     }
 }
 
@@ -113,17 +109,13 @@ pub(crate) struct ProductPolynomialCommitment<G: AffineCurve> {
     pub(crate) high: Vec<G>,
 }
 
-impl<G, CF> Absorbable<CF> for ProductPolynomialCommitment<G>
-where
-    G: AffineCurve + Absorbable<CF>,
-    CF: PrimeField,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(CF, self.low, self.high)
+impl<G: AffineCurve + Absorb> Absorb for ProductPolynomialCommitment<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(self.low, self.high);
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(self.low, self.high)
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(self.low, self.high);
     }
 }
 
@@ -143,16 +135,12 @@ pub(crate) struct ProofHidingCommitments<G: AffineCurve> {
     pub(crate) comm_3: G,
 }
 
-impl<G, CF> Absorbable<CF> for ProofHidingCommitments<G>
-where
-    G: AffineCurve + Absorbable<CF>,
-    CF: PrimeField,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(CF, self.comm_1, self.comm_2, self.comm_3)
+impl<G: AffineCurve + Absorb> Absorb for ProofHidingCommitments<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3)
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
     }
 }

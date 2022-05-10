@@ -7,9 +7,10 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::prelude::UInt8;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_sponge::collect_sponge_field_elements_gadget;
-use ark_sponge::constraints::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbGadget;
 use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
@@ -42,9 +43,13 @@ impl<CF: PrimeField> AllocVar<usize, CF> for VerifierKeyVar<CF> {
     }
 }
 
-impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
+impl<CF: PrimeField> AbsorbGadget<CF> for VerifierKeyVar<CF> {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(self.num_supported_elems)
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -95,13 +100,17 @@ where
     }
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -214,13 +223,17 @@ where
     }
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProductPolynomialCommitmentVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for ProductPolynomialCommitmentVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(self.low, self.high)
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -272,12 +285,16 @@ where
     }
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofHidingCommitmentsVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for ProofHidingCommitmentsVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(self.comm_1, self.comm_2, self.comm_3)
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }

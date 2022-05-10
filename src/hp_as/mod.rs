@@ -5,11 +5,11 @@ use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
 
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{One, Zero};
+use ark_ff::{One, PrimeField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
-use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
 use ark_std::rand::RngCore;
@@ -65,9 +65,9 @@ pub(crate) const CHALLENGE_SIZE: usize = 128;
 ///     rand_3: G::ScalarField,
 /// ) -> Input<ConstraintF<G>, S, ASForHadamardProducts<G, S>>
 ///     where
-///         G: AffineCurve + Absorbable<ConstraintF<G>>,
-///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-///         S: CryptographicSponge<ConstraintF<G>>,
+///         G: AffineCurve + Absorb,
+///         ConstraintF<G>: Absorb,
+///         S: CryptographicSponge,
 /// {
 ///     let instance = InputInstance {
 ///         comm_1,
@@ -92,9 +92,9 @@ pub(crate) const CHALLENGE_SIZE: usize = 128;
 /// ```
 pub struct ASForHadamardProducts<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     _affine: PhantomData<G>,
     _sponge: PhantomData<S>,
@@ -102,9 +102,9 @@ where
 
 impl<G, S> ASForHadamardProducts<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     /// Check that the input witness is properly structured.
     fn check_input_witness_structure<'a>(
@@ -231,7 +231,7 @@ where
 
     /// Compute the mu challenges from a provided sponge.
     fn squeeze_mu_challenges(
-        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
+        sponge: &mut impl CryptographicSponge,
         num_inputs: usize,
         make_zk: bool,
     ) -> Vec<G::ScalarField> {
@@ -240,9 +240,11 @@ where
 
         if num_inputs > 1 {
             let mu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
-            mu_challenges.append(&mut sponge.squeeze_nonnative_field_elements_with_sizes(
-                vec![mu_size; num_inputs - 1].as_slice(),
-            ));
+            mu_challenges.append(
+                &mut sponge.squeeze_field_elements_with_sizes::<G::ScalarField>(
+                    vec![mu_size; num_inputs - 1].as_slice(),
+                ),
+            );
         }
 
         if make_zk {
@@ -254,12 +256,12 @@ where
 
     /// Compute the nu challenges from a provided sponge.
     fn squeeze_nu_challenges(
-        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
+        sponge: &mut impl CryptographicSponge,
         num_inputs: usize,
     ) -> Vec<G::ScalarField> {
         let nu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
         let nu_challenge: G::ScalarField = sponge
-            .squeeze_nonnative_field_elements_with_sizes(vec![nu_size].as_slice())
+            .squeeze_field_elements_with_sizes::<G::ScalarField>(vec![nu_size].as_slice())
             .pop()
             .unwrap();
 
@@ -395,7 +397,7 @@ where
     ) -> G::Projective {
         let mut combined_commitment = G::Projective::zero();
         for (i, commitment) in commitments.into_iter().enumerate() {
-            combined_commitment += &commitment.mul(challenges[i].into());
+            combined_commitment += &commitment.mul::<G::ScalarField>(challenges[i]);
         }
 
         if let Some(hiding_comms) = hiding_comms {
@@ -415,10 +417,11 @@ where
     ) -> InputInstance<G> {
         let num_inputs = input_instances.len();
 
-        let hiding_comm_addend_1 = proof
-            .hiding_comms
-            .as_ref()
-            .map(|hiding_comms| hiding_comms.comm_1.mul(mu_challenges[num_inputs].into()));
+        let hiding_comm_addend_1 = proof.hiding_comms.as_ref().map(|hiding_comms| {
+            hiding_comms
+                .comm_1
+                .mul::<G::ScalarField>(mu_challenges[num_inputs])
+        });
 
         let combined_comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
@@ -429,7 +432,7 @@ where
         let hiding_comm_addend_2 = proof
             .hiding_comms
             .as_ref()
-            .map(|hiding_comms| hiding_comms.comm_2.mul(mu_challenges[1].into()));
+            .map(|hiding_comms| hiding_comms.comm_2.mul::<G::ScalarField>(mu_challenges[1]));
 
         let combined_comm_2 = Self::combine_commitments(
             input_instances
@@ -450,17 +453,18 @@ where
                 None,
             );
 
-            let hiding_comm_addend_3 = proof
-                .hiding_comms
-                .as_ref()
-                .map(|hiding_comms| hiding_comms.comm_3.mul(mu_challenges[num_inputs].into()));
+            let hiding_comm_addend_3 = proof.hiding_comms.as_ref().map(|hiding_comms| {
+                hiding_comms
+                    .comm_3
+                    .mul::<G::ScalarField>(mu_challenges[num_inputs])
+            });
 
             let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
                 &mu_challenges,
                 hiding_comm_addend_3.as_ref(),
             )
-            .mul(nu_challenges[num_inputs - 1].into());
+            .mul(nu_challenges[num_inputs - 1].into_repr());
 
             product_poly_comm_low_addend + &product_poly_comm_high_addend + &comm_3_addend
         };
@@ -609,9 +613,9 @@ where
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForHadamardProducts<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     type PublicParameters = ();
     type PredicateParams = ();
@@ -654,7 +658,8 @@ where
         Self: 'a,
         S: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         let mut inputs = inputs.into_iter().collect::<Vec<_>>();
         let old_accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
@@ -824,7 +829,8 @@ where
         Self: 'a,
         S: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         let mut input_instances = input_instances.into_iter().collect::<Vec<_>>();
         let mut old_accumulator_instances =
@@ -937,7 +943,7 @@ pub mod tests {
     use ark_ec::AffineCurve;
     use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::{Absorb, CryptographicSponge};
     use ark_std::rand::RngCore;
     use ark_std::test_rng;
     use ark_std::vec::Vec;
@@ -958,9 +964,9 @@ pub mod tests {
 
     impl<G, S> ASTestInput<ConstraintF<G>, S, ASForHadamardProducts<G, S>> for ASForHPTestInput
     where
-        G: AffineCurve + Absorbable<ConstraintF<G>>,
-        ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
+        G: AffineCurve + Absorb,
+        ConstraintF<G>: Absorb,
+        S: CryptographicSponge,
     {
         type TestParams = ASForHPTestParams;
         type InputParams = (PedersenCommitmentCK<G>, bool);

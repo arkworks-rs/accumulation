@@ -14,10 +14,11 @@ use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::prelude::UInt8;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use ark_sponge::constraints::AbsorbableGadget;
-use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
+use ark_sponge::constraints::AbsorbGadget;
+use ark_sponge::{collect_sponge_field_elements_gadget, Absorb};
 use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
@@ -52,36 +53,38 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
 
             let num_instance_variables = vk.num_instance_variables;
 
-            let hp_as_vk =
+            let hp_as_vk_var =
                 HPVerifierKeyVar::new_variable(ns.clone(), || Ok(vk.num_constraints), mode)?;
 
-            let nark_matrices_hash = vk
-                .nark_matrices_hash
+            let nark_matrices_hash = Vec::<CF>::new();
+            vk.nark_matrices_hash
                 .as_ref()
-                .to_sponge_field_elements()
+                .to_sponge_field_elements::<CF>(&mut nark_matrices_hash);
+            let nark_matrices_hash_var = nark_matrices_hash
                 .into_iter()
                 .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-            let as_matrices_hash = vk
-                .as_matrices_hash
+            let as_matrices_hash = Vec::<CF>::new();
+            vk.as_matrices_hash
                 .as_ref()
-                .to_sponge_field_elements()
+                .to_sponge_field_elements::<CF>(&mut as_matrices_hash);
+            let as_matrices_hash_var = as_matrices_hash
                 .into_iter()
                 .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             Ok(Self {
-                num_instance_variables,
-                hp_as_vk,
-                nark_matrices_hash,
-                as_matrices_hash,
+                num_instance_variables: num_instance_variables,
+                hp_as_vk: hp_as_vk_var,
+                nark_matrices_hash: nark_matrices_hash_var,
+                as_matrices_hash: as_matrices_hash_var,
             })
         })
     }
 }
 
-impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
+impl<CF: PrimeField> AbsorbGadget<CF> for VerifierKeyVar<CF> {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         let num_instance_variables = FpVar::Constant(CF::from(self.num_instance_variables as u64));
         collect_sponge_field_elements_gadget!(
@@ -90,6 +93,10 @@ impl<CF: PrimeField> AbsorbableGadget<CF> for VerifierKeyVar<CF> {
             self.nark_matrices_hash,
             self.as_matrices_hash
         )
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -111,10 +118,10 @@ pub struct FirstRoundMessageVar<G: AffineCurve, C: CurveVar<G::Projective, Const
     pub(crate) _affine_phantom: PhantomData<G>,
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for FirstRoundMessageVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for FirstRoundMessageVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(
@@ -123,6 +130,12 @@ where
             self.comm_c,
             self.randomness
         )
+    }
+
+    fn to_sponge_bytes(
+        &self,
+    ) -> Result<Vec<ark_r1cs_std::prelude::UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -185,10 +198,10 @@ pub struct FirstRoundMessageRandomnessVar<
     pub(crate) _affine_phantom: PhantomData<G>,
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for FirstRoundMessageRandomnessVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for FirstRoundMessageRandomnessVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(
@@ -198,6 +211,10 @@ where
             self.comm_1,
             self.comm_2
         )
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -252,10 +269,10 @@ pub struct InputInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Constrain
     pub first_round_message: FirstRoundMessageVar<G, C>,
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         let mut r1cs_input_bytes = Vec::new();
@@ -264,6 +281,10 @@ where
         }
 
         collect_sponge_field_elements_gadget!(r1cs_input_bytes, self.first_round_message)
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -329,10 +350,10 @@ pub struct AccumulatorInstanceVar<G: AffineCurve, C: CurveVar<G::Projective, Con
     pub(crate) hp_instance: HPInputInstanceVar<G, C>,
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for AccumulatorInstanceVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for AccumulatorInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         let mut r1cs_input_bytes = Vec::new();
@@ -347,6 +368,10 @@ where
             self.comm_c,
             self.hp_instance
         )
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 
@@ -456,10 +481,10 @@ pub(crate) struct ProofRandomnessVar<G: AffineCurve, C: CurveVar<G::Projective, 
     pub(crate) comm_r_c: C,
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for ProofRandomnessVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for ProofRandomnessVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         let mut r1cs_r_input_bytes = Vec::new();
@@ -473,6 +498,10 @@ where
             self.comm_r_b,
             self.comm_r_c
         )
+    }
+
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<ConstraintF<G>>>, SynthesisError> {
+        todo!()
     }
 }
 

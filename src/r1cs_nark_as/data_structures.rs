@@ -8,7 +8,7 @@ use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, Field, PrimeField, Zero};
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorb};
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
@@ -77,24 +77,23 @@ impl VerifierKey {
     }
 }
 
-impl<CF: PrimeField + Absorbable<CF>> Absorbable<CF> for VerifierKey {
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl Absorb for VerifierKey {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             self.num_instance_variables,
             self.num_constraints,
             self.nark_matrices_hash.to_vec(),
             self.as_matrices_hash.to_vec()
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             self.num_instance_variables,
             self.num_constraints,
             self.nark_matrices_hash.to_vec(),
             self.as_matrices_hash.to_vec()
-        )
+        );
     }
 }
 
@@ -121,24 +120,19 @@ impl<G: AffineCurve> InputInstance<G> {
     }
 }
 
-impl<CF, G> Absorbable<CF> for InputInstance<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl<G: AffineCurve + Absorb> Absorb for InputInstance<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             to_bytes!(self.r1cs_input).unwrap(),
             self.first_round_message
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             to_bytes!(self.r1cs_input).unwrap(),
             self.first_round_message
-        )
+        );
     }
 }
 
@@ -183,30 +177,25 @@ impl<G: AffineCurve> AccumulatorInstance<G> {
     }
 }
 
-impl<CF, G> Absorbable<CF> for AccumulatorInstance<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl<G: AffineCurve + Absorb> Absorb for AccumulatorInstance<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             to_bytes!(self.r1cs_input).unwrap(),
             self.comm_a,
             self.comm_b,
             self.comm_c,
             self.hp_instance
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             to_bytes!(self.r1cs_input).unwrap(),
             self.comm_a,
             self.comm_b,
             self.comm_c,
             self.hp_instance
-        )
+        );
     }
 }
 
@@ -324,27 +313,22 @@ pub(crate) struct ProofRandomness<G: AffineCurve> {
     pub(crate) comm_r_c: G,
 }
 
-impl<CF, G> Absorbable<CF> for ProofRandomness<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl<G: AffineCurve + Absorb> Absorb for ProofRandomness<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             to_bytes!(self.r1cs_r_input).unwrap(),
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             to_bytes!(self.r1cs_r_input).unwrap(),
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c
-        )
+        );
     }
 }

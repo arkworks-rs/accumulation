@@ -9,7 +9,7 @@ use ark_relations::r1cs::{
     SynthesisMode,
 };
 use ark_serialize::CanonicalSerialize;
-use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::rand::RngCore;
 use ark_std::vec;
 use ark_std::vec::Vec;
@@ -32,9 +32,9 @@ pub(crate) const PROTOCOL_NAME: &[u8] = b"R1CS-NARK-2020";
 /// [bclms20]: https://eprint.iacr.org/2020/1618
 pub struct R1CSNark<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     _affine: PhantomData<G>,
     _sponge: PhantomData<S>,
@@ -42,9 +42,9 @@ where
 
 impl<G, S> R1CSNark<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     pub(crate) fn compute_challenge(
         matrices_hash: &[u8; 32],
@@ -62,7 +62,7 @@ where
         absorb!(&mut sponge, input_bytes, msg);
 
         let out = sponge
-            .squeeze_nonnative_field_elements_with_sizes(&[FieldElementSize::Truncated(
+            .squeeze_field_elements_with_sizes::<G::ScalarField>(&[FieldElementSize::Truncated(
                 CHALLENGE_SIZE,
             )])
             .pop()
@@ -281,12 +281,10 @@ where
         };
 
         // Step 7 of the scheme's prover, as detailed in BCLMS20.
-        let gamma = Self::compute_challenge(
-            &ipk.index_info.matrices_hash,
-            &input,
-            &first_msg,
-            sponge.unwrap_or_else(|| S::new()),
-        );
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
+        let gamma =
+            Self::compute_challenge(&ipk.index_info.matrices_hash, &input, &first_msg, sponge);
 
         let mut blinded_witness = witness;
         let second_round_randomness = if make_zk {
@@ -344,11 +342,13 @@ where
         }
 
         // Step 2 of the scheme's verifier, as detailed in BCLMS20.
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
         let gamma = Self::compute_challenge(
             &ivk.index_info.matrices_hash,
             &input,
             &proof.first_msg,
-            sponge.unwrap_or_else(|| S::new()),
+            sponge,
         );
 
         // Step 3 of the scheme's verifier, as detailed in BCLMS20.
@@ -413,7 +413,10 @@ where
             had_prod_comm += first_msg_randomness.comm_2.mul(gamma.square());
         }
         let had_prod_equal = had_prod_comm == reconstructed_had_prod_comm.into_projective();
-        add_to_trace!(|| "Verifier result", || format!("A equal: {}, B equal: {}, C equal: {}, Hadamard Product equal: {}", a_equal, b_equal, c_equal, had_prod_equal));
+        add_to_trace!(|| "Verifier result", || format!(
+            "A equal: {}, B equal: {}, C equal: {}, Hadamard Product equal: {}",
+            a_equal, b_equal, c_equal, had_prod_equal
+        ));
         end_timer!(init_time);
         a_equal & b_equal & c_equal & had_prod_equal
     }

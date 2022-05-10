@@ -160,7 +160,7 @@ pub mod trivial_pc_as;
 ///
 /// #   unimplemented!()
 /// }
-pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized {
+pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge>: Sized {
     /// The public parameters for the accumulation scheme.
     type PublicParameters: Clone;
 
@@ -255,7 +255,7 @@ pub trait AccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>: Sized 
 ///
 /// [\[BCMS20\]]: https://eprint.iacr.org/2020/499
 /// [bclms20]: https://eprint.iacr.org/2020/1618
-pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge<CF>>:
+pub trait AtomicAccumulationScheme<CF: PrimeField, S: CryptographicSponge>:
     AccumulationScheme<CF, S, InputWitness = (), AccumulatorWitness = ()>
 {
 }
@@ -277,8 +277,7 @@ pub mod tests {
     }
 
     /// An interface for generating inputs and accumulators to test an accumulation scheme.
-    pub trait ASTestInput<CF: PrimeField, S: CryptographicSponge<CF>, A: AccumulationScheme<CF, S>>
-    {
+    pub trait ASTestInput<CF: PrimeField, S: CryptographicSponge, A: AccumulationScheme<CF, S>> {
         /// Parameters for setting up the test
         type TestParams: TestParameters;
 
@@ -309,7 +308,7 @@ pub mod tests {
     pub struct ASTests<CF, S, AS, I>
     where
         CF: PrimeField,
-        S: CryptographicSponge<CF>,
+        S: CryptographicSponge,
         AS: AccumulationScheme<CF, S>,
         I: ASTestInput<CF, S, AS>,
     {
@@ -322,7 +321,7 @@ pub mod tests {
     impl<CF, S, AS, I> ASTests<CF, S, AS, I>
     where
         CF: PrimeField,
-        S: CryptographicSponge<CF>,
+        S: CryptographicSponge,
         AS: AccumulationScheme<CF, S>,
         I: ASTestInput<CF, S, AS>,
     {

@@ -17,7 +17,7 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::One;
 use ark_ff::UniformRand;
 use ark_poly_commit::trivial_pc::PedersenCommitment;
-use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::rand::RngCore;
 use ark_std::string::ToString;
@@ -78,9 +78,9 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 ///     second_msg: SecondRoundMessage<G::ScalarField>,
 /// ) -> Input<ConstraintF<G>, S, ASForR1CSNark<G, S>>
 ///     where
-///         G: AffineCurve + Absorbable<ConstraintF<G>>,
-///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-///         S: CryptographicSponge<ConstraintF<G>>
+///         G: AffineCurve + Absorb,
+///         ConstraintF<G>: Absorb,
+///         S: CryptographicSponge
 /// {
 ///     let instance = InputInstance {
 ///         r1cs_input: input,
@@ -94,9 +94,9 @@ pub(self) const CHALLENGE_SIZE: usize = 128;
 /// ```
 pub struct ASForR1CSNark<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     _affine: PhantomData<G>,
     _sponge: PhantomData<S>,
@@ -104,9 +104,9 @@ where
 
 impl<G, S> ASForR1CSNark<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     /// Returns a new sponge from a base sponge that is used by the NARK.
     pub fn nark_sponge(base_sponge: &S) -> S {
@@ -426,7 +426,7 @@ where
         accumulator_instances: &Vec<&AccumulatorInstance<G>>,
         input_instances: &Vec<&InputInstance<G>>,
         proof_randomness: &Option<ProofRandomness<G>>,
-        mut as_sponge: impl CryptographicSponge<ConstraintF<G>>,
+        mut as_sponge: impl CryptographicSponge,
     ) -> Vec<G::ScalarField> {
         absorb!(
             &mut as_sponge,
@@ -436,7 +436,7 @@ where
             proof_randomness
         );
 
-        let mut squeeze = as_sponge.squeeze_nonnative_field_elements_with_sizes(
+        let mut squeeze = as_sponge.squeeze_field_elements_with_sizes::<G::ScalarField>(
             vec![FieldElementSize::Truncated(CHALLENGE_SIZE); num_challenges - 1].as_slice(),
         );
 
@@ -660,9 +660,9 @@ where
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForR1CSNark<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     type PublicParameters =
         <ASForHadamardProducts<G, S> as AccumulationScheme<ConstraintF<G>, S>>::PublicParameters;
@@ -721,7 +721,8 @@ where
         Self: 'a,
         S: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
         let nark_sponge = Self::nark_sponge(&sponge);
         let as_sponge = Self::as_sponge(&sponge);
         let hp_sponge = Self::hp_sponge(&sponge);
@@ -937,7 +938,8 @@ where
         Self: 'a,
         S: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         let nark_sponge = Self::nark_sponge(&sponge);
         let as_sponge = Self::as_sponge(&sponge);
@@ -1131,7 +1133,7 @@ pub mod tests {
         SynthesisError,
     };
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::{Absorb, CryptographicSponge};
     use ark_std::marker::PhantomData;
     use ark_std::rand::RngCore;
     use ark_std::vec::Vec;
@@ -1187,7 +1189,7 @@ pub mod tests {
         }
     }
 
-    pub struct ASForR1CSNarkTestInput<CF: PrimeField, S: CryptographicSponge<CF>> {
+    pub struct ASForR1CSNarkTestInput<CF: PrimeField, S: CryptographicSponge> {
         _cf: PhantomData<CF>,
         _sponge: PhantomData<S>,
     }
@@ -1195,9 +1197,9 @@ pub mod tests {
     impl<G, S> ASTestInput<ConstraintF<G>, S, ASForR1CSNark<G, S>>
         for ASForR1CSNarkTestInput<ConstraintF<G>, S>
     where
-        G: AffineCurve + Absorbable<ConstraintF<G>>,
-        ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
+        G: AffineCurve + Absorb,
+        ConstraintF<G>: Absorb,
+        S: CryptographicSponge,
     {
         type TestParams = ASForR1CSNarkTestParams;
         type InputParams = (Self::TestParams, IndexProverKey<G>);

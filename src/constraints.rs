@@ -10,7 +10,7 @@ use ark_sponge::CryptographicSponge;
 /// The verifier gadget of an [`AccumulationScheme`].
 pub trait ASVerifierGadget<
     CF: PrimeField,
-    S: CryptographicSponge<CF>,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<CF, S>,
     AS: AccumulationScheme<CF, S>,
 >
@@ -52,7 +52,7 @@ pub trait ASVerifierGadget<
 /// The verifier gadget of an [`AtomicAccumulationScheme`][crate::AtomicAccumulationScheme].
 pub trait AtomicASVerifierGadget<
     CF: PrimeField,
-    S: CryptographicSponge<CF>,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<CF, S>,
     AS: AtomicAccumulationScheme<CF, S>,
 >: ASVerifierGadget<CF, S, SV, AS>
@@ -78,7 +78,7 @@ pub mod tests {
     pub struct ASVerifierGadgetTests<CF, S, SV, AS, ASV, I>
     where
         CF: PrimeField,
-        S: CryptographicSponge<CF>,
+        S: CryptographicSponge,
         SV: CryptographicSpongeVar<CF, S>,
         AS: AccumulationScheme<CF, S>,
         ASV: ASVerifierGadget<CF, S, SV, AS>,
@@ -95,7 +95,7 @@ pub mod tests {
     impl<CF, S, SV, AS, ASV, I> ASVerifierGadgetTests<CF, S, SV, AS, ASV, I>
     where
         CF: PrimeField,
-        S: CryptographicSponge<CF>,
+        S: CryptographicSponge,
         SV: CryptographicSpongeVar<CF, S>,
         AS: AccumulationScheme<CF, S>,
         ASV: ASVerifierGadget<CF, S, SV, AS>,

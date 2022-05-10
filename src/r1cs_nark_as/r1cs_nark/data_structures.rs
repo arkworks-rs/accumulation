@@ -3,7 +3,7 @@ use ark_ff::{Field, PrimeField};
 use ark_poly_commit::trivial_pc::CommitterKey;
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorb};
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
@@ -69,30 +69,25 @@ pub struct FirstRoundMessageRandomness<G: AffineCurve> {
     pub(crate) comm_2: G,
 }
 
-impl<CF, G> Absorbable<CF> for FirstRoundMessageRandomness<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl<G: AffineCurve + Absorb> Absorb for FirstRoundMessageRandomness<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
             self.comm_1,
             self.comm_2
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
             self.comm_1,
             self.comm_2
-        )
+        );
     }
 }
 
@@ -133,17 +128,18 @@ impl<G: AffineCurve> FirstRoundMessage<G> {
     }
 }
 
-impl<CF, G> Absorbable<CF> for FirstRoundMessage<G>
-where
-    CF: PrimeField,
-    G: AffineCurve + Absorbable<CF>,
-{
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(CF, self.comm_a, self.comm_b, self.comm_c, self.randomness)
+impl<G: AffineCurve + Absorb> Absorb for FirstRoundMessage<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(self.comm_a, self.comm_b, self.comm_c, self.randomness);
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(self.comm_a, self.comm_b, self.comm_c, self.randomness)
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
+            self.comm_a,
+            self.comm_b,
+            self.comm_c,
+            self.randomness
+        );
     }
 }
 

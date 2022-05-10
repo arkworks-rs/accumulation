@@ -16,9 +16,9 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
-use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb_gadget, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::vec;
 use ark_std::vec::Vec;
@@ -31,10 +31,10 @@ pub use data_structures::*;
 /// [as_for_r1cs_nark]: crate::r1cs_nark_as::ASForR1CSNark
 pub struct ASForR1CSNarkVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
@@ -45,10 +45,10 @@ where
 
 impl<G, C, S, SV> ASForR1CSNarkVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     /// Check that the input instance is properly structured.
@@ -396,10 +396,10 @@ where
 impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, ASForR1CSNark<G, S>>
     for ASForR1CSNarkVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<ConstraintF<G>>;
@@ -431,7 +431,8 @@ where
         Self::InputInstance: 'a,
         Self::AccumulatorInstance: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| SV::new(cs.clone()));
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         let nark_sponge = sponge.fork(r1cs_nark::PROTOCOL_NAME)?;
         let as_sponge = sponge.fork(PROTOCOL_NAME)?;
