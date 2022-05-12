@@ -2,7 +2,7 @@ use ark_ec::AffineCurve;
 use ark_ff::{to_bytes, PrimeField, Zero};
 use ark_poly_commit::{trivial_pc, LabeledCommitment, PolynomialLabel};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorbable};
+use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorb};
 use ark_std::io::{Read, Write};
 use ark_std::vec::Vec;
 
@@ -36,22 +36,21 @@ impl<G: AffineCurve> InputInstance<G> {
     }
 }
 
-impl<G: AffineCurve + Absorbable<CF>, CF: PrimeField> Absorbable<CF> for InputInstance<G> {
-    fn to_sponge_bytes(&self) -> Vec<u8> {
-        collect_sponge_bytes!(
-            CF,
+impl<G: AffineCurve + Absorb> Absorb for InputInstance<G> {
+    fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
+        dest = &mut collect_sponge_bytes!(
             self.commitment.commitment().elem,
             to_bytes!(self.point).unwrap(),
             to_bytes!(self.eval).unwrap()
-        )
+        );
     }
 
-    fn to_sponge_field_elements(&self) -> Vec<CF> {
-        collect_sponge_field_elements!(
+    fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
+        dest = &mut collect_sponge_field_elements!(
             self.commitment.commitment().elem,
             to_bytes!(self.point).unwrap(),
             to_bytes!(self.eval).unwrap()
-        )
+        );
     }
 }
 

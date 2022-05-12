@@ -13,7 +13,7 @@ use ark_poly_commit::{
     PolynomialCommitment, PolynomialLabel,
 };
 use ark_sponge::domain_separated::DomainSeparatedSponge;
-use ark_sponge::{Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
 use ark_std::rand::RngCore;
@@ -62,7 +62,7 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 /// use ark_ec::AffineCurve;
 /// use ark_ff::Field;
 /// use ark_poly_commit::{LabeledCommitment, ipa_pc};
-/// use ark_sponge::{Absorbable, CryptographicSponge};
+/// use ark_sponge::{Absorb, CryptographicSponge};
 ///
 /// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
@@ -78,9 +78,9 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 ///     proof: ipa_pc::Proof<G>,
 /// ) -> Input<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>
 ///     where
-///         G: AffineCurve + Absorbable<ConstraintF<G>>,
-///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-///         S: CryptographicSponge<ConstraintF<G>>
+///         G: AffineCurve + Absorb,
+///         ConstraintF<G>: Absorb,
+///         S: CryptographicSponge
 /// {
 ///     let instance = InputInstance {
 ///         ipa_commitment: comm,
@@ -96,9 +96,9 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 /// ```
 pub struct AtomicASForInnerProductArgPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     _curve: PhantomData<G>,
     _sponge: PhantomData<S>,
@@ -106,9 +106,9 @@ where
 
 impl<G, S> AtomicASForInnerProductArgPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
@@ -238,7 +238,7 @@ where
 
     /// Absorbs an IpaPC succinct check polynomial into a sponge.
     fn absorb_succinct_check_polynomial_into_sponge(
-        sponge: &mut impl CryptographicSponge<ConstraintF<G>>,
+        sponge: &mut impl CryptographicSponge,
         check_polynomial: &SuccinctCheckPolynomial<G::ScalarField>,
     ) {
         let mut bytes_input = Vec::new();
@@ -474,9 +474,9 @@ where
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     type PublicParameters = ();
     type PredicateParams = ipa_pc::UniversalParams<G>;
@@ -850,9 +850,9 @@ where
 
 impl<G, S> AtomicAccumulationScheme<ConstraintF<G>, S> for AtomicASForInnerProductArgPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
 }
 
@@ -871,7 +871,7 @@ pub mod tests {
     use ark_poly_commit::{ipa_pc, LabeledPolynomial, PCCommitterKey};
     use ark_poly_commit::{PolynomialCommitment, UVPolynomial};
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::{Absorb, CryptographicSponge};
     use ark_std::marker::PhantomData;
     use ark_std::rand::RngCore;
     use ark_std::vec::Vec;
@@ -895,9 +895,9 @@ pub mod tests {
     impl<G, S> ASTestInput<ConstraintF<G>, S, AtomicASForInnerProductArgPC<G, S>>
         for AtomicASForIpaPCTestInput<ConstraintF<G>, S>
     where
-        G: AffineCurve + Absorbable<ConstraintF<G>>,
-        ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
+        G: AffineCurve + Absorb,
+        ConstraintF<G>: Absorb,
+        S: CryptographicSponge,
     {
         type TestParams = AtomicASForIpaPCTestParams;
         type InputParams = (ipa_pc::CommitterKey<G>, ipa_pc::VerifierKey<G>, bool);

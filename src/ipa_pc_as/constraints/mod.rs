@@ -21,11 +21,11 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::{ToBitsGadget, ToBytesGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
-use ark_sponge::constraints::AbsorbableGadget;
+use ark_sponge::constraints::AbsorbGadget;
 use ark_sponge::constraints::CryptographicSpongeVar;
 use ark_sponge::domain_separated::constraints::DomainSeparatedSpongeVar;
 use ark_sponge::domain_separated::DomainSeparatedSponge;
-use ark_sponge::{absorb_gadget, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb_gadget, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::ops::Mul;
 use ark_std::vec;
@@ -39,11 +39,11 @@ pub use data_structures::*;
 /// [as_for_ipa_pc]: crate::ipa_pc_as::AtomicASForInnerProductArgPC
 pub struct AtomicASForIpaPCVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+        + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     _affine: PhantomData<G>,
@@ -54,11 +54,11 @@ where
 
 impl<G, C, S, SV> AtomicASForIpaPCVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+        + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     /// Computes a deterministic IpaPC commitment to a linear polynomial.
@@ -337,11 +337,11 @@ where
 impl<G, C, S, SV> ASVerifierGadget<ConstraintF<G>, S, SV, AtomicASForInnerProductArgPC<G, S>>
     for AtomicASForIpaPCVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+        + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
     type VerifierKey = VerifierKeyVar<G, C>;
@@ -487,11 +487,11 @@ where
 impl<G, C, S, SV> AtomicASVerifierGadget<ConstraintF<G>, S, SV, AtomicASForInnerProductArgPC<G, S>>
     for AtomicASForIpaPCVerifierGadget<G, C, S, SV>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
     C: CurveVar<G::Projective, <G::BaseField as Field>::BasePrimeField>
-        + AbsorbableGadget<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+        + AbsorbGadget<ConstraintF<G>>,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
     SV: CryptographicSpongeVar<ConstraintF<G>, S>,
 {
 }

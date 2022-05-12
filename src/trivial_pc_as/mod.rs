@@ -11,7 +11,7 @@ use ark_poly_commit::{
     trivial_pc, Error as PCError, LabeledCommitment, LabeledPolynomial, PCCommitterKey,
     PolynomialCommitment, PolynomialLabel, UVPolynomial,
 };
-use ark_sponge::{absorb, Absorbable, CryptographicSponge, FieldElementSize};
+use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::format;
 use ark_std::marker::PhantomData;
 use ark_std::ops::{Add, Div, Mul};
@@ -51,7 +51,7 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 /// use ark_ff::Field;
 /// use ark_poly::univariate::DensePolynomial;
 /// use ark_poly_commit::{trivial_pc, LabeledCommitment, LabeledPolynomial};
-/// use ark_sponge::{Absorbable, CryptographicSponge};
+/// use ark_sponge::{Absorb, CryptographicSponge};
 ///
 /// type ConstraintF<G> = <<G as AffineCurve>::BaseField as Field>::BasePrimeField;
 ///
@@ -67,9 +67,9 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 ///     proof: trivial_pc::Proof<G::ScalarField, DensePolynomial<G::ScalarField>>,
 /// ) -> Input<ConstraintF<G>, S, ASForTrivialPC<G, S>>
 ///     where
-///         G: AffineCurve + Absorbable<ConstraintF<G>>,
-///         ConstraintF<G>: Absorbable<ConstraintF<G>>,
-///         S: CryptographicSponge<ConstraintF<G>>,
+///         G: AffineCurve + Absorb,
+///         ConstraintF<G>: Absorb,
+///         S: CryptographicSponge,
 /// {
 ///     let instance = InputInstance {
 ///         commitment: comm,
@@ -84,9 +84,9 @@ pub(self) const CHALLENGE_POINT_SIZE: usize = 184;
 /// ```
 pub struct ASForTrivialPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     _curve: PhantomData<G>,
     _sponge: PhantomData<S>,
@@ -94,9 +94,9 @@ where
 
 impl<G, S> ASForTrivialPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     /// Check that the input instance is properly structured.
     fn check_input_instance_structure(
@@ -265,9 +265,9 @@ where
 
 impl<G, S> AccumulationScheme<ConstraintF<G>, S> for ASForTrivialPC<G, S>
 where
-    G: AffineCurve + Absorbable<ConstraintF<G>>,
-    ConstraintF<G>: Absorbable<ConstraintF<G>>,
-    S: CryptographicSponge<ConstraintF<G>>,
+    G: AffineCurve + Absorb,
+    ConstraintF<G>: Absorb,
+    S: CryptographicSponge,
 {
     type PublicParameters = ();
     type PredicateParams = trivial_pc::UniversalParams<G>;
@@ -318,7 +318,8 @@ where
         Self: 'a,
         S: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         let mut inputs = inputs.into_iter().collect::<Vec<_>>();
         let accumulators = old_accumulators.into_iter().collect::<Vec<_>>();
@@ -478,7 +479,8 @@ where
     where
         Self: 'a,
     {
-        let sponge = sponge.unwrap_or_else(|| S::new());
+        assert!(!sponge.is_none());
+        let sponge = sponge.unwrap();
 
         // Collect the input and run basic checks on them.
         let all_input_instances = input_instances
@@ -648,7 +650,7 @@ pub mod tests {
         trivial_pc, LabeledPolynomial, PCCommitterKey, PolynomialCommitment, UVPolynomial,
     };
     use ark_sponge::poseidon::PoseidonSponge;
-    use ark_sponge::{Absorbable, CryptographicSponge};
+    use ark_sponge::{Absorb, CryptographicSponge};
     use ark_std::rand::RngCore;
     use ark_std::vec::Vec;
     use ark_std::UniformRand;
@@ -667,9 +669,9 @@ pub mod tests {
 
     impl<G, S> ASTestInput<ConstraintF<G>, S, ASForTrivialPC<G, S>> for ASForTrivialPCTestInput
     where
-        G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorbable<ConstraintF<G>>,
-        ConstraintF<G>: Absorbable<ConstraintF<G>>,
-        S: CryptographicSponge<ConstraintF<G>>,
+        G: AffineCurve + ToConstraintField<ConstraintF<G>> + Absorb,
+        ConstraintF<G>: Absorb,
+        S: CryptographicSponge,
     {
         type TestParams = ASForTrivialPCTestParams;
         type InputParams = trivial_pc::CommitterKey<G>;

@@ -466,6 +466,8 @@ fn inner_prod<F: Field>(row: &[(F, usize)], input: &[F], witness: &[F]) -> F {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use crate::tests::poseidon_parameters_for_test;
+
     use super::*;
     use ark_ff::{PrimeField, UniformRand};
     use ark_pallas::{Affine, Fq, Fr};
@@ -533,12 +535,13 @@ pub(crate) mod test {
 
         let start = ark_std::time::Instant::now();
 
+        let sponge_param = poseidon_parameters_for_test::<Fq>();
         for i in 0..NUM_ITERS {
             let proof = R1CSNark::<Affine, PoseidonSponge<Fq>>::prove(
                 &ipk,
                 c.clone(),
                 i % 2 == 1,
-                Some(PoseidonSponge::<Fq>::new()),
+                Some(PoseidonSponge::<Fq>::new(&sponge_param)),
                 Some(rng),
             )
             .unwrap();
@@ -547,7 +550,7 @@ pub(crate) mod test {
                 &ivk,
                 &r1cs_input,
                 &proof,
-                Some(PoseidonSponge::<Fq>::new()),
+                Some(PoseidonSponge::<Fq>::new(&sponge_param)),
             ))
         }
 

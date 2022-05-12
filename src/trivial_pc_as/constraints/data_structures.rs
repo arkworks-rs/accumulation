@@ -9,8 +9,8 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use ark_sponge::constraints::AbsorbableGadget;
-use ark_sponge::{collect_sponge_field_elements_gadget, Absorbable};
+use ark_sponge::constraints::AbsorbGadget;
+use ark_sponge::{collect_sponge_field_elements_gadget, Absorb};
 use ark_std::borrow::Borrow;
 use ark_std::marker::PhantomData;
 use ark_std::vec::Vec;
@@ -32,15 +32,9 @@ where
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         f().and_then(|vk| {
-            let vk = FpVar::<CF>::new_variable(
-                ns.clone(),
-                || {
-                    Ok(Absorbable::<CF>::to_sponge_field_elements(vk.borrow())
-                        .pop()
-                        .unwrap())
-                },
-                mode,
-            )?;
+            let vk_sponge = Vec::<CF>::new();
+            vk.borrow().to_sponge_field_elements(&mut vk_sponge);
+            let vk = FpVar::<CF>::new_variable(ns.clone(), || Ok(vk_sponge.pop().unwrap()), mode)?;
             Ok(VerifierKeyVar(vk))
         })
     }
@@ -103,10 +97,10 @@ where
     }
 }
 
-impl<G, C> AbsorbableGadget<ConstraintF<G>> for InputInstanceVar<G, C>
+impl<G, C> AbsorbGadget<ConstraintF<G>> for InputInstanceVar<G, C>
 where
     G: AffineCurve,
-    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbableGadget<ConstraintF<G>>,
+    C: CurveVar<G::Projective, ConstraintF<G>> + AbsorbGadget<ConstraintF<G>>,
 {
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<ConstraintF<G>>>, SynthesisError> {
         collect_sponge_field_elements_gadget!(

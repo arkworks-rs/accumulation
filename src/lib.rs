@@ -93,6 +93,7 @@ pub mod trivial_pc_as;
 /// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
 /// # Example
+/////////////////////////////////////// TODO : Fix Example //////////////////////////////
 /// ```
 /// // This example only serves to demonstrate the general flow of the trait.
 ///
@@ -265,9 +266,11 @@ pub mod tests {
     use crate::data_structures::{Accumulator, Input};
     use crate::{AccumulationScheme, MakeZK};
     use ark_ff::PrimeField;
+    use ark_sponge::poseidon::PoseidonParameters;
     use ark_sponge::CryptographicSponge;
     use ark_std::marker::PhantomData;
     use ark_std::rand::RngCore;
+    use ark_std::test_rng;
     use ark_std::vec::Vec;
 
     pub const NUM_ITERATIONS: usize = 50;
@@ -297,6 +300,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             rng: &mut impl RngCore,
+            sponge: S,
         ) -> Vec<Input<CF, S, A>>;
     }
 
@@ -333,6 +337,7 @@ pub mod tests {
         pub fn test_template(
             template_params: &TemplateParams,
             test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
         ) -> Result<bool, AS::Error> {
             assert!(template_params.num_iterations > 0);
 
@@ -346,7 +351,12 @@ pub mod tests {
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
             let (pk, vk, dk) = AS::index(&public_params, &predicate_params, &predicate_index)?;
 
-            let inputs = I::generate_inputs(&input_params, total_num_inputs, &mut rng);
+            let inputs = I::generate_inputs(
+                &input_params,
+                total_num_inputs,
+                &mut rng,
+                S::new(sponge_params),
+            );
             assert_eq!(total_num_inputs, inputs.len());
 
             let mut inputs_start = 0;
@@ -365,7 +375,7 @@ pub mod tests {
                         } else {
                             MakeZK::Disabled
                         },
-                        None::<S>,
+                        Some(S::new(sponge_params)),
                     )?;
 
                     if !AS::verify(
@@ -374,7 +384,7 @@ pub mod tests {
                         Accumulator::<CF, S, AS>::instances(&old_accumulators),
                         &accumulator.instance,
                         &proof,
-                        None::<S>,
+                        Some(S::new(sponge_params)),
                     )? {
                         println!("{}", format!("Verify failed"));
                         return Ok(false);
@@ -384,7 +394,11 @@ pub mod tests {
                 }
 
                 assert!(old_accumulators.len() > 0);
-                if !AS::decide(&dk, old_accumulators.last().unwrap().as_ref(), None::<S>)? {
+                if !AS::decide(
+                    &dk,
+                    old_accumulators.last().unwrap().as_ref(),
+                    Some(S::new(sponge_params)),
+                )? {
                     println!("Decide failed");
                     return Ok(false);
                 }
@@ -394,67 +408,136 @@ pub mod tests {
         }
 
         /// Tests the initialization of the first accumulator using one input.
-        pub fn single_input_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
+        pub fn single_input_init_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+        ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
 
         /// Tests the initialization of the first accumulator using multiple inputs.
-        pub fn multiple_inputs_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
+        pub fn multiple_inputs_init_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+        ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![3],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of one input and one accumulator.
-        pub fn simple_accumulation_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
+        pub fn simple_accumulation_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+        ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 1],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of multiple inputs and multiple accumulators.
         pub fn multiple_inputs_accumulation_test(
             test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
         ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 1, 2, 3],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of multiple accumulators without any inputs.
-        pub fn accumulators_only_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
+        pub fn accumulators_only_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+        ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 0, 0, 0],
             };
 
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
 
         /// Tests the initialization of the first accumulator without any inputs.
-        pub fn no_inputs_init_test(test_params: &I::TestParams) -> Result<(), AS::Error> {
+        pub fn no_inputs_init_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+        ) -> Result<(), AS::Error> {
             let template_params = TemplateParams {
                 num_iterations: 1,
                 num_inputs_per_iteration: vec![0],
             };
 
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params
+            )?);
             Ok(())
         }
+    }
+
+    /// Generate default parameters for alpha = 17, state-size = 8
+    ///
+    /// WARNING: This poseidon parameter is not secure. Please generate
+    /// your own parameters according the field you use.
+    pub(crate) fn poseidon_parameters_for_test<F: PrimeField>() -> PoseidonParameters<F> {
+        let full_rounds = 8;
+        let partial_rounds = 31;
+        let alpha = 17;
+
+        let mds = vec![
+            vec![F::one(), F::zero(), F::one()],
+            vec![F::one(), F::one(), F::zero()],
+            vec![F::zero(), F::one(), F::one()],
+        ];
+
+        let mut ark = Vec::new();
+        let mut ark_rng = test_rng();
+
+        for _ in 0..(full_rounds + partial_rounds) {
+            let mut res = Vec::new();
+
+            for _ in 0..3 {
+                res.push(F::rand(&mut ark_rng));
+            }
+            ark.push(res);
+        }
+        PoseidonParameters::new(full_rounds, partial_rounds, alpha, mds, ark)
     }
 }

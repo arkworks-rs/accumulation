@@ -107,6 +107,8 @@ pub mod tests {
         pub fn test_template(
             template_params: &TemplateParams,
             test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
         ) -> Result<bool, SynthesisError> {
             assert!(template_params.num_iterations > 0);
 
@@ -125,7 +127,12 @@ pub mod tests {
                 .unwrap();
             let vk_var = ASV::VerifierKey::new_constant(cs.clone(), vk.clone())?;
 
-            let inputs = I::generate_inputs(&input_params, total_num_inputs, &mut rng);
+            let inputs = I::generate_inputs(
+                &input_params,
+                total_num_inputs,
+                &mut rng,
+                S::new(sponge_params),
+            );
             assert_eq!(total_num_inputs, inputs.len());
 
             let input_instance_vars = inputs
@@ -157,7 +164,7 @@ pub mod tests {
                         } else {
                             MakeZK::Disabled
                         },
-                        None::<S>,
+                        Some(S::new(sponge_params)),
                     )
                     .ok()
                     .unwrap();
@@ -182,7 +189,7 @@ pub mod tests {
                         &old_accumulator_instance_vars,
                         &accumulator_instance_var,
                         &proof_var,
-                        None::<SV>,
+                        Some(SV::new(cs, spongevar_params)),
                     )
                     .unwrap()
                     .enforce_equal(&Boolean::TRUE)
@@ -203,14 +210,18 @@ pub mod tests {
             Ok(true)
         }
 
-        pub fn print_costs_breakdown(test_params: &I::TestParams) {
+        pub fn print_costs_breakdown(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
+        ) {
             let mut rng = ark_std::test_rng();
 
             let (input_params, predicate_params, predicate_index) = I::setup(test_params, &mut rng);
             let pp = AS::setup(&mut rng).unwrap();
             let (pk, vk, _) = AS::index(&pp, &predicate_params, &predicate_index).unwrap();
 
-            let mut inputs = I::generate_inputs(&input_params, 2, &mut rng);
+            let mut inputs = I::generate_inputs(&input_params, 2, &mut rng, S::new(sponge_params));
 
             let old_input = inputs.pop().unwrap();
             let new_input = inputs.pop().unwrap();
@@ -224,7 +235,7 @@ pub mod tests {
                 } else {
                     MakeZK::Disabled
                 },
-                None::<S>,
+                Some(S::new(sponge_params)),
             )
             .unwrap();
 
@@ -237,7 +248,7 @@ pub mod tests {
                 } else {
                     MakeZK::Disabled
                 },
-                None::<S>,
+                Some(S::new(sponge_params)),
             )
             .unwrap();
 
@@ -291,7 +302,7 @@ pub mod tests {
                 vec![&old_accumulator_instance_var],
                 &new_accumulator_instance_var,
                 &proof_var,
-                None::<SV>,
+                Some(SV::new(cs, spongevar_params)),
             )
             .unwrap()
             .enforce_equal(&Boolean::TRUE)
@@ -306,69 +317,119 @@ pub mod tests {
         }
 
         /// Tests the initialization of the first accumulator using one input.
-        pub fn single_input_init_test(test_params: &I::TestParams) -> Result<(), SynthesisError> {
+        pub fn single_input_init_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
+        ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params
+            )?);
             Ok(())
         }
 
         /// Tests the initialization of the first accumulator using multiple inputs.
         pub fn multiple_inputs_init_test(
             test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
         ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![3],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params,
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of one input and one accumulator.
-        pub fn simple_accumulation_test(test_params: &I::TestParams) -> Result<(), SynthesisError> {
+        pub fn simple_accumulation_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
+        ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 1],
             };
-            Self::print_costs_breakdown(test_params);
-            assert!(Self::test_template(&template_params, test_params)?);
+            Self::print_costs_breakdown(test_params, sponge_params, spongevar_params);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params,
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of multiple inputs and multiple accumulators.
         pub fn multiple_inputs_accumulation_test(
             test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
         ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 1, 2, 3],
             };
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params,
+            )?);
             Ok(())
         }
 
         /// Tests the accumulation of multiple accumulators without any inputs.
-        pub fn accumulators_only_test(test_params: &I::TestParams) -> Result<(), SynthesisError> {
+        pub fn accumulators_only_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
+        ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: NUM_ITERATIONS,
                 num_inputs_per_iteration: vec![1, 0, 0, 0],
             };
 
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params,
+            )?);
             Ok(())
         }
 
         /// Tests the initialization of the first accumulator without any inputs.
-        pub fn no_inputs_init_test(test_params: &I::TestParams) -> Result<(), SynthesisError> {
+        pub fn no_inputs_init_test(
+            test_params: &I::TestParams,
+            sponge_params: &S::Parameters,
+            spongevar_params: &SV::Parameters,
+        ) -> Result<(), SynthesisError> {
             let template_params = TemplateParams {
                 num_iterations: 1,
                 num_inputs_per_iteration: vec![0],
             };
 
-            assert!(Self::test_template(&template_params, test_params)?);
+            assert!(Self::test_template(
+                &template_params,
+                test_params,
+                sponge_params,
+                spongevar_params,
+            )?);
             Ok(())
         }
     }

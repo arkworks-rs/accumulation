@@ -545,6 +545,7 @@ pub mod tests {
     use crate::r1cs_nark_as::constraints::ASForR1CSNarkVerifierGadget;
     use crate::r1cs_nark_as::tests::{ASForR1CSNarkTestInput, ASForR1CSNarkTestParams};
     use crate::r1cs_nark_as::ASForR1CSNark;
+    use crate::tests::poseidon_parameters_for_test;
     use ark_relations::r1cs::SynthesisError;
     use ark_sponge::poseidon::constraints::PoseidonSpongeVar;
     use ark_sponge::poseidon::PoseidonSponge;
@@ -564,109 +565,157 @@ pub mod tests {
 
     #[test]
     pub fn single_input_init_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::single_input_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::single_input_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn single_input_init_test_zk() -> Result<(), SynthesisError> {
-        Tests::single_input_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::single_input_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn multiple_inputs_init_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::multiple_inputs_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::multiple_inputs_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn multiple_input_init_test_zk() -> Result<(), SynthesisError> {
-        Tests::multiple_inputs_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::multiple_inputs_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn simple_accumulation_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::simple_accumulation_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::simple_accumulation_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn simple_accumulation_test_zk() -> Result<(), SynthesisError> {
-        Tests::simple_accumulation_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::simple_accumulation_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn multiple_inputs_accumulation_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::multiple_inputs_accumulation_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::multiple_inputs_accumulation_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn multiple_inputs_accumulation_test_zk() -> Result<(), SynthesisError> {
-        Tests::multiple_inputs_accumulation_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::multiple_inputs_accumulation_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn accumulators_only_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::accumulators_only_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::accumulators_only_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn accumulators_only_test_zk() -> Result<(), SynthesisError> {
-        Tests::accumulators_only_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::accumulators_only_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn no_inputs_init_test_no_zk() -> Result<(), SynthesisError> {
-        Tests::no_inputs_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: false,
-        })
+        Tests::no_inputs_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: false,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 
     #[test]
     pub fn no_inputs_init_test_zk() -> Result<(), SynthesisError> {
-        Tests::no_inputs_init_test(&ASForR1CSNarkTestParams {
-            num_inputs: 5,
-            num_constraints: 10,
-            make_zk: true,
-        })
+        Tests::no_inputs_init_test(
+            &ASForR1CSNarkTestParams {
+                num_inputs: 5,
+                num_constraints: 10,
+                make_zk: true,
+            },
+            &poseidon_parameters_for_test::<CF>(),
+            &poseidon_parameters_for_test::<CF>(),
+        )
     }
 }
