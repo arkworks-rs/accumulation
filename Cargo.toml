@@ -60,6 +60,8 @@ std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-
 
 # Accumulation scheme implementations
 impl = []
+# Temp feature to prevent example building
+example = []
 trivial-pc = [ "impl", "ark-poly" ]
 hp-as = [ "impl", "ark-poly", "trivial-pc" ]
 ipa-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
@@ -76,7 +78,7 @@ required-features = [ "hp-as", "ipa-pc-as", "r1cs-nark-as", "trivial-pc-as" ]
 
 [[example]]
 name = "scaling-nark"
-required-features = [ "hp-as", "r1cs-nark-as" ]
+required-features = [ "hp-as", "r1cs-nark-as", "example" ]
 
 [[example]]
 name = "scaling-pc"

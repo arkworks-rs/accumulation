@@ -189,7 +189,7 @@ pub mod tests {
                         &old_accumulator_instance_vars,
                         &accumulator_instance_var,
                         &proof_var,
-                        Some(SV::new(cs, spongevar_params)),
+                        Some(SV::new(cs.clone(), spongevar_params)),
                     )
                     .unwrap()
                     .enforce_equal(&Boolean::TRUE)
@@ -302,7 +302,7 @@ pub mod tests {
                 vec![&old_accumulator_instance_var],
                 &new_accumulator_instance_var,
                 &proof_var,
-                Some(SV::new(cs, spongevar_params)),
+                Some(SV::new(cs.clone(), spongevar_params)),
             )
             .unwrap()
             .enforce_equal(&Boolean::TRUE)
