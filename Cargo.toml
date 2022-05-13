@@ -60,10 +60,11 @@ std = [ "ark-crypto-primitives/std", "ark-ec/std", "ark-ff/std", "ark-nonnative-
 
 # Accumulation scheme implementations
 impl = []
-hp-as = [ "impl", "ark-poly" ]
+trivial-pc = [ "impl", "ark-poly" ]
+hp-as = [ "impl", "ark-poly", "trivial-pc" ]
 ipa-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
-r1cs-nark-as = [ "impl", "blake2", "digest", "hp-as", "r1cs" ]
-trivial-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2" ]
+r1cs-nark-as = [ "impl", "blake2", "digest", "hp-as", "r1cs", "trivial-pc" ]
+trivial-pc-as = [ "impl", "ark-poly", "ark-poly-commit", "blake2", "trivial-pc" ]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -4,10 +4,10 @@ use crate::error::{ASError, BoxedError};
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
 
+use crate::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{One, PrimeField, Zero};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
 use ark_poly_commit::UVPolynomial;
 use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
@@ -938,10 +938,10 @@ pub mod tests {
     use crate::hp_as::data_structures::{InputInstance, InputWitness, InputWitnessRandomness};
     use crate::hp_as::ASForHadamardProducts;
     use crate::tests::*;
+    use crate::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use crate::AccumulationScheme;
     use crate::ConstraintF;
     use ark_ec::AffineCurve;
-    use ark_poly_commit::trivial_pc::{CommitterKey as PedersenCommitmentCK, PedersenCommitment};
     use ark_sponge::poseidon::PoseidonSponge;
     use ark_sponge::{Absorb, CryptographicSponge};
     use ark_std::rand::RngCore;
@@ -988,7 +988,7 @@ pub mod tests {
             input_params: &Self::InputParams,
             num_inputs: usize,
             _rng: &mut impl RngCore,
-            sponge: S,
+            _sponge: S,
         ) -> Vec<Input<ConstraintF<G>, S, ASForHadamardProducts<G, S>>> {
             let mut rng = test_rng();
             let vector_len = input_params.0.supported_num_elems();

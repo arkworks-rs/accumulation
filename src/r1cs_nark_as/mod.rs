@@ -13,10 +13,10 @@ use crate::r1cs_nark_as::r1cs_nark::{
 use crate::ConstraintF;
 use crate::{AccumulationScheme, MakeZK};
 
+use crate::trivial_pc::PedersenCommitment;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::One;
 use ark_ff::UniformRand;
-use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_sponge::{absorb, Absorb, CryptographicSponge, FieldElementSize};
 use ark_std::marker::PhantomData;
 use ark_std::rand::RngCore;

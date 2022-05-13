@@ -1,9 +1,9 @@
 use crate::r1cs_nark_as::CHALLENGE_SIZE;
 use crate::ConstraintF;
 
+use crate::trivial_pc::PedersenCommitment;
 use ark_ec::AffineCurve;
 use ark_ff::{BigInteger, Field, PrimeField, Zero};
-use ark_poly_commit::trivial_pc::PedersenCommitment;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, Matrix, OptimizationGoal, SynthesisError,
     SynthesisMode,

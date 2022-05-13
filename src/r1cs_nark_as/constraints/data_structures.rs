@@ -53,32 +53,30 @@ impl<CF: PrimeField> AllocVar<VerifierKey, CF> for VerifierKeyVar<CF> {
 
             let num_instance_variables = vk.num_instance_variables;
 
-            let hp_as_vk_var =
+            let hp_as_vk =
                 HPVerifierKeyVar::new_variable(ns.clone(), || Ok(vk.num_constraints), mode)?;
 
-            let nark_matrices_hash = Vec::<CF>::new();
-            vk.nark_matrices_hash
+            let nark_matrices_hash = vk
+                .nark_matrices_hash
                 .as_ref()
-                .to_sponge_field_elements::<CF>(&mut nark_matrices_hash);
-            let nark_matrices_hash_var = nark_matrices_hash
+                .to_sponge_field_elements_as_vec::<CF>()
                 .into_iter()
                 .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
-            let as_matrices_hash = Vec::<CF>::new();
-            vk.as_matrices_hash
+            let as_matrices_hash = vk
+                .as_matrices_hash
                 .as_ref()
-                .to_sponge_field_elements::<CF>(&mut as_matrices_hash);
-            let as_matrices_hash_var = as_matrices_hash
+                .to_sponge_field_elements_as_vec::<CF>()
                 .into_iter()
                 .map(|f: CF| FpVar::new_variable(ns.clone(), || Ok(f), mode))
                 .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             Ok(Self {
-                num_instance_variables: num_instance_variables,
-                hp_as_vk: hp_as_vk_var,
-                nark_matrices_hash: nark_matrices_hash_var,
-                as_matrices_hash: as_matrices_hash_var,
+                num_instance_variables,
+                hp_as_vk,
+                nark_matrices_hash,
+                as_matrices_hash,
             })
         })
     }

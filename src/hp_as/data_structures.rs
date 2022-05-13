@@ -34,11 +34,13 @@ impl<G: AffineCurve> InputInstance<G> {
 
 impl<G: AffineCurve + Absorb> Absorb for InputInstance<G> {
     fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
-        dest = &mut collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
+        let tmp = collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
+        dest.extend(tmp);
     }
 
     fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
-        dest = &mut collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
+        let tmp: Vec<CF> = collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
+        dest.extend(tmp);
     }
 }
 
@@ -111,11 +113,13 @@ pub(crate) struct ProductPolynomialCommitment<G: AffineCurve> {
 
 impl<G: AffineCurve + Absorb> Absorb for ProductPolynomialCommitment<G> {
     fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
-        dest = &mut collect_sponge_bytes!(self.low, self.high);
+        let tmp = collect_sponge_bytes!(self.low, self.high);
+        dest.extend(tmp);
     }
 
     fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
-        dest = &mut collect_sponge_field_elements!(self.low, self.high);
+        let tmp: Vec<CF> = collect_sponge_field_elements!(self.low, self.high);
+        dest.extend(tmp);
     }
 }
 
@@ -137,10 +141,12 @@ pub(crate) struct ProofHidingCommitments<G: AffineCurve> {
 
 impl<G: AffineCurve + Absorb> Absorb for ProofHidingCommitments<G> {
     fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
-        dest = &mut collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
+        let tmp = collect_sponge_bytes!(self.comm_1, self.comm_2, self.comm_3);
+        dest.extend(tmp);
     }
 
     fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
-        dest = &mut collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
+        let tmp: Vec<CF> = collect_sponge_field_elements!(self.comm_1, self.comm_2, self.comm_3);
+        dest.extend(tmp);
     }
 }

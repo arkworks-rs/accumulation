@@ -1,6 +1,6 @@
+use crate::trivial_pc::CommitterKey;
 use ark_ec::AffineCurve;
 use ark_ff::{Field, PrimeField};
-use ark_poly_commit::trivial_pc::CommitterKey;
 use ark_relations::r1cs::Matrix;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_sponge::{collect_sponge_bytes, collect_sponge_field_elements, Absorb};
@@ -71,23 +71,25 @@ pub struct FirstRoundMessageRandomness<G: AffineCurve> {
 
 impl<G: AffineCurve + Absorb> Absorb for FirstRoundMessageRandomness<G> {
     fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
-        dest = &mut collect_sponge_bytes!(
+        let tmp = collect_sponge_bytes!(
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
             self.comm_1,
             self.comm_2
         );
+        dest.extend(tmp);
     }
 
     fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
-        dest = &mut collect_sponge_field_elements!(
+        let tmp: Vec<CF> = collect_sponge_field_elements!(
             self.comm_r_a,
             self.comm_r_b,
             self.comm_r_c,
             self.comm_1,
             self.comm_2
         );
+        dest.extend(tmp);
     }
 }
 
@@ -130,16 +132,14 @@ impl<G: AffineCurve> FirstRoundMessage<G> {
 
 impl<G: AffineCurve + Absorb> Absorb for FirstRoundMessage<G> {
     fn to_sponge_bytes(&self, dest: &mut Vec<u8>) {
-        dest = &mut collect_sponge_bytes!(self.comm_a, self.comm_b, self.comm_c, self.randomness);
+        let tmp = collect_sponge_bytes!(self.comm_a, self.comm_b, self.comm_c, self.randomness);
+        dest.extend(tmp);
     }
 
     fn to_sponge_field_elements<CF: PrimeField>(&self, dest: &mut Vec<CF>) {
-        dest = &mut collect_sponge_field_elements!(
-            self.comm_a,
-            self.comm_b,
-            self.comm_c,
-            self.randomness
-        );
+        let tmp: Vec<CF> =
+            collect_sponge_field_elements!(self.comm_a, self.comm_b, self.comm_c, self.randomness);
+        dest.extend(tmp);
     }
 }
 

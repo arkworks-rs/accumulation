@@ -56,6 +56,13 @@ pub mod constraints;
 #[cfg_attr(docsrs, doc(cfg(feature = "hp-as")))]
 pub mod hp_as;
 
+/// A trivial polynomial commitment scheme from [[BCLMS20]][bclms].
+///
+/// [bclms]: https://eprint.iacr.org/2020/1618
+#[cfg(feature = "trivial-pc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "trivial-pc")))]
+pub mod trivial_pc;
+
 /// An accumulation scheme based on the hardness of the discrete log problem.
 /// The construction is described in detail in [\[BCMS20\]][\[BCMS20\]].
 ///
@@ -93,7 +100,6 @@ pub mod trivial_pc_as;
 /// [bclms20]: https://eprint.iacr.org/2020/1618
 ///
 /// # Example
-/////////////////////////////////////// TODO : Fix Example //////////////////////////////
 /// ```
 /// // This example only serves to demonstrate the general flow of the trait.
 ///
@@ -134,6 +140,7 @@ pub mod trivial_pc_as;
 ///     new_inputs: &Vec<Input<CF, S, AS>>,
 ///     old_accumulators: &mut Vec<Accumulator<CF, S, AS>>,
 ///     rng: &mut R,
+///     sponge_params: S::Parameters,
 /// ) -> Result<(), AS::Error> {
 ///     // If there is a new input, then...
 ///
@@ -143,7 +150,7 @@ pub mod trivial_pc_as;
 ///         Input::<CF, S, AS>::map_to_refs(new_inputs),
 ///         Accumulator::<CF, S, AS>::map_to_refs(&*old_accumulators),
 ///         MakeZK::Enabled(rng),
-///         None::<S>,
+///         Some(S::new(sponge_params)),
 ///     )?;
 ///
 ///     // After the accumulation, the verifier may run:
@@ -153,11 +160,11 @@ pub mod trivial_pc_as;
 ///         Accumulator::<CF, S, AS>::instances(&*old_accumulators),
 ///         &accumulator.instance,
 ///         &proof,
-///         None::<S>,
+///         Some(S::new(sponge_params)),
 ///     )?;
 ///
 ///     // At any point, the decider may run:
-///     let decide_result = AS::decide(&decider_key, accumulator.as_ref(), None::<S>)?;
+///     let decide_result = AS::decide(&decider_key, accumulator.as_ref(), Some(S::new(sponge_params)))?;
 ///
 /// #   unimplemented!()
 /// }
