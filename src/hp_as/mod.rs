@@ -876,9 +876,18 @@ where
         let mu_challenges =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk);
 
+        for i in 0..mu_challenges.len() {
+            println!("mu challenges {:?} {:?}", i, &mu_challenges[i]);
+        }
+
         challenges_sponge.absorb(&proof.product_poly_comm);
 
         let nu_challenges = Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs);
+
+        for i in 0..nu_challenges.len() {
+            println!("nu challenges {:?} {:?}", i, &nu_challenges[i]);
+        }
+        println!("num_all_inputs: {:?}", num_all_inputs);
 
         let mut combined_challenges = Vec::with_capacity(num_all_inputs);
         for (mu, nu) in mu_challenges.iter().zip(&nu_challenges) {

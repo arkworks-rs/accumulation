@@ -8,7 +8,7 @@ use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::groups::CurveVar;
-use ark_r1cs_std::ToBitsGadget;
+use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_sponge::constraints::AbsorbGadget;
 use ark_sponge::constraints::{bits_le_to_nonnative, CryptographicSpongeVar};
@@ -73,14 +73,15 @@ where
         make_zk: bool,
     ) -> Result<Vec<Vec<Boolean<ConstraintF<G>>>>, SynthesisError> {
         let mut mu_challenges_bits = Vec::with_capacity(num_inputs);
-        mu_challenges_bits.push(vec![Boolean::TRUE]);
+        mu_challenges_bits.push(vec![Boolean::<ConstraintF<G>>::TRUE]);
 
         if num_inputs > 1 {
-            let mu_challenges_bits_rest = sponge.squeeze_bits(CHALLENGE_SIZE * (num_inputs - 1))?;
-            mu_challenges_bits_rest
-                .chunks(CHALLENGE_SIZE)
-                .into_iter()
-                .for_each(|bits| mu_challenges_bits.push(bits.to_vec()));
+            let mu_size = FieldElementSize::Truncated(CHALLENGE_SIZE);
+            let (_, mu_challenge_bits_rem) = sponge
+                .squeeze_nonnative_field_elements_with_sizes::<G::ScalarField>(
+                    vec![mu_size; num_inputs - 1].as_slice(),
+                )?;
+            mu_challenges_bits.extend(mu_challenge_bits_rem);
         }
 
         if make_zk {
@@ -343,10 +344,30 @@ where
         let mu_challenges_bits =
             Self::squeeze_mu_challenges(&mut challenges_sponge, num_all_inputs, make_zk)?;
 
+        let mu_challenges_var: Vec<NonNativeFieldVar<G::ScalarField, _>> =
+            bits_le_to_nonnative(cs.clone(), &mu_challenges_bits).unwrap();
+        for i in 0..mu_challenges_var.len() {
+            println!(
+                "mu challenges var {:?} {:?}",
+                i,
+                &mu_challenges_var[i].value()
+            );
+        }
+
         challenges_sponge.absorb(&proof.product_poly_comm)?;
 
         let nu_challenges_bits =
             Self::squeeze_nu_challenges(&mut challenges_sponge, num_all_inputs)?;
+
+        let nu_challenges_var: Vec<NonNativeFieldVar<G::ScalarField, _>> =
+            bits_le_to_nonnative(cs.clone(), &nu_challenges_bits).unwrap();
+        for i in 0..nu_challenges_var.len() {
+            println!(
+                "nu challenges var {:?} {:?}",
+                i,
+                &nu_challenges_var[i].value()
+            );
+        }
 
         // Steps 2-4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(
