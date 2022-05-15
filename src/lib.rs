@@ -280,7 +280,7 @@ pub mod tests {
     use ark_std::test_rng;
     use ark_std::vec::Vec;
 
-    pub const NUM_ITERATIONS: usize = 50;
+    pub const NUM_ITERATIONS: usize = 5;
 
     pub trait TestParameters {
         fn make_zk(&self) -> bool;

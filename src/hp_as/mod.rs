@@ -422,17 +422,30 @@ where
                 .comm_1
                 .mul::<G::ScalarField>(mu_challenges[num_inputs])
         });
+        // println!(
+        //     "proof.hiding_comms.comm_1: {:?}",
+        //     proof.hiding_comms.as_ref().unwrap().comm_1
+        // );
+        // println!(
+        //     "hiding_comm_addend_1: {:?}",
+        //     hiding_comm_addend_1.unwrap().into_affine()
+        // );
 
         let combined_comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
             combined_challenges,
             hiding_comm_addend_1.as_ref(),
         );
+        println!("comm_1: {:?}", combined_comm_1.into_affine());
 
         let hiding_comm_addend_2 = proof
             .hiding_comms
             .as_ref()
             .map(|hiding_comms| hiding_comms.comm_2.mul::<G::ScalarField>(mu_challenges[1]));
+        // println!(
+        //     "hiding_comm_addend_2: {:?}",
+        //     hiding_comm_addend_2.unwrap().into_affine()
+        // );
 
         let combined_comm_2 = Self::combine_commitments(
             input_instances
@@ -442,6 +455,7 @@ where
             nu_challenges,
             hiding_comm_addend_2.as_ref(),
         );
+        println!("comm_2: {:?}", combined_comm_2.into_affine());
 
         let combined_comm_3 = {
             let product_poly_comm_low_addend =
@@ -458,6 +472,10 @@ where
                     .comm_3
                     .mul::<G::ScalarField>(mu_challenges[num_inputs])
             });
+            // println!(
+            //     "hiding_comm_addend_3: {:?}",
+            //     hiding_comm_addend_3.unwrap().into_affine()
+            // );
 
             let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
@@ -468,6 +486,7 @@ where
 
             product_poly_comm_low_addend + &product_poly_comm_high_addend + &comm_3_addend
         };
+        println!("comm_3: {:?}", combined_comm_3.into_affine());
 
         let mut combined_comms = G::Projective::batch_normalization_into_affine(&[
             combined_comm_3,

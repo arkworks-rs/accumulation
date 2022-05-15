@@ -68,10 +68,11 @@ pub mod tests {
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::bits::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
-    use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
+    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, SynthesisError, TracingMode};
     use ark_sponge::constraints::CryptographicSpongeVar;
     use ark_sponge::CryptographicSponge;
     use ark_std::marker::PhantomData;
+    use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 
     pub const NUM_ITERATIONS: usize = 1;
 
@@ -110,6 +111,12 @@ pub mod tests {
             sponge_params: &S::Parameters,
             spongevar_params: &SV::Parameters,
         ) -> Result<bool, SynthesisError> {
+            // First, some boilerplat that helps with debugging
+            let mut layer = ConstraintLayer::default();
+            layer.mode = TracingMode::OnlyConstraints;
+            let subscriber = tracing_subscriber::Registry::default().with(layer);
+            tracing::subscriber::set_global_default(subscriber).unwrap();
+
             assert!(template_params.num_iterations > 0);
 
             let num_inputs_per_iteration = &template_params.num_inputs_per_iteration;
@@ -169,6 +176,20 @@ pub mod tests {
                     .ok()
                     .unwrap();
 
+                    if !AS::verify(
+                        &vk,
+                        Input::<CF, S, AS>::instances(inputs),
+                        Accumulator::<CF, S, AS>::instances(&old_accumulators),
+                        &accumulator.instance,
+                        &proof,
+                        Some(S::new(sponge_params)),
+                    )
+                    .unwrap()
+                    {
+                        println!("{}", format!("Verify failed"));
+                        return Ok(false);
+                    }
+
                     let accumulator_instance_var =
                         ASV::AccumulatorInstance::new_input(cs.clone(), || {
                             Ok(accumulator.instance.clone())
@@ -195,7 +216,14 @@ pub mod tests {
                     .enforce_equal(&Boolean::TRUE)
                     .unwrap();
 
-                    assert!(cs.is_satisfied().unwrap(), "Verify failed.");
+                    if !cs.is_satisfied().unwrap() {
+                        println!("=========================================================");
+                        println!("Unsatisfied constraints:");
+                        println!("{}", cs.which_is_unsatisfied().unwrap().unwrap());
+                        println!("=========================================================");
+                    }
+
+                    assert!(cs.is_satisfied().unwrap(), "Verify Gadget failed.");
 
                     old_accumulator_instance_vars.push(
                         ASV::AccumulatorInstance::new_witness(cs.clone(), || {

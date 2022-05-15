@@ -3,7 +3,7 @@ use crate::hp_as::data_structures::InputInstance;
 use crate::hp_as::{ASForHadamardProducts, CHALLENGE_SIZE};
 use crate::ConstraintF;
 
-use ark_ec::AffineCurve;
+use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::bits::boolean::Boolean;
@@ -182,6 +182,26 @@ where
                     .scalar_mul_le(mu_challenges[num_inputs].iter())
             })
             .transpose()?;
+        // println!(
+        //     "proof.hiding_comms.comm_1 var: {:?}",
+        //     proof
+        //         .hiding_comms
+        //         .as_ref()
+        //         .unwrap()
+        //         .comm_1
+        //         .value()
+        //         .unwrap()
+        //         .into_affine()
+        // );
+        // println!(
+        //     "hiding_comm_addend_1 var: {:?}",
+        //     hiding_comm_addend_1
+        //         .as_ref()
+        //         .unwrap()
+        //         .value()
+        //         .unwrap()
+        //         .into_affine()
+        // );
 
         let comm_1 = Self::combine_commitments(
             input_instances.iter().map(|instance| &instance.comm_1),
@@ -189,12 +209,22 @@ where
             Some(nu_challenges),
             hiding_comm_addend_1.as_ref(),
         )?;
+        println!("comm_1 var: {:?}", comm_1.value().unwrap().into_affine());
 
         let hiding_comm_addend_2 = proof
             .hiding_comms
             .as_ref()
             .map(|hiding_comms| hiding_comms.comm_2.scalar_mul_le(mu_challenges[1].iter()))
             .transpose()?;
+        // println!(
+        //     "hiding_comm_addend_2 var: {:?}",
+        //     hiding_comm_addend_2
+        //         .as_ref()
+        //         .unwrap()
+        //         .value()
+        //         .unwrap()
+        //         .into_affine()
+        // );
 
         let comm_2 = Self::combine_commitments(
             input_instances
@@ -205,6 +235,7 @@ where
             None,
             hiding_comm_addend_2.as_ref(),
         )?;
+        println!("comm_2 var: {:?}", comm_2.value().unwrap().into_affine());
 
         let comm_3 = {
             let product_poly_comm_low_addend = Self::combine_commitments(
@@ -231,6 +262,15 @@ where
                         .scalar_mul_le(mu_challenges[num_inputs].iter())
                 })
                 .transpose()?;
+            // println!(
+            //     "hiding_comm_addend_3 var: {:?}",
+            //     hiding_comm_addend_3
+            //         .as_ref()
+            //         .unwrap()
+            //         .value()
+            //         .unwrap()
+            //         .into_affine()
+            // );
 
             let comm_3_addend = Self::combine_commitments(
                 input_instances.iter().map(|instance| &instance.comm_3),
@@ -243,6 +283,7 @@ where
                 + &(product_poly_comm_high_addend + &comm_3_addend)
                     .scalar_mul_le(nu_challenges[num_inputs - 1].iter())?
         };
+        println!("comm_3 var: {:?}", comm_3.value().unwrap().into_affine());
 
         Ok(InputInstanceVar {
             comm_1,
@@ -368,6 +409,7 @@ where
                 &nu_challenges_var[i].value()
             );
         }
+        println!("num_inputs var: {:?}", all_input_instances.len());
 
         // Steps 2-4 of the scheme's accumulation verifier, as detailed in BCLMS20.
         let accumulator_instance = Self::compute_combined_hp_commitments(
@@ -386,6 +428,9 @@ where
         let result3 = accumulator_instance
             .comm_3
             .is_eq(&new_accumulator_instance.comm_3)?;
+        println!("result1: {:?}", result1.value());
+        println!("result2: {:?}", result2.value());
+        println!("result3: {:?}", result3.value());
 
         result1.and(&result2)?.and(&result3)
     }
