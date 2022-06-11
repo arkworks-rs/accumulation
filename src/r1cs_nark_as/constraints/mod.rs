@@ -6,9 +6,9 @@ use crate::r1cs_nark_as::{
 };
 use crate::ConstraintF;
 
-use ark_ec::AffineCurve;
+use ark_ec::{AffineCurve};
 use ark_nonnative_field::NonNativeFieldVar;
-use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::{alloc::AllocVar};
 use ark_r1cs_std::bits::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
