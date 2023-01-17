@@ -30,7 +30,7 @@ tracing = { version = "0.1", default-features = false, features = [ "attributes"
 rayon = { version = "1", optional = true }
 
 # Dependencies for implementations
-ark-poly = { version = "^0.2.0", default-features = false, optional = true }
+ark-poly = { version = "^0.4.0", default-features = false, optional = true }
 ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit", branch = "accumulation-experimental", default-features = false, optional = true }
 blake2 = { version = "0.9.1", default-features = false, optional = true }
 digest = { version = "0.9.0", default-features = false, optional = true }
