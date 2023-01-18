@@ -36,7 +36,7 @@ blake2 = { version = "0.9.1", default-features = false, optional = true }
 digest = { version = "0.9.0", default-features = false, optional = true }
 
 [dev-dependencies]
-ark-pallas = { version = "^0.2.0", features = [ "r1cs", "curve" ] }
+ark-pallas = { version = "^0.4.0", features = [ "r1cs", "curve" ] }
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.2", default-features = false, features = [ "registry" ] }
 
